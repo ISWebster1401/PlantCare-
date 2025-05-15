@@ -1,0 +1,32 @@
+# Database
+pgdbtoolkit==0.1.17
+
+# Redis
+redis==5.2.0
+
+# API
+fastapi==0.115.4
+uvicorn[standard]==0.32.0
+slowapi==0.1.9
+
+# Pydantic
+pydantic>=2.7.0,<3.0.0
+pydantic-settings==2.7.1
+pydantic[email]
+
+# JWT
+python-jose[cryptography]==3.3.0
+PyJWT==2.8.0
+
+# OAuth2 y archivos
+python-multipart==0.0.12
+
+# Password hashing
+bcrypt==4.0.1
+passlib[bcrypt]==1.7.4
+
+# Sendgrid
+sendgrid==6.11.0
+
+# Transbank
+transbank-sdk==4.0.0
