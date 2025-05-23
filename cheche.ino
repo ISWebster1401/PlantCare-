@@ -5,7 +5,7 @@
 #include <ArduinoJson.h>
 
 const char* ssidWifi = "NOMBRE_RED_WIFI";
-const char* passwordWifi = "CONTRASEÑA_RED_WIFI";
+const char* passwordWifi = "penesalxmayor en mi casa";
 
 // Reemplaza esto con la clave de tu dispositivo
 const char* deviceKey = "TU_CLAVE_DE_DISPOSITIVO";
