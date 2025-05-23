@@ -1,16 +1,16 @@
 # Database
-pgdbtoolkit==0.1.17
+pgdbtoolkit==1.0.0
 
 # Redis
 redis==5.2.0
 
 # API
-fastapi==0.115.4
-uvicorn[standard]==0.32.0
+fastapi==0.104.1
+uvicorn==0.24.0
 slowapi==0.1.9
 
 # Pydantic
-pydantic>=2.7.0,<3.0.0
+pydantic==2.4.2
 pydantic-settings==2.7.1
 pydantic[email]
 
@@ -30,3 +30,9 @@ sendgrid==6.11.0
 
 # Transbank
 transbank-sdk==4.0.0
+
+# Dotenv
+python-dotenv==1.0.0
+
+# HTTPX
+httpx==0.25.1

@@ -1,33 +1,38 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import os
-import uvicorn
-from .api.routes import humedad
-from .api.core.database import close_db
+from app.api.core.config import settings
+from app.api.core.database import close_db
+from app.api.routes import humedad
 
-#
-# Crear aplicación FastAPI
 app = FastAPI(
-    title="API Sensor de Humedad", 
-    description="API para gestionar datos de sensores de humedad del suelo",
-    version="1.0.0"
+    title=settings.PROJECT_NAME,
+    version=settings.PROJECT_VERSION,
+    description=settings.DESCRIPTION,
+    openapi_tags=settings.OPENAPI_TAGS
 )
 
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # En producción, especifica los orígenes permitidos
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Montar archivos estáticos si existe un directorio 'static'
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-
 # Incluir routers
 app.include_router(humedad.router)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cierra la conexión a la base de datos cuando se apaga la aplicación"""
+    await close_db()
+
+@app.get("/")
+async def root():
+    """Endpoint de prueba para verificar que la API está funcionando"""
+    return {
+        "message": "Bienvenido a PlantCare API",
+        "version": settings.PROJECT_VERSION
+    }
 

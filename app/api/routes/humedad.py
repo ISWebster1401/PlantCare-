@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import List
 import logging
+from datetime import datetime
 from app.api.core.database import get_db
 from pgdbtoolkit import AsyncPgDbToolkit
 from ..schemas.humedad import HumedadData, DatoHumedad, MensajeRespuesta
@@ -15,13 +15,7 @@ router = APIRouter(
     tags=["humedad"]
 )
 
-class HumedadData(BaseModel):
-    humedad: float
-
-async def get_device_id(device_key: str = Header(..., alias="X-Device-Key"), db: AsyncPgDbToolkit = Depends(get_db)) -> int:
-    """
-    Verifica la clave del dispositivo y retorna su ID
-    """
+async def get_device_id(device_key: str = Header(..., alias="X-Device-Key"), db = Depends(get_db)) -> int:
     try:
         result = await db.fetch_records(
             "devices",
@@ -29,48 +23,77 @@ async def get_device_id(device_key: str = Header(..., alias="X-Device-Key"), db:
             conditions={"device_key": device_key}
         )
         
-        if result.empty:
-            raise HTTPException(status_code=401, detail="Clave de dispositivo inválida")
+        if result is None or result.empty:
+            raise HTTPException(
+                status_code=401,
+                detail="Dispositivo no autorizado"
+            )
             
-        return result.iloc[0]['id']
+        return int(result.iloc[0].id)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error verificando dispositivo: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor al verificar el dispositivo"
+        )
 
-@router.post("/sensor-humedad-suelo")
+@router.post("/sensor-humedad-suelo", response_model=MensajeRespuesta)
 async def save_humedad(
     data: HumedadData,
     device_id: int = Depends(get_device_id),
-    db: AsyncPgDbToolkit = Depends(get_db)
+    db = Depends(get_db)
 ):
-    """
-    Guarda una lectura de humedad del suelo
-    """
     try:
-        await db.insert_records(
+        logger.info(f"Recibiendo datos de humedad: {data.humedad}")
+        logger.info(f"Device ID: {device_id}")
+        
+        datos = [{
+            "device_id": device_id,
+            "valor": data.humedad,
+            "fecha": datetime.now()
+        }]
+        logger.info(f"Datos a insertar: {datos}")
+        
+        result = await db.insert_records(
             "sensor_humedad_suelo",
-            [{
-                "device_id": device_id,
-                "valor": data.humedad
-            }]
+            datos
         )
-        return {"message": "Datos guardados correctamente"}
+        logger.info(f"Resultado de inserción: {result}")
+        logger.info(f"Tipo de resultado: {type(result)}")
+        
+        if isinstance(result, str):
+            # Si es string, probablemente sea un ID directo
+            record_id = result
+        else:
+            # Si es DataFrame, usar iloc
+            record_id = int(result.iloc[0].id)
+            
+        logger.info(f"ID extraído: {record_id}")
+        
+        return MensajeRespuesta(
+            message="Datos guardados correctamente",
+            data={"id": record_id}
+        )
     except Exception as e:
         logger.error(f"Error guardando datos: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error al guardar los datos")
+        logger.error(f"Tipo de error: {type(e)}")
+        logger.error(f"Detalles del error:", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error al guardar los datos de humedad"
+        )
 
-@router.get("/lector-humedad")
+@router.get("/lector-humedad", response_model=List[DatoHumedad])
 async def get_humedad(
     device_id: int = Depends(get_device_id),
-    db: AsyncPgDbToolkit = Depends(get_db)
-) -> List[dict]:
-    """
-    Obtiene las últimas 20 lecturas de humedad para un dispositivo específico
-    """
+    db = Depends(get_db)
+):
     try:
         result = await db.fetch_records(
             "sensor_humedad_suelo",
-            columns=["id", "valor", "fecha"],
+            columns=["id", "device_id", "valor", "fecha"],
             conditions={"device_id": device_id},
             order_by=[("fecha", "DESC")],
             limit=20
@@ -78,16 +101,19 @@ async def get_humedad(
         
         if result.empty:
             return []
-            
-        # Convertir los datos a un formato más amigable
+        
         return [
-            {
-                "id": int(row["id"]),
-                "valor": float(row["valor"]),
-                "fecha": row["fecha"].strftime("%Y-%m-%d %H:%M:%S")
-            }
+            DatoHumedad(
+                id=int(row["id"]),
+                device_id=int(row["device_id"]),
+                valor=float(row["valor"]),
+                fecha=row["fecha"]
+            )
             for _, row in result.iterrows()
         ]
     except Exception as e:
         logger.error(f"Error leyendo datos: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error al leer los datos") 
+        raise HTTPException(
+            status_code=500,
+            detail="Error al obtener los datos de humedad"
+        )
