@@ -4,13 +4,13 @@
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
 
-// Configuración de WiFi y dispositivo - Actualizar con tus valores
 const char* ssidWifi = "NOMBRE_RED_WIFI";
 const char* passwordWifi = "CONTRASEÑA_RED_WIFI";
+
+// Reemplaza esto con la clave de tu dispositivo
 const char* deviceKey = "TU_CLAVE_DE_DISPOSITIVO";
 
-// Reemplaza con la IP de tu computadora en la red local
-const char* serverUrl = "http://192.168.1.X:5000/api/sensor-humedad-suelo";
+const char* serverUrl = "http://localhost:5000/api/sensor-humedad-suelo";
 
 const int sensorPin = A0;
 
