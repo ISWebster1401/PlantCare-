@@ -1,15 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <link rel="stylesheet" href="./assets/css/style.css">
-    <link rel="stylesheet" href="./script_landing.js">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PlantCare - Automatización Inteligente para Viñas</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lenis/1.0.35/lenis.min.js"></script>
-
 </head>
 <body>
     <div class="container">
@@ -79,7 +76,7 @@
                             <div>Alertas Tempranas</div>
                         </div>
                     </div>
-                </div>
+                </div>  
             </div>
         </section>
 
@@ -214,7 +211,7 @@
                         </div>
                         
                         <button type="submit" class="register-button">
-                            <a href="./home.html" style="color: white; text-decoration: none;">Registrar Viña</a>
+                            <a href="./home.html" style="color: inherit; text-decoration: none;">Registrar Viña</a>
                         </button>
                         
                         <div class="form-footer">
@@ -231,17 +228,17 @@
                 <h2>Nuestro Equipo</h2>
                 <div class="team-grid">
                     <div class="team-member">
-                        <div class="member-avatar"><img src="" alt="Bastián Echeverría"></div>
+                        <div class="member-avatar">BE</div>
                         <div class="member-name">Bastián Echeverría</div>
                         <div class="member-role">Desarrollo y Arquitectura</div>
                     </div>
                     <div class="team-member">
-                        <div class="member-avatar"><img src="" alt="Sebastián Vargas"></div>
+                        <div class="member-avatar">SV</div>
                         <div class="member-name">Sebastián Vargas</div>
                         <div class="member-role">Sistemas y Hardware</div>
                     </div>
                     <div class="team-member">
-                        <div class="member-avatar"><img src="" alt="Ignacio Gatica"></div>
+                        <div class="member-avatar">IG</div>
                         <div class="member-name">Ignacio Gatica</div>
                         <div class="member-role">Análisis de Datos</div>
                     </div>
@@ -256,6 +253,11 @@
                 <p class="footer-text">Transformando la agricultura chilena a través de la innovación tecnológica. Protegemos tu inversión, optimizamos tu producción.</p>
             </div>
         </footer>
+
+        <!-- Theme Toggle Button -->
+        <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema">
+            <span id="themeIcon">☀️</span>
+        </button>
     </div>
 </body>
 </html>
