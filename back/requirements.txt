@@ -1,5 +1,5 @@
 # Database
-pgdbtoolkit==1.0.0
+pgdbtoolkit
 
 # Redis
 redis==5.2.0
@@ -9,10 +9,9 @@ fastapi==0.104.1
 uvicorn==0.24.0
 slowapi==0.1.9
 
-# Pydantic
-pydantic==2.4.2
+# Pydantic - Versiones compatibles
+pydantic==2.7.4
 pydantic-settings==2.7.1
-pydantic[email]
 
 # JWT
 python-jose[cryptography]==3.3.0
@@ -31,8 +30,11 @@ sendgrid==6.11.0
 # Transbank
 transbank-sdk==4.0.0
 
-# Dotenv
-python-dotenv==1.0.0
+# Dotenv - Versión compatible con pgdbtoolkit
+python-dotenv==1.0.1
 
 # HTTPX
 httpx==0.25.1
+
+# IA y OpenAI
+openai==1.3.0
