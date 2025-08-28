@@ -1,18 +1,23 @@
 from pgdbtoolkit import AsyncPgDbToolkit
 from typing import Optional
 import logging
+import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuración de la base de datos
+# Configuración de la base de datos desde variables de entorno
 DB_CONFIG = {
-    'host': 'localhost',
-    'port': 5432,
-    'user': 'postgres',
-    'password': '1401',
-    'dbname': 'PlantCare'
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': int(os.getenv('DB_PORT', '5432')),
+    'user': os.getenv('DB_USER', 'postgres'),
+    'password': os.getenv('DB_PASSWORD', 'password'),
+    'dbname': os.getenv('DB_NAME', 'plantcare')
 }
 
 _db: Optional[AsyncPgDbToolkit] = None
@@ -43,13 +48,17 @@ async def init_db():
         logger.error(f"Error inicializando la base de datos: {str(e)}")
         raise
 
-async def get_db() -> AsyncPgDbToolkit:
+async def get_db() -> Optional[AsyncPgDbToolkit]:
     """
     Obtiene o crea una instancia de AsyncPgDbToolkit
     """
     global _db
     if _db is None:
-        _db = await init_db()
+        try:
+            _db = await init_db()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            return None
     return _db
 
 async def close_db():

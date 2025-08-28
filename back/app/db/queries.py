@@ -4,36 +4,38 @@
 CREATE_USERS_TABLE = """
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    phone INTEGER NOT NULL,
-    address VARCHAR(200) NOT NULL,
-    vineyard_name VARCHAR(100) NOT NULL,
-    hectares INTEGER NOT NULL,
-    grape_type VARCHAR(50) NOT NULL,
-    password VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    phone VARCHAR(20),
+    region VARCHAR(100),
+    vineyard_name VARCHAR(100),
+    hectares INTEGER,
+    grape_type VARCHAR(50),
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP,
+    active BOOLEAN DEFAULT TRUE
 );
 """
 
 # Insert new user
 INSERT_USER = """
-INSERT INTO users (name, last_name, email, phone, address, vineyard_name, hectares, grape_type, password)
+INSERT INTO users (first_name, last_name, email, phone, region, vineyard_name, hectares, grape_type, password_hash)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 RETURNING id;
 """
 
 # Get user by ID
 GET_USER_BY_ID = """
-SELECT id, name, last_name, email, phone, address, vineyard_name, hectares, grape_type, created_at
+SELECT id, first_name, last_name, email, phone, region, vineyard_name, hectares, grape_type, created_at, last_login, active
 FROM users
 WHERE id = %s;
 """
 
-# Get user by email
+# Get user by email (includes password_hash for authentication)
 GET_USER_BY_EMAIL = """
-SELECT id, name, last_name, email, phone, address, vineyard_name, hectares, grape_type, password, created_at
+SELECT id, first_name, last_name, email, phone, region, vineyard_name, hectares, grape_type, password_hash, created_at, last_login, active
 FROM users
 WHERE email = %s;
 """
@@ -41,11 +43,11 @@ WHERE email = %s;
 # Update user
 UPDATE_USER = """
 UPDATE users
-SET name = %s,
+SET first_name = %s,
     last_name = %s,
     email = %s,
     phone = %s,
-    address = %s,
+    region = %s,
     vineyard_name = %s,
     hectares = %s,
     grape_type = %s
@@ -62,6 +64,14 @@ RETURNING id;
 
 # Get all users
 GET_ALL_USERS = """
-SELECT id, name, last_name, email, phone, address, vineyard_name, hectares, grape_type, created_at
-FROM users;
+SELECT id, first_name, last_name, email, phone, region, vineyard_name, hectares, grape_type, created_at, last_login, active
+FROM users
+WHERE active = TRUE;
+"""
+
+# Update last login
+UPDATE_LAST_LOGIN = """
+UPDATE users
+SET last_login = CURRENT_TIMESTAMP
+WHERE id = %s;
 """ 
