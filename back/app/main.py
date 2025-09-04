@@ -1,18 +1,28 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+import sys
 import os
-import uvicorn
-from .api.routes import humedad
-from .api.core.database import close_db
+import time
+from datetime import datetime
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-#
+# Configurar event loop para Windows
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+from app.api.core.config import settings
+from app.api.core.log import logger, log_startup, log_shutdown, log_error_with_context
+from app.api.core.database import init_db, close_db, health_check, get_database_stats
+from app.api.routes import auth, humedad
+
 # Crear aplicación FastAPI
 app = FastAPI(
-    title="API Sensor de Humedad", 
-    description="API para gestionar datos de sensores de humedad del suelo",
-    version="1.0.0"
+    title=settings.PROJECT_NAME, 
+    description=settings.DESCRIPTION,
+    version=settings.PROJECT_VERSION,
+    openapi_tags=settings.OPENAPI_TAGS
 )
 
 # Configurar CORS
@@ -28,6 +38,167 @@ app.add_middleware(
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Eventos de la aplicación
+@app.on_event("startup")
+async def startup_event():
+    """Evento que se ejecuta al iniciar la aplicación"""
+    try:
+        log_startup()
+        await init_db()
+        logger.info(f"📊 Base de datos conectada en {settings.DB_HOST}:{settings.DB_PORT}")
+        logger.info(f"🌐 Servidor ejecutándose en http://{settings.SERVER_HOST}:{settings.SERVER_PORT}")
+        logger.info("✅ Aplicación iniciada correctamente")
+    except Exception as e:
+        log_error_with_context(e, "startup")
+        raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Evento que se ejecuta al cerrar la aplicación"""
+    try:
+        await close_db()
+        logger.info("🔌 Conexión a la base de datos cerrada")
+        log_shutdown()
+    except Exception as e:
+        log_error_with_context(e, "shutdown")
+
+# Middleware para logging de requests (versión simplificada)
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Middleware para logging de requests HTTP"""
+    start_time = time.time()
+    
+    try:
+        # Procesar la request
+        response = await call_next(request)
+        
+        # Calcular duración
+        duration = time.time() - start_time
+        
+        # Log simple y seguro
+        try:
+            logger.info(f"HTTP {request.method} {request.url.path} - {response.status_code} - {duration:.3f}s")
+        except Exception:
+            # Si falla el logging, no interrumpir
+            pass
+        
+        return response
+        
+    except Exception as e:
+        # Si hay un error, logearlo y re-lanzar
+        duration = time.time() - start_time
+        try:
+            logger.error(f"Error en request {request.method} {request.url.path}: {str(e)}")
+        except Exception:
+            print(f"Error en request {request.method} {request.url.path}: {str(e)}")
+        
+        raise
+
 # Incluir routers
-app.include_router(humedad.router)
+app.include_router(humedad.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
+
+# Ruta raíz
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    """Página de inicio de la API"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{settings.PROJECT_NAME}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }}
+            .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+            h1 {{ color: #2c3e50; text-align: center; }}
+            .info {{ background: #ecf0f1; padding: 20px; border-radius: 5px; margin: 20px 0; }}
+            .endpoints {{ background: #3498db; color: white; padding: 20px; border-radius: 5px; margin: 20px 0; }}
+            .endpoints h3 {{ margin-top: 0; }}
+            .endpoints ul {{ margin: 0; padding-left: 20px; }}
+            .endpoints li {{ margin: 5px 0; }}
+            a {{ color: #3498db; text-decoration: none; }}
+            a:hover {{ text-decoration: underline; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🌱 {settings.PROJECT_NAME}</h1>
+            <div class="info">
+                <h3>📋 Descripción</h3>
+                <p>{settings.SUMMARY}</p>
+                <p><strong>Versión:</strong> {settings.PROJECT_VERSION}</p>
+            </div>
+            
+            <div class="endpoints">
+                <h3>🔗 Endpoints Principales</h3>
+                <ul>
+                    <li><a href="/docs">📚 Documentación de la API (Swagger UI)</a></li>
+                    <li><a href="/redoc">📖 Documentación alternativa (ReDoc)</a></li>
+                    <li><strong>🔐 Autenticación:</strong> /api/auth/register, /api/auth/login</li>
+                    <li><strong>📊 Sensores:</strong> /api/humedad</li>
+                </ul>
+            </div>
+            
+            <div class="info">
+                <h3>🚀 Inicio Rápido</h3>
+                <p>Para comenzar a usar la API:</p>
+                <ol>
+                    <li>Registra un usuario en <code>/api/auth/register</code></li>
+                    <li>Inicia sesión en <code>/api/auth/login</code></li>
+                    <li>Usa el token recibido en el header <code>Authorization: Bearer &lt;token&gt;</code></li>
+                    <li>Consulta la documentación completa en <a href="/docs">/docs</a></li>
+                </ol>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+# Ruta de salud
+@app.get("/health", tags=["Salud"])
+async def health_check():
+    """Endpoint para verificar el estado de la aplicación"""
+    from app.api.core.database import health_check as db_health_check
+    
+    db_status = await db_health_check()
+    
+    return {
+        "status": "healthy" if db_status["status"] == "healthy" else "unhealthy",
+        "service": settings.PROJECT_NAME,
+        "version": settings.PROJECT_VERSION,
+        "database": db_status,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/health/detailed", tags=["Salud"])
+async def detailed_health_check():
+    """Endpoint para verificar el estado detallado de la aplicación"""
+    from app.api.core.database import health_check as db_health_check, get_database_stats
+    
+    db_status = await db_health_check()
+    db_stats = await get_database_stats()
+    
+    return {
+        "status": "healthy" if db_status["status"] == "healthy" else "unhealthy",
+        "service": settings.PROJECT_NAME,
+        "version": settings.PROJECT_VERSION,
+        "database": db_status,
+        "database_stats": db_stats,
+        "features": {
+            "ai_enabled": settings.AI_ENABLED,
+            "redis_enabled": settings.REDIS_ENABLED,
+            "email_enabled": settings.EMAIL_ENABLED,
+            "rate_limiting": settings.RATE_LIMIT_ENABLED
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host=settings.SERVER_HOST,
+        port=int(settings.SERVER_PORT),
+        reload=True
+    )
 

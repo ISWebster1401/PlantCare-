@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import logging
 from app.api.core.database import get_db
 from pgdbtoolkit import AsyncPgDbToolkit
-from ..schemas.humedad import HumedadData, DatoHumedad, MensajeRespuesta
+from app.api.schemas.humedad import HumedadData, DatoHumedad, MensajeRespuesta
 from app.api.core.ai_service import ai_service
 from datetime import datetime, timedelta
 
