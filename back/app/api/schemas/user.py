@@ -129,8 +129,9 @@ class PasswordChange(BaseModel):
     confirm_new_password: str = Field(..., description="Confirmación de la nueva contraseña")
 
     @field_validator('confirm_new_password')
-    def passwords_match(cls, v, values):
-        if 'new_password' in values and v != values['new_password']:
+    @classmethod
+    def passwords_match(cls, v, info):
+        if 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Las contraseñas no coinciden')
         return v
 

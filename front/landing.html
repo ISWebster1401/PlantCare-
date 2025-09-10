@@ -4,12 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PlantCare - Automatización Inteligente para Viñas</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lenis/1.0.35/lenis.min.js"></script>
+    <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
+    <script src="https://unpkg.com/gsap@3.12.2/dist/ScrollTrigger.min.js"></script>
+    <script src="https://unpkg.com/lenis@1.0.35/dist/lenis.min.js"></script>
     <link rel="stylesheet" href="./assets/css/landing.css">
 </head>
-<!-- Cheche qlo te paso x la corneta-->
 <body>
     <div class="container">
         <!-- Header -->
@@ -152,27 +151,27 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="firstName">Nombre</label>
-                                <input type="text" id="firstName" name="firstName" placeholder="Tu nombre" required>
+                                <input type="text" id="firstName" name="firstName" placeholder="Tu nombre" autocomplete="given-name" required>
                             </div>
                             <div class="form-group">
                                 <label for="lastName">Apellido</label>
-                                <input type="text" id="lastName" name="lastName" placeholder="Tu apellido" required>
+                                <input type="text" id="lastName" name="lastName" placeholder="Tu apellido" autocomplete="family-name" required>
                             </div>
                         </div>
                         
                         <div class="form-group">
                             <label for="email">Correo Electrónico</label>
-                            <input type="email" id="email" name="email" placeholder="tu@correo.com" required>
+                            <input type="email" id="email" name="email" placeholder="tu@correo.com" autocomplete="email" required>
                         </div>
                         
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="phone">Teléfono</label>
-                                <input type="tel" id="phone" name="phone" placeholder="+56 9 1234 5678" required>
+                                <input type="tel" id="phone" name="phone" placeholder="+56 9 1234 5678" autocomplete="tel" required>
                             </div>
                             <div class="form-group">
                                 <label for="region">Región</label>
-                                <select id="region" name="region" required>
+                                <select id="region" name="region" autocomplete="country" required>
                                     <option value="">Selecciona tu región</option>
                                     <option value="metropolitana">Región Metropolitana</option>
                                     <option value="valparaiso">Valparaíso</option>
@@ -188,32 +187,44 @@
                         
                         <div class="form-group">
                             <label for="vineyardName">Nombre de la Viña</label>
-                            <input type="text" id="vineyardName" name="vineyardName" placeholder="Viña Los Robles" required>
+                            <input type="text" id="vineyardName" name="vineyardName" placeholder="Viña Los Robles" autocomplete="organization" required>
                         </div>
                         
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="hectares">Hectáreas</label>
-                                <input type="number" id="hectares" name="hectares" placeholder="50" min="1" required>
+                                <input type="number" id="hectares" name="hectares" placeholder="50" min="1" autocomplete="off" required>
                             </div>
                             <div class="form-group">
                                 <label for="grapeType">Tipo de Uva</label>
                                 <select id="grapeType" name="grapeType" required>
                                     <option value="">Selecciona el tipo</option>
-                                    <option value="cabernet-sauvignon">Cabernet Sauvignon</option>
-                                    <option value="merlot">Merlot</option>
-                                    <option value="carmenere">Carmenère</option>
-                                    <option value="chardonnay">Chardonnay</option>
-                                    <option value="sauvignon-blanc">Sauvignon Blanc</option>
-                                    <option value="pinot-noir">Pinot Noir</option>
-                                    <option value="syrah">Syrah</option>
-                                    <option value="mixta">Cultivo Mixto</option>
+                                    <option value="Cabernet Sauvignon">Cabernet Sauvignon</option>
+                                    <option value="Merlot">Merlot</option>
+                                    <option value="Carmenère">Carmenère</option>
+                                    <option value="Chardonnay">Chardonnay</option>
+                                    <option value="Sauvignon Blanc">Sauvignon Blanc</option>
+                                    <option value="Pinot Noir">Pinot Noir</option>
+                                    <option value="Syrah">Syrah</option>
+                                    <option value="Cultivo Mixto">Cultivo Mixto</option>
                                 </select>
                             </div>
                         </div>
                         
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="password">Contraseña</label>
+                                <input type="password" id="password" name="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required>
+                                <small class="password-help">Debe contener mayúscula, minúscula, número y carácter especial</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="confirmPassword">Confirmar Contraseña</label>
+                                <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Repite tu contraseña" autocomplete="new-password" required>
+                            </div>
+                        </div>
+                        
                         <button type="submit" class="register-button">
-                            <a href="./home.html" style="color: inherit; text-decoration: none;">Registrar Viña</a>
+                            Registrar Viña
                         </button>
                         
                         <div class="form-footer">
@@ -261,5 +272,8 @@
             <span id="themeIcon">☀️</span>
         </button>
     </div>
+    
+    <!-- JavaScript -->
+    <script src="./assets/css/scripts/script_landing.js"></script>
 </body>
 </html>

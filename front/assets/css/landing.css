@@ -522,6 +522,14 @@ nav a:hover {
     color: var(--placeholder-color);
 }
 
+.password-help {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

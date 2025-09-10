@@ -294,7 +294,7 @@ async def get_current_active_user(current_user: UserInDB = Depends(get_current_u
     Raises:
         HTTPException: Si el usuario está inactivo
     """
-    if not current_user.active:
+    if not current_user["active"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Usuario inactivo"

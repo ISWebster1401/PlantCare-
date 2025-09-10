@@ -28,9 +28,19 @@ app = FastAPI(
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",  # Permitir todos los orígenes para desarrollo
+        "http://localhost:3000",
+        "http://127.0.0.1:3000", 
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "file://",  # Para archivos HTML abiertos directamente
+        "null"      # Para archivos HTML locales
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
