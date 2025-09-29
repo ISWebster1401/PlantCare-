@@ -1,13 +1,9 @@
 # Database
 pgdbtoolkit
 
-# Redis
-redis==5.2.0
-
 # API
 fastapi==0.104.1
 uvicorn==0.24.0
-slowapi==0.1.9
 
 # Pydantic - Versiones compatibles
 pydantic==2.7.4
@@ -24,17 +20,8 @@ python-multipart==0.0.12
 bcrypt==4.0.1
 passlib[bcrypt]==1.7.4
 
-# Sendgrid
-sendgrid==6.11.0
-
-# Transbank
-transbank-sdk==4.0.0
-
 # Dotenv - Versión compatible con pgdbtoolkit
 python-dotenv==1.0.1
-
-# HTTPX
-httpx==0.25.1
 
 # IA y OpenAI
 openai==1.3.0

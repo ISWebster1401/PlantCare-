@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
+import re
 
 class DeviceType(str, Enum):
     """Tipos de dispositivos disponibles"""
@@ -20,17 +21,17 @@ class DeviceStatus(str, Enum):
 
 class DeviceBase(BaseModel):
     """Esquema base para dispositivos"""
-    name: str = Field(..., min_length=1, max_length=100, description="Nombre del dispositivo")
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="Nombre del dispositivo")
     device_type: DeviceType = Field(DeviceType.HUMIDITY_SENSOR, description="Tipo de dispositivo")
     location: Optional[str] = Field(None, max_length=200, description="Ubicación del dispositivo")
     plant_type: Optional[str] = Field(None, max_length=100, description="Tipo de planta que monitorea")
     config: Optional[Dict[str, Any]] = Field(None, description="Configuración del dispositivo")
 
-    @validator('name')
+    @field_validator('name')
     def validate_name(cls, v):
-        if not v.strip():
+        if v is not None and not v.strip():
             raise ValueError('El nombre del dispositivo no puede estar vacío')
-        return v.strip()
+        return v.strip() if v else v
 
 class DeviceCreate(DeviceBase):
     """Esquema para crear un nuevo dispositivo"""
@@ -44,19 +45,48 @@ class DeviceUpdate(BaseModel):
     config: Optional[Dict[str, Any]] = None
     active: Optional[bool] = None
 
-    @validator('name')
+    @field_validator('name')
     def validate_name(cls, v):
         if v is not None and not v.strip():
             raise ValueError('El nombre del dispositivo no puede estar vacío')
         return v.strip() if v else v
 
+class DeviceConnect(BaseModel):
+    """Esquema para conectar un dispositivo usando código verificador"""
+    device_code: str = Field(..., min_length=8, max_length=12, description="Código verificador del dispositivo")
+    name: str = Field(..., min_length=1, max_length=100, description="Nombre para el dispositivo")
+    location: Optional[str] = Field(None, max_length=200, description="Ubicación del dispositivo")
+    plant_type: Optional[str] = Field(None, max_length=100, description="Tipo de planta que monitorea")
+
+    @field_validator('device_code')
+    def validate_device_code(cls, v):
+        # Formato tipo patente: ABC-1234 o ABC1234
+        code = v.upper().replace('-', '').replace(' ', '')
+        if not re.match(r'^[A-Z]{2,4}[0-9]{4,6}$', code):
+            raise ValueError('El código debe tener formato tipo patente (ej: ABC-1234)')
+        return code
+
+    @field_validator('name')
+    def validate_name(cls, v):
+        if not v.strip():
+            raise ValueError('El nombre del dispositivo no puede estar vacío')
+        return v.strip()
+
+class DeviceCodeGenerate(BaseModel):
+    """Esquema para generar un nuevo código de dispositivo (solo admin)"""
+    device_type: DeviceType = Field(DeviceType.HUMIDITY_SENSOR, description="Tipo de dispositivo")
+    quantity: int = Field(1, ge=1, le=100, description="Cantidad de códigos a generar")
+
 class DeviceResponse(DeviceBase):
     """Esquema de respuesta para dispositivo"""
     id: int
-    user_id: int
+    device_code: str
+    user_id: Optional[int]
     created_at: datetime
     last_seen: Optional[datetime]
+    connected_at: Optional[datetime]
     active: bool
+    connected: bool
     status: DeviceStatus = DeviceStatus.ACTIVE
 
     model_config = ConfigDict(from_attributes=True)
@@ -93,3 +123,18 @@ class DeviceStats(BaseModel):
     uptime_percentage: float
     alerts_count: int
     recommendations_count: int
+
+class DeviceCodeResponse(BaseModel):
+    """Esquema de respuesta para códigos de dispositivo generados"""
+    device_code: str
+    device_type: DeviceType
+    created_at: datetime
+    qr_code_url: Optional[str] = None  # Para futuro: URL del código QR
+
+class DeviceListResponse(BaseModel):
+    """Esquema de respuesta para lista de dispositivos"""
+    devices: list[DeviceResponse]
+    total: int
+    connected: int
+    active: int
+    offline: int

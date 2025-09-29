@@ -5,8 +5,7 @@ import time
 from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 
 # Configurar event loop para Windows
 if sys.platform == "win32":
@@ -15,7 +14,7 @@ if sys.platform == "win32":
 from app.api.core.config import settings
 from app.api.core.log import logger, log_startup, log_shutdown, log_error_with_context
 from app.api.core.database import init_db, close_db, health_check, get_database_stats
-from app.api.routes import auth, humedad
+from app.api.routes import auth, humedad, devices
 
 # Crear aplicación FastAPI
 app = FastAPI(
@@ -44,9 +43,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Montar archivos estáticos si existe un directorio 'static'
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Eventos de la aplicación
 @app.on_event("startup")
@@ -107,6 +103,7 @@ async def log_requests(request: Request, call_next):
 # Incluir routers
 app.include_router(humedad.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(devices.router, prefix="/api")
 
 # Ruta raíz
 @app.get("/", response_class=HTMLResponse)
@@ -146,6 +143,7 @@ async def root():
                     <li><a href="/redoc">📖 Documentación alternativa (ReDoc)</a></li>
                     <li><strong>🔐 Autenticación:</strong> /api/auth/register, /api/auth/login</li>
                     <li><strong>📊 Sensores:</strong> /api/humedad</li>
+                    <li><strong>🔧 Dispositivos:</strong> /api/devices</li>
                 </ul>
             </div>
             
@@ -195,10 +193,7 @@ async def detailed_health_check():
         "database": db_status,
         "database_stats": db_stats,
         "features": {
-            "ai_enabled": settings.AI_ENABLED,
-            "redis_enabled": settings.REDIS_ENABLED,
-            "email_enabled": settings.EMAIL_ENABLED,
-            "rate_limiting": settings.RATE_LIMIT_ENABLED
+            "ai_enabled": settings.AI_ENABLED
         },
         "timestamp": datetime.now().isoformat()
     }

@@ -89,17 +89,26 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("📋 Creando tabla devices...")
             await db.create_table("devices", {
                 "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
-                "name": "VARCHAR(100) NOT NULL",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
+                "device_code": "VARCHAR(12) UNIQUE NOT NULL",  # Código verificador único tipo patente
+                "name": "VARCHAR(100)",
                 "device_type": "VARCHAR(50) NOT NULL DEFAULT 'humidity_sensor'",
                 "location": "VARCHAR(200)",
                 "plant_type": "VARCHAR(100)",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "last_seen": "TIMESTAMP",
+                "connected_at": "TIMESTAMP",  # Cuando se conectó por primera vez
                 "active": "BOOLEAN DEFAULT true",
+                "connected": "BOOLEAN DEFAULT false",  # Si está conectado a un usuario
                 "config": "JSONB"
             })
             logger.info("✅ Tabla devices creada exitosamente")
+            
+            # Crear índice único para device_code
+            await db.execute_query("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_code ON devices(device_code);
+            """)
+            logger.info("✅ Índice único para device_code creado")
         
         # Tabla de sensores de humedad
         if "sensor_humedad_suelo" not in tables:
