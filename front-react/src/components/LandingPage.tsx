@@ -1,12 +1,24 @@
-import React from 'react';
-import RegisterForm from './RegisterForm';
+import React, { useState, useEffect } from 'react';
+import RegisterFormEmbedded from './RegisterFormEmbedded';
+import LoginForm from './LoginForm';
 import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
+  const [showLogin, setShowLogin] = useState(false);
+  const [theme, setTheme] = useState('dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
   return (
-    <div className="landing-page">
+    <div className="container">
       {/* Header */}
-      <header className="header">
+      <header>
         <div className="logo">PlantCare</div>
         <nav>
           <ul>
@@ -15,6 +27,14 @@ const LandingPage: React.FC = () => {
             <li><a href="#caracteristicas">Características</a></li>
             <li><a href="#registro">Registro</a></li>
             <li><a href="#equipo">Equipo</a></li>
+            <li>
+              <button 
+                className="login-link"
+                onClick={() => setShowLogin(true)}
+              >
+                Iniciar Sesión
+              </button>
+            </li>
           </ul>
         </nav>
       </header>
@@ -133,7 +153,7 @@ const LandingPage: React.FC = () => {
             <p>Más de <strong>500 viñas</strong> ya confían en PlantCare para maximizar su producción y calidad.</p>
           </div>
           
-          <RegisterForm />
+          <RegisterFormEmbedded />
         </div>
       </section>
 
@@ -162,12 +182,34 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="footer">
+      {/* Footer */}
+      <footer>
         <div className="footer-content">
           <div className="footer-logo">PlantCare</div>
           <p className="footer-text">Transformando la agricultura chilena a través de la innovación tecnológica. Protegemos tu inversión, optimizamos tu producción.</p>
         </div>
       </footer>
+
+      {/* Theme Toggle Button */}
+      <button 
+        className="theme-toggle" 
+        onClick={toggleTheme}
+        aria-label="Cambiar tema"
+      >
+        <span id="themeIcon">{theme === 'dark' ? '☀' : '🌙'}</span>
+      </button>
+
+      {/* Login Modal */}
+      {showLogin && (
+        <LoginForm
+          onSwitchToRegister={() => {
+            setShowLogin(false);
+            // Scroll to register section
+            document.getElementById('registro')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          onClose={() => setShowLogin(false)}
+        />
+      )}
     </div>
   );
 };

@@ -117,19 +117,13 @@ class AuthService:
     @staticmethod
     def verify_token(token: str) -> TokenData:
         """
-        Verifica y decodifica un token JWT
-        
-        Args:
-            token: Token JWT a verificar
-            
-        Returns:
-            TokenData: Datos extraídos del token
-            
-        Raises:
-            HTTPException: Si el token es inválido o ha expirado
+        🔍 VERIFICACIÓN DE TOKEN JWT - CORAZÓN DE LA PERSISTENCIA
+        Decodifica y valida el token que viene desde las cookies del frontend
         """
         try:
+            # Decodifica el token usando la clave secreta
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            
             email: str = payload.get("sub")
             user_id: int = payload.get("user_id")
             
@@ -141,8 +135,10 @@ class AuthService:
                 )
             
             return TokenData(email=email, user_id=user_id)
+            
         except JWTError as e:
-            logger.error(f"Error decodificando token: {str(e)}")
+            # Token expirado o corrupto
+            logger.error(f"Token inválido: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token inválido o expirado",
@@ -238,20 +234,14 @@ async def get_current_user(
     db: AsyncPgDbToolkit = Depends(get_db)
 ) -> UserInDB:
     """
-    Obtiene el usuario actual desde el token de autorización
-    
-    Args:
-        credentials: Credenciales de autorización HTTP
-        db: Conexión a la base de datos
-        
-    Returns:
-        UserInDB: Usuario actual
-        
-    Raises:
-        HTTPException: Si el token es inválido o el usuario no existe
+    👤 VALIDACIÓN DE SESIÓN PERSISTENTE
+    Función clave que valida el token JWT en cada request protegido
     """
     try:
+        # Extrae token del header Authorization (viene desde cookies)
         token = credentials.credentials
+        
+        # Verifica que el token sea válido y no haya expirado
         token_data = AuthService.verify_token(token)
         
         if token_data.email is None:
@@ -261,6 +251,7 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
+        # Busca al usuario en la base de datos
         user = await get_user_by_email(db, token_data.email)
         if user is None:
             raise HTTPException(
@@ -270,29 +261,22 @@ async def get_current_user(
             )
         
         return user
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error obteniendo usuario actual: {str(e)}")
+        logger.error(f"Error de autenticación: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Error de autenticación",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-# Función para obtener usuario activo
+# 🛡️ VALIDACIÓN FINAL - SE USA EN TODOS LOS ENDPOINTS PROTEGIDOS
 async def get_current_active_user(current_user: UserInDB = Depends(get_current_user)) -> UserInDB:
     """
-    Obtiene el usuario actual activo
-    
-    Args:
-        current_user: Usuario actual obtenido del token
-        
-    Returns:
-        UserInDB: Usuario activo
-        
-    Raises:
-        HTTPException: Si el usuario está inactivo
+    Verifica que el usuario esté activo después de validar el token
+    Se usa como Dependency en endpoints como /api/ai/ask, /api/devices/connect
     """
     if not current_user["active"]:
         raise HTTPException(

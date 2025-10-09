@@ -1,14 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRegistration } from '../types/User';
-import './LoginForm.css';
 
-interface RegisterFormProps {
-  onSwitchToLogin: () => void;
-  onClose: () => void;
-}
-
-const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin, onClose }) => {
+const RegisterFormEmbedded: React.FC = () => {
   const { register } = useAuth();
   const [formData, setFormData] = useState<UserRegistration>({
     first_name: '',
@@ -54,7 +48,6 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin, onClose })
       return false;
     }
 
-    // Validar fortaleza de contraseña
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
     if (!passwordRegex.test(formData.password)) {
       setError('La contraseña debe contener al menos una mayúscula, una minúscula, un número y un carácter especial');
@@ -92,10 +85,6 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin, onClose })
         password: '',
         confirm_password: '',
       });
-
-      setTimeout(() => {
-        onClose();
-      }, 2000);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -104,16 +93,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin, onClose })
   };
 
   return (
-    <div className="auth-modal-overlay" onClick={onClose}>
-      <div className="auth-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-        <button className="modal-close" onClick={onClose}>×</button>
-        
-        <div className="auth-header">
-          <h2>🌱 Crear Cuenta</h2>
-          <p>Únete a PlantCare y cuida tus plantas</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="auth-form">
+    <div className="register-form-container">
+      <form className="register-form" onSubmit={handleSubmit}>
+        <h3>Registra tu Viña</h3>
+        <p className="form-subtitle">Completa la información para comenzar</p>
 
         {error && (
           <div className="error-message">
@@ -121,11 +104,9 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin, onClose })
           </div>
         )}
 
-        {success && (
-          <div className="success-message">
-            {success}
-          </div>
-        )}
+        <div className="success-message" style={{ display: success ? 'block' : 'none' }}>
+          {success}
+        </div>
 
         <div className="form-row">
           <div className="form-group">
@@ -293,28 +274,22 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin, onClose })
 
         <button 
           type="submit" 
-          className="auth-submit-btn"
+          className="register-button"
           disabled={isLoading}
         >
-          {isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
+          {isLoading ? 'Procesando...' : 'Registrar Viña'}
         </button>
-      </form>
 
-      <div className="auth-switch">
-        <p>
-          ¿Ya tienes cuenta?{' '}
-          <button 
-            type="button" 
-            className="switch-btn"
-            onClick={onSwitchToLogin}
-          >
-            Inicia sesión aquí
-          </button>
-        </p>
-      </div>
-    </div>
+        <div className="form-footer">
+          ¿Ya tienes cuenta? <a href="#login" onClick={(e) => {
+            e.preventDefault();
+            // Scroll to top and show login
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}>Iniciar sesión</a>
+        </div>
+      </form>
     </div>
   );
 };
 
-export default RegisterForm;
+export default RegisterFormEmbedded;

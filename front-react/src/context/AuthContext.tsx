@@ -1,7 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import Cookies from 'js-cookie';
 import { UserResponse, LoginCredentials, UserRegistration } from '../types/User';
 import { authAPI } from '../services/api';
 
+/**
+ * 🔐 CONTEXTO DE AUTENTICACIÓN - PERSISTENCIA CON COOKIES
+ * Maneja el estado global de autenticación usando cookies seguras
+ */
 interface AuthContextType {
   user: UserResponse | null;
   isLoading: boolean;
@@ -29,20 +34,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 🔄 RESTAURACIÓN AUTOMÁTICA DE SESIÓN AL CARGAR LA APP
   useEffect(() => {
-    // Verificar si hay un token guardado al cargar la aplicación
-    const token = localStorage.getItem('access_token');
-    const userData = localStorage.getItem('user_data');
+    // Busca tokens guardados en cookies del navegador
+    const token = Cookies.get('access_token');
+    const userData = Cookies.get('user_data');
 
     if (token && userData) {
       try {
+        // Restaura la sesión sin necesidad de login
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
+        console.log('✅ Sesión restaurada para:', parsedUser.email);
       } catch (error) {
-        console.error('Error parsing user data:', error);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user_data');
+        // Limpia cookies corruptas
+        Cookies.remove('access_token');
+        Cookies.remove('refresh_token');
+        Cookies.remove('user_data');
       }
     }
     setIsLoading(false);
@@ -52,14 +60,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await authAPI.login(credentials);
       
-      // Guardar tokens y datos del usuario
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
-      localStorage.setItem('user_data', JSON.stringify(response.user));
+      // 🍪 CONFIGURACIÓN DE COOKIES SEGURAS - CLAVE DE LA PERSISTENCIA
+      const cookieOptions = {
+        expires: 7,                                    // Persisten 7 días
+        secure: process.env.NODE_ENV === 'production', // HTTPS en producción
+        sameSite: 'strict' as const,                   // Protección CSRF
+      };
+      
+      // 💾 GUARDAR EN COOKIES - PERSISTE ENTRE SESIONES DEL NAVEGADOR
+      Cookies.set('access_token', response.access_token, cookieOptions);
+      Cookies.set('refresh_token', response.refresh_token, cookieOptions);
+      Cookies.set('user_data', JSON.stringify(response.user), cookieOptions);
       
       setUser(response.user);
+      
     } catch (error: any) {
-      console.error('Login error:', error);
       throw new Error(error.response?.data?.detail || 'Error al iniciar sesión');
     }
   };
@@ -75,9 +90,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_data');
+    // 🧹 LIMPIAR TODAS LAS COOKIES - ELIMINA LA PERSISTENCIA
+    Cookies.remove('access_token');
+    Cookies.remove('refresh_token');
+    Cookies.remove('user_data');
     setUser(null);
   };
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import logging
 from app.api.core.database import get_db
 from pgdbtoolkit import AsyncPgDbToolkit
@@ -19,6 +19,16 @@ router = APIRouter(
 
 class HumedadData(BaseModel):
     humedad: float
+
+class MultiSensorData(BaseModel):
+    """Datos de múltiples sensores del Wemos D1 Mini"""
+    humedad: float = Field(..., description="Humedad del suelo (0-100%)")
+    temperatura: Optional[float] = Field(None, description="Temperatura ambiente (°C)")
+    humedad_aire: Optional[float] = Field(None, description="Humedad del aire (%)")
+    luz: Optional[float] = Field(None, description="Nivel de luz (0-100%)")
+    bateria: Optional[float] = Field(None, description="Nivel de batería (%)")
+    senal: Optional[int] = Field(None, description="Fuerza de señal WiFi (dBm)")
+    timestamp: Optional[int] = Field(None, description="Timestamp Unix")
 
 async def get_device_id(device_key: str = Header(..., alias="X-Device-Key"), db: AsyncPgDbToolkit = Depends(get_db)) -> int:
     """
@@ -46,7 +56,7 @@ async def save_humedad(
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
     """
-    Guarda una lectura de humedad del suelo
+    Guarda una lectura de humedad del suelo (endpoint legacy)
     """
     try:
         await db.insert_records(
@@ -60,6 +70,75 @@ async def save_humedad(
     except Exception as e:
         logger.error(f"Error guardando datos: {str(e)}")
         raise HTTPException(status_code=500, detail="Error al guardar los datos")
+
+@router.post("/humedad")
+async def save_multi_sensor_data(
+    data: MultiSensorData,
+    device_id: int = Depends(get_device_id),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Guarda datos de múltiples sensores del Wemos D1 Mini
+    
+    Este endpoint recibe datos de:
+    - Humedad del suelo (obligatorio)
+    - Temperatura ambiente (opcional)
+    - Humedad del aire (opcional) 
+    - Nivel de luz (opcional)
+    - Nivel de batería (opcional)
+    - Fuerza de señal WiFi (opcional)
+    """
+    try:
+        logger.info(f"📊 Recibiendo datos del dispositivo ID: {device_id}")
+        logger.info(f"   💧 Humedad suelo: {data.humedad}%")
+        if data.temperatura:
+            logger.info(f"   🌡️  Temperatura: {data.temperatura}°C")
+        if data.humedad_aire:
+            logger.info(f"   💨 Humedad aire: {data.humedad_aire}%")
+        if data.luz is not None:
+            logger.info(f"   ☀️  Luz: {data.luz}%")
+        if data.senal:
+            logger.info(f"   📶 Señal: {data.senal} dBm")
+        
+        # Guardar datos principales de humedad del suelo
+        await db.insert_records(
+            "sensor_humedad_suelo",
+            [{
+                "device_id": device_id,
+                "valor": data.humedad,
+                "temperatura": data.temperatura,
+                "humedad_aire": data.humedad_aire,
+                "luz": data.luz,
+                "bateria": data.bateria,
+                "senal": data.senal,
+                "timestamp_sensor": datetime.fromtimestamp(data.timestamp) if data.timestamp else None
+            }]
+        )
+        
+        # Actualizar última conexión del dispositivo
+        from app.db.queries import update_device_last_seen
+        await update_device_last_seen(db, device_id)
+        
+        response = {
+            "message": "Datos guardados correctamente",
+            "device_id": device_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "data_received": {
+                "humedad_suelo": data.humedad,
+                "temperatura": data.temperatura,
+                "humedad_aire": data.humedad_aire,
+                "luz": data.luz,
+                "bateria": data.bateria,
+                "senal": data.senal
+            }
+        }
+        
+        logger.info(f"✅ Datos guardados exitosamente para dispositivo {device_id}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Error guardando datos del dispositivo {device_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al guardar los datos: {str(e)}")
 
 @router.get("/lector-humedad")
 async def get_humedad(
@@ -329,3 +408,29 @@ async def check_smart_alerts(
     except Exception as e:
         logger.error(f"Error verificando alertas: {str(e)}")
         raise HTTPException(status_code=500, detail="Error al verificar alertas")
+
+@router.post("/test-ia")
+async def test_ai_service():
+    """
+    Endpoint de prueba para verificar que el servicio de IA funciona
+    """
+    try:
+        test_query = "Mi planta tiene las hojas amarillas y la tierra está muy seca. ¿Qué debo hacer?"
+        
+        ai_response = await ai_service.get_plant_recommendation(test_query)
+        
+        return {
+            "status": "success",
+            "test_query": test_query,
+            "ai_response": ai_response["recomendacion"],
+            "tokens_used": ai_response.get("usage", {}),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error en prueba de IA: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
