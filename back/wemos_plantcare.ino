@@ -10,7 +10,7 @@ const char* password = "TU_WIFI_PASSWORD";
 
 // Configuración del servidor
 const char* serverURL = "http://192.168.1.100:5000/api"; // Cambia por tu IP del backend
-const char* deviceKey = "ABC-1234"; // Código de tu dispositivo registrado en la DB
+const char* deviceCode = "ABC-1234"; // Código de tu dispositivo registrado en la DB
 
 // Configuración de sensores
 #define DHT_PIN D4
@@ -148,7 +148,7 @@ void sendDataToBackend(SensorData data) {
   
   http.begin(wifiClient, String(serverURL) + "/humedad");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Device-Key", deviceKey);
+  http.addHeader("X-Device-Code", deviceCode);
   
   // Crear JSON con los datos
   DynamicJsonDocument doc(512);

@@ -30,19 +30,19 @@ class MultiSensorData(BaseModel):
     senal: Optional[int] = Field(None, description="Fuerza de señal WiFi (dBm)")
     timestamp: Optional[int] = Field(None, description="Timestamp Unix")
 
-async def get_device_id(device_key: str = Header(..., alias="X-Device-Key"), db: AsyncPgDbToolkit = Depends(get_db)) -> int:
+async def get_device_id(device_code: str = Header(..., alias="X-Device-Code"), db: AsyncPgDbToolkit = Depends(get_db)) -> int:
     """
-    Verifica la clave del dispositivo y retorna su ID
+    Verifica el código del dispositivo y retorna su ID
     """
     try:
         result = await db.fetch_records(
             "devices",
             columns=["id"],
-            conditions={"device_key": device_key}
+            conditions={"device_code": device_code}
         )
         
         if result.empty:
-            raise HTTPException(status_code=401, detail="Clave de dispositivo inválida")
+            raise HTTPException(status_code=401, detail="Código de dispositivo inválido")
             
         return result.iloc[0]['id']
     except Exception as e:
