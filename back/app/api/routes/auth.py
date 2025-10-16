@@ -6,7 +6,7 @@ from app.api.schemas.user import (
     UserCreate, UserLogin, UserResponse, Token, 
     UserUpdate, PasswordChange
 )
-from app.db.queries import get_user_by_email, update_user_password, update_user
+from app.db.queries import get_user_by_email, update_user_password, update_user, deactivate_user
 from pgdbtoolkit import AsyncPgDbToolkit
 import logging
 
@@ -71,6 +71,7 @@ async def register_user(
                 vineyard_name=user["vineyard_name"],
                 hectares=user["hectares"],
                 grape_type=user["grape_type"],
+                role_id=user.get("role_id", 1),
                 created_at=user["created_at"],
                 last_login=user["last_login"],
                 active=user["active"]
@@ -294,7 +295,7 @@ async def update_current_user(
             )
         
         # Convertir a UserResponse
-        user_response = UserResponse.model_validate(current_user)
+        user_response = UserResponse.model_validate(updated_user)
         
         logger.info(f"Usuario actualizado: {updated_user['email']}")
         return user_response
@@ -356,6 +357,47 @@ async def change_password(
         raise
     except Exception as e:
         logger.error(f"Error cambiando contraseña: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.delete("/me")
+async def delete_account(
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Elimina la cuenta del usuario actual (desactivación)
+    
+    Args:
+        current_user: Usuario actual obtenido del token
+        db: Conexión a la base de datos
+        
+    Returns:
+        dict: Mensaje de confirmación
+    """
+    try:
+        # Desactivar el usuario en lugar de eliminarlo completamente
+        success = await deactivate_user(db, current_user["id"])
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se pudo eliminar la cuenta"
+            )
+        
+        logger.info(f"Cuenta eliminada (desactivada): {current_user['email']}")
+        
+        return {
+            "message": "Cuenta eliminada exitosamente",
+            "detail": "Tu cuenta ha sido desactivada. Contacta al soporte si deseas reactivarla."
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error eliminando cuenta: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"

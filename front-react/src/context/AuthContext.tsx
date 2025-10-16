@@ -9,6 +9,7 @@ import { authAPI } from '../services/api';
  */
 interface AuthContextType {
   user: UserResponse | null;
+  token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
@@ -32,19 +33,21 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserResponse | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // 🔄 RESTAURACIÓN AUTOMÁTICA DE SESIÓN AL CARGAR LA APP
   useEffect(() => {
     // Busca tokens guardados en cookies del navegador
-    const token = Cookies.get('access_token');
+    const savedToken = Cookies.get('access_token');
     const userData = Cookies.get('user_data');
 
-    if (token && userData) {
+    if (savedToken && userData) {
       try {
         // Restaura la sesión sin necesidad de login
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
+        setToken(savedToken);
         console.log('✅ Sesión restaurada para:', parsedUser.email);
       } catch (error) {
         // Limpia cookies corruptas
@@ -73,6 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       Cookies.set('user_data', JSON.stringify(response.user), cookieOptions);
       
       setUser(response.user);
+      setToken(response.access_token);
       
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Error al iniciar sesión');
@@ -95,10 +99,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     Cookies.remove('refresh_token');
     Cookies.remove('user_data');
     setUser(null);
+    setToken(null);
   };
 
   const value: AuthContextType = {
     user,
+    token,
     isLoading,
     isAuthenticated: !!user,
     login,

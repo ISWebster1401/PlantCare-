@@ -14,7 +14,7 @@ if sys.platform == "win32":
 from app.api.core.config import settings
 from app.api.core.log import logger, log_startup, log_shutdown, log_error_with_context
 from app.api.core.database import init_db, close_db, health_check, get_database_stats
-from app.api.routes import auth, humedad, devices, ai
+from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo
 
 # Crear aplicación FastAPI
 app = FastAPI(
@@ -105,6 +105,10 @@ app.include_router(humedad.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(devices.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
+app.include_router(contact.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
+app.include_router(reports.router, prefix="/api")
+app.include_router(demo.router, prefix="/api")
 
 # Ruta raíz
 @app.get("/", response_class=HTMLResponse)

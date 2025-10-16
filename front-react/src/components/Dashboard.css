@@ -3,6 +3,7 @@
   min-height: 100vh;
   background: linear-gradient(135deg, #0f172a, #1e293b, #0f172a);
   color: white;
+  position: relative;
 }
 
 /* Header */
@@ -59,6 +60,18 @@
   border-color: #4ade80;
 }
 
+.nav-btn.help-btn {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+.nav-btn.help-btn:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
 .login-btn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -75,9 +88,20 @@
   gap: 15px;
 }
 
-.user-name {
+.user-name-btn {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
   color: #4ade80;
+  padding: 8px 16px;
+  border-radius: 6px;
   font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.user-name-btn:hover {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: #4ade80;
 }
 
 .logout-btn {
@@ -201,5 +225,102 @@
   .user-menu {
     flex-direction: column;
     gap: 10px;
+  }
+}
+
+/* Floating Help Buttons */
+.floating-help {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 15px;
+}
+
+.help-fab {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-fab:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 12px 35px rgba(59, 130, 246, 0.6);
+}
+
+.help-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.floating-help:hover .help-options {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+
+.help-option {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.help-option:nth-child(1) {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.help-option:nth-child(2) {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.help-option:hover {
+  transform: translateY(-2px) scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive para botones flotantes */
+@media (max-width: 768px) {
+  .floating-help {
+    bottom: 20px;
+    right: 20px;
+  }
+  
+  .help-fab {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+  
+  .help-option {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
   }
 }

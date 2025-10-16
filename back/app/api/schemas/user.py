@@ -91,7 +91,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     """Esquema de respuesta para usuario"""
     id: int
-    role: UserRole = UserRole.USER
+    role_id: int = 1
     created_at: datetime
     last_login: Optional[datetime]
     active: bool

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { deviceAPI } from '../services/api';
 import './DeviceManager.css';
 
@@ -23,6 +24,7 @@ interface DeviceListResponse {
 }
 
 const DeviceManager: React.FC = () => {
+  const { token } = useAuth();
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +40,7 @@ const DeviceManager: React.FC = () => {
   });
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [settingUpDemo, setSettingUpDemo] = useState(false);
 
   useEffect(() => {
     loadDevices();
@@ -89,6 +92,33 @@ const DeviceManager: React.FC = () => {
     }
   };
 
+  const setupDemoDevices = async () => {
+    try {
+      setSettingUpDemo(true);
+      setError(null);
+      
+      const response = await fetch('/api/demo/setup-demo-account', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        await loadDevices(); // Recargar dispositivos
+        setError(null);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Error configurando demo');
+      }
+    } catch (err: any) {
+      setError('Error configurando demostración');
+    } finally {
+      setSettingUpDemo(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="device-manager">
@@ -104,12 +134,28 @@ const DeviceManager: React.FC = () => {
     <div className="device-manager">
       <div className="manager-header">
         <h1>Mis Dispositivos</h1>
-        <button 
-          className="connect-btn"
-          onClick={() => setShowConnectForm(true)}
-        >
-          + Conectar Dispositivo
-        </button>
+        <div className="header-actions">
+          <button 
+            className="demo-btn"
+            onClick={setupDemoDevices}
+            disabled={settingUpDemo}
+          >
+            {settingUpDemo ? (
+              <>
+                <span className="spinner"></span>
+                Configurando...
+              </>
+            ) : (
+              '🚀 Demo Rápido'
+            )}
+          </button>
+          <button 
+            className="connect-btn"
+            onClick={() => setShowConnectForm(true)}
+          >
+            + Conectar Dispositivo
+          </button>
+        </div>
       </div>
 
       {error && (

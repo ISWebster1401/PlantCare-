@@ -306,30 +306,19 @@ async def search_users(db, search_term: str, limit: int = 10) -> List[Dict[str, 
 
 def generate_device_code(device_type: str = "sensor") -> str:
     """
-    Genera un código único para dispositivo tipo patente
+    Genera un código único para dispositivo tipo patente ABC-1234
     
     Args:
         device_type: Tipo de dispositivo para generar prefijo
         
     Returns:
-        str: Código único tipo ABC-1234
+        str: Código único tipo ABC-1234 (3 letras + 4 dígitos)
     """
-    # Prefijos según tipo de dispositivo
-    prefixes = {
-        "humidity_sensor": "HS",
-        "temperature_sensor": "TS", 
-        "light_sensor": "LS",
-        "multi_sensor": "MS",
-        "irrigation_controller": "IC",
-        "sensor": "SN"  # Genérico
-    }
-    
-    prefix = prefixes.get(device_type, "SN")
-    # Generar 2 letras adicionales y 4 números
-    letters = ''.join(secrets.choice(string.ascii_uppercase) for _ in range(2))
+    # Generar 3 letras aleatorias y 4 números
+    letters = ''.join(secrets.choice(string.ascii_uppercase) for _ in range(3))
     numbers = ''.join(secrets.choice(string.digits) for _ in range(4))
     
-    return f"{prefix}{letters}-{numbers}"
+    return f"{letters}-{numbers}"
 
 async def create_device_code(db, device_type: str = "humidity_sensor", quantity: int = 1) -> List[Dict[str, Any]]:
     """
@@ -624,3 +613,403 @@ async def get_device_stats(db, user_id: int) -> Dict[str, int]:
     except Exception as e:
         logger.error(f"Error obteniendo estadísticas de dispositivos: {str(e)}")
         return {"total": 0, "connected": 0, "active": 0, "offline": 0}
+
+# ===============================================
+# FUNCIONES ASÍNCRONAS PARA ADMINISTRACIÓN
+# ===============================================
+
+async def get_all_users_admin(db, filters: dict = None) -> List[Dict[str, Any]]:
+    """
+    Obtiene todos los usuarios para el panel de administración
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        filters: Filtros opcionales (role_id, active, region, search, page, limit)
+        
+    Returns:
+        List[Dict]: Lista de usuarios con información completa
+    """
+    try:
+        # Query simplificada sin roles por ahora (hasta que la tabla roles esté lista)
+        base_query = """
+            SELECT u.*, 
+                   CASE 
+                       WHEN u.role_id = 2 THEN 'admin'
+                       ELSE 'user'
+                   END as role_name,
+                   COALESCE(device_counts.device_count, 0) as device_count
+            FROM users u
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as device_count
+                FROM devices 
+                WHERE connected = true
+                GROUP BY user_id
+            ) device_counts ON u.id = device_counts.user_id
+        """
+        
+        conditions = []
+        params = []
+        
+        if filters:
+            if filters.get("role_id"):
+                conditions.append("u.role_id = %s")
+                params.append(filters["role_id"])
+            
+            if filters.get("active") is not None:
+                conditions.append("u.active = %s")
+                params.append(filters["active"])
+            
+            if filters.get("region"):
+                conditions.append("u.region ILIKE %s")
+                params.append(f"%{filters['region']}%")
+            
+            if filters.get("search"):
+                conditions.append("""
+                    (u.first_name ILIKE %s OR u.last_name ILIKE %s 
+                     OR u.email ILIKE %s OR u.vineyard_name ILIKE %s)
+                """)
+                search_term = f"%{filters['search']}%"
+                params.extend([search_term, search_term, search_term, search_term])
+        
+        # Agregar condiciones WHERE si existen
+        if conditions:
+            base_query += " WHERE " + " AND ".join(conditions)
+        
+        # Agregar ORDER BY
+        base_query += " ORDER BY u.created_at DESC"
+        
+        # Agregar paginación si se especifica
+        if filters and filters.get("page") and filters.get("limit"):
+            offset = (filters["page"] - 1) * filters["limit"]
+            base_query += f" LIMIT {filters['limit']} OFFSET {offset}"
+        
+        result = await db.execute_query(base_query, params)
+        
+        if result is not None and not result.empty:
+            return result.to_dict('records')
+        return []
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo usuarios para admin: {str(e)}")
+        return []
+
+async def get_user_by_id_admin(db, user_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene un usuario específico para administración
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        user_id: ID del usuario
+        
+    Returns:
+        Dict: Usuario con información completa o None
+    """
+    try:
+        result = await db.execute_query("""
+            SELECT u.*, 
+                   CASE 
+                       WHEN u.role_id = 2 THEN 'admin'
+                       ELSE 'user'
+                   END as role_name,
+                   COALESCE(device_counts.device_count, 0) as device_count
+            FROM users u
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as device_count
+                FROM devices 
+                WHERE connected = true AND user_id = %s
+                GROUP BY user_id
+            ) device_counts ON u.id = device_counts.user_id
+            WHERE u.id = %s
+        """, (user_id, user_id))
+        
+        if result is not None and not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo usuario por ID para admin: {str(e)}")
+        return None
+
+async def create_user_admin(db, user_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Crea un nuevo usuario desde el panel de administración
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        user_data: Datos del usuario a crear
+        
+    Returns:
+        Dict: Usuario creado
+    """
+    try:
+        result = await db.insert_records("users", user_data)
+        
+        if result is not None and len(result) > 0:
+            user_id = result[0]
+            return await get_user_by_id_admin(db, user_id)
+        else:
+            raise Exception("No se pudo crear el usuario")
+            
+    except Exception as e:
+        logger.error(f"Error creando usuario desde admin: {str(e)}")
+        raise
+
+async def update_user_admin(db, user_id: int, user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Actualiza un usuario desde el panel de administración
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        user_id: ID del usuario a actualizar
+        user_data: Datos a actualizar
+        
+    Returns:
+        Dict: Usuario actualizado o None
+    """
+    try:
+        # Filtrar campos None
+        update_data = {k: v for k, v in user_data.items() if v is not None}
+        
+        if not update_data:
+            return await get_user_by_id_admin(db, user_id)
+        
+        # Actualizar usando SQL directo
+        set_clause = ", ".join([f"{k} = %s" for k in update_data.keys()])
+        values = list(update_data.values()) + [user_id]
+        
+        await db.execute_query(
+            f"UPDATE users SET {set_clause} WHERE id = %s",
+            values
+        )
+        
+        return await get_user_by_id_admin(db, user_id)
+        
+    except Exception as e:
+        logger.error(f"Error actualizando usuario desde admin: {str(e)}")
+        return None
+
+async def delete_user_admin(db, user_id: int) -> bool:
+    """
+    Elimina un usuario completamente (solo para admin)
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        user_id: ID del usuario a eliminar
+        
+    Returns:
+        bool: True si se eliminó correctamente
+    """
+    try:
+        await db.delete_records("users", {"id": user_id})
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error eliminando usuario desde admin: {str(e)}")
+        return False
+
+async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]]:
+    """
+    Obtiene todos los dispositivos para el panel de administración
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        filters: Filtros opcionales
+        
+    Returns:
+        List[Dict]: Lista de dispositivos con información completa
+    """
+    try:
+        base_query = """
+            SELECT d.*, 
+                   u.first_name || ' ' || u.last_name as user_name,
+                   u.email as user_email
+            FROM devices d
+            LEFT JOIN users u ON d.user_id = u.id
+        """
+        
+        conditions = []
+        params = []
+        
+        if filters:
+            if filters.get("device_type"):
+                conditions.append("d.device_type = %s")
+                params.append(filters["device_type"])
+            
+            if filters.get("connected") is not None:
+                conditions.append("d.connected = %s")
+                params.append(filters["connected"])
+            
+            if filters.get("active") is not None:
+                conditions.append("d.active = %s")
+                params.append(filters["active"])
+            
+            if filters.get("user_id"):
+                conditions.append("d.user_id = %s")
+                params.append(filters["user_id"])
+            
+            if filters.get("search"):
+                conditions.append("""
+                    (d.device_code ILIKE %s OR d.name ILIKE %s 
+                     OR u.email ILIKE %s OR u.first_name ILIKE %s OR u.last_name ILIKE %s)
+                """)
+                search_term = f"%{filters['search']}%"
+                params.extend([search_term] * 5)
+        
+        if conditions:
+            base_query += " WHERE " + " AND ".join(conditions)
+        
+        base_query += " ORDER BY d.created_at DESC"
+        
+        # Paginación
+        if filters and filters.get("page") and filters.get("limit"):
+            offset = (filters["page"] - 1) * filters["limit"]
+            base_query += f" LIMIT {filters['limit']} OFFSET {offset}"
+        
+        result = await db.execute_query(base_query, params)
+        
+        if result is not None and not result.empty:
+            return result.to_dict('records')
+        return []
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo dispositivos para admin: {str(e)}")
+        return []
+
+async def get_admin_stats(db) -> Dict[str, Any]:
+    """
+    Obtiene estadísticas generales para el panel de administración
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        
+    Returns:
+        Dict: Estadísticas del sistema
+    """
+    try:
+        # Estadísticas de usuarios
+        users_stats = await db.execute_query("""
+            SELECT 
+                COUNT(*) as total_users,
+                COUNT(CASE WHEN active = true THEN 1 END) as active_users,
+                COUNT(CASE WHEN active = false THEN 1 END) as inactive_users,
+                COUNT(CASE WHEN role_id = 2 THEN 1 END) as admin_users,
+                COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as new_users_today,
+                COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as new_users_week
+            FROM users
+        """)
+        
+        # Estadísticas de dispositivos
+        devices_stats = await db.execute_query("""
+            SELECT 
+                COUNT(*) as total_devices,
+                COUNT(CASE WHEN connected = true THEN 1 END) as connected_devices,
+                COUNT(CASE WHEN connected = false THEN 1 END) as unconnected_devices,
+                COUNT(CASE WHEN active = true THEN 1 END) as active_devices,
+                COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as new_devices_today,
+                COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as new_devices_week
+            FROM devices
+        """)
+        
+        # Estadísticas de lecturas
+        readings_stats = await db.execute_query("""
+            SELECT 
+                COUNT(CASE WHEN fecha >= CURRENT_DATE THEN 1 END) as total_readings_today,
+                COUNT(CASE WHEN fecha >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as total_readings_week
+            FROM sensor_humedad_suelo
+        """)
+        
+        stats = {}
+        
+        if users_stats is not None and not users_stats.empty:
+            stats.update(users_stats.iloc[0].to_dict())
+        
+        if devices_stats is not None and not devices_stats.empty:
+            stats.update(devices_stats.iloc[0].to_dict())
+        
+        if readings_stats is not None and not readings_stats.empty:
+            stats.update(readings_stats.iloc[0].to_dict())
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas de admin: {str(e)}")
+        return {}
+
+async def bulk_update_users(db, user_ids: List[int], action: str) -> bool:
+    """
+    Realiza acciones en lote sobre usuarios
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        user_ids: Lista de IDs de usuarios
+        action: Acción a realizar (activate, deactivate, delete)
+        
+    Returns:
+        bool: True si se realizó correctamente
+    """
+    try:
+        if action == "activate":
+            await db.execute_query(
+                f"UPDATE users SET active = true WHERE id = ANY(%s)",
+                (user_ids,)
+            )
+        elif action == "deactivate":
+            await db.execute_query(
+                f"UPDATE users SET active = false WHERE id = ANY(%s)",
+                (user_ids,)
+            )
+        elif action == "delete":
+            await db.execute_query(
+                f"DELETE FROM users WHERE id = ANY(%s)",
+                (user_ids,)
+            )
+        else:
+            return False
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error en acción en lote de usuarios: {str(e)}")
+        return False
+
+async def bulk_update_devices(db, device_ids: List[int], action: str) -> bool:
+    """
+    Realiza acciones en lote sobre dispositivos
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        device_ids: Lista de IDs de dispositivos
+        action: Acción a realizar (activate, deactivate, disconnect, delete)
+        
+    Returns:
+        bool: True si se realizó correctamente
+    """
+    try:
+        if action == "activate":
+            await db.execute_query(
+                f"UPDATE devices SET active = true WHERE id = ANY(%s)",
+                (device_ids,)
+            )
+        elif action == "deactivate":
+            await db.execute_query(
+                f"UPDATE devices SET active = false WHERE id = ANY(%s)",
+                (device_ids,)
+            )
+        elif action == "disconnect":
+            await db.execute_query(
+                f"UPDATE devices SET user_id = NULL, connected = false WHERE id = ANY(%s)",
+                (device_ids,)
+            )
+        elif action == "delete":
+            await db.execute_query(
+                f"DELETE FROM devices WHERE id = ANY(%s)",
+                (device_ids,)
+            )
+        else:
+            return False
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error en acción en lote de dispositivos: {str(e)}")
+        return False

@@ -21,7 +21,7 @@ export interface UserResponse {
   vineyard_name: string;
   hectares: number;
   grape_type: string;
-  role: string;
+  role_id: number;
   created_at: string;
   last_login: string | null;
   active: boolean;

@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "True").lower() == "true"
 
+    # Configuración de SendGrid
+    SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
+    SENDGRID_FROM_EMAIL: str = os.getenv("SENDGRID_FROM_EMAIL", "noreply@plantcare.com")
+    SENDGRID_FROM_NAME: str = os.getenv("SENDGRID_FROM_NAME", "PlantCare Support")
+    CONTACT_EMAIL: str = os.getenv("CONTACT_EMAIL", "contacto@plantcare.com")
 
     # Configuración de Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

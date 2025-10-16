@@ -63,6 +63,24 @@ async def _create_tables(db: AsyncPgDbToolkit):
     try:
         tables = await db.get_tables()
         
+        # Tabla de roles
+        if "roles" not in tables:
+            logger.info("📋 Creando tabla roles...")
+            await db.create_table("roles", {
+                "id": "SERIAL PRIMARY KEY",
+                "name": "VARCHAR(50) UNIQUE NOT NULL",
+                "description": "VARCHAR(200)",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            
+            # Insertar roles por defecto
+            await db.insert_records("roles", [
+                {"id": 1, "name": "user", "description": "Usuario normal - Propietario de viñas"},
+                {"id": 2, "name": "admin", "description": "Administrador - Gestión completa del sistema"}
+            ])
+            
+            logger.info("✅ Tabla roles creada con roles por defecto")
+        
         # Tabla de usuarios
         if "users" not in tables:
             logger.info("📋 Creando tabla users...")
@@ -77,12 +95,28 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "hectares": "DECIMAL(10,2) CHECK (hectares >= 0)",
                 "grape_type": "VARCHAR(100)",
                 "password_hash": "VARCHAR(255) NOT NULL",
+                "role_id": "INTEGER DEFAULT 1 REFERENCES roles(id)",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "last_login": "TIMESTAMP",
-                "active": "BOOLEAN DEFAULT true",
-                "role": "VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin', 'moderator'))"
+                "active": "BOOLEAN DEFAULT true"
             })
             logger.info("✅ Tabla users creada exitosamente")
+        else:
+            # Verificar si existe la columna role_id, si no, agregarla
+            try:
+                await db.execute_query("SELECT role_id FROM users LIMIT 1")
+            except:
+                logger.info("📋 Agregando columna role_id a tabla users...")
+                # Primero agregar la columna sin la referencia
+                await db.execute_query("ALTER TABLE users ADD COLUMN role_id INTEGER DEFAULT 1")
+                # Actualizar usuarios existentes para que tengan rol de usuario (1)
+                await db.execute_query("UPDATE users SET role_id = 1 WHERE role_id IS NULL")
+                # Ahora agregar la referencia de clave foránea
+                try:
+                    await db.execute_query("ALTER TABLE users ADD CONSTRAINT users_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id)")
+                except Exception as fk_error:
+                    logger.warning(f"No se pudo agregar la clave foránea: {fk_error}")
+                logger.info("✅ Columna role_id agregada y usuarios actualizados")
         
         # Tabla de dispositivos IoT
         if "devices" not in tables:
