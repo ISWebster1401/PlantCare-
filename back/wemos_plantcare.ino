@@ -1,200 +1,447 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
-#include <ArduinoJson.h>
-#include <DHT.h>
+#include <Adafruit_BMP085.h>
+#include <Wire.h>
 
-// Configuración WiFi
-const char* ssid = "TU_WIFI_SSID";
-const char* password = "TU_WIFI_PASSWORD";
+// ==================== CONFIGURACIÓN USUARIO ====================
+// WiFi
+const char WIFI_SSID[] PROGMEM = "CPM";
+const char WIFI_PASSWORD[] PROGMEM = "EPDPM2025";
 
-// Configuración del servidor
-const char* serverURL = "http://192.168.1.100:5000/api"; // Cambia por tu IP del backend
-const char* deviceCode = "ABC-1234"; // Código de tu dispositivo registrado en la DB
+// API - ACTUALIZA ESTOS VALORES CON TUS DATOS
+const char SERVER_URL[] PROGMEM = "http://192.168.101.213:5000/api/lecturas";  // ⚠️ Endpoint actualizado
+const int DEVICE_ID = "PGA-1234";  // ⚠️ IMPORTANTE: ID del dispositivo en la BD
 
-// Configuración de sensores
-#define DHT_PIN D4
-#define DHT_TYPE DHT22
-#define SOIL_MOISTURE_PIN A0
-#define LIGHT_SENSOR_PIN D6
-#define TEMP_SENSOR_PIN D5
+// Intervalo de lecturas (en milisegundos)
+const unsigned long INTERVALO_LECTURA = 10000; // 10 segundos
+// ===============================================================
 
-DHT dht(DHT_PIN, DHT_TYPE);
+// Pines
+const int SENSOR_HUMEDAD_PIN = A0;
+const int LED_PIN = 2;
 
-// Variables globales
-WiFiClient wifiClient;
-HTTPClient http;
-unsigned long lastSensorRead = 0;
-const unsigned long SENSOR_INTERVAL = 30000; // 30 segundos entre lecturas
+// Objeto BMP180
+Adafruit_BMP085 bmp;
 
-// Estructura para datos de sensores
-struct SensorData {
-  float humidity;           // Humedad del aire (DHT22)
-  float temperature;        // Temperatura (DHT22)
-  float soilMoisture;       // Humedad del suelo (0-100%)
-  float lightLevel;         // Nivel de luz (0-100%)
-  float batteryLevel;       // Nivel de batería (opcional)
-  int signalStrength;       // Fuerza de señal WiFi
+// Variables optimizadas
+bool wifiConectado = false;
+bool bmpConectado = false;
+unsigned long ultimaLectura = 0;
+uint16_t contadorLecturas = 0;
+
+// Buffer ampliado para JSON según schema de Pydantic
+char jsonBuffer[512];
+
+// Estructura para almacenar datos según SensorReadingCreate schema
+struct DatosSensores {
+  int device_id;           // Obligatorio (int)
+  float valor;             // Obligatorio: humedad del suelo (0-100%)
+  float temperatura;       // Opcional: temperatura ambiente (-20 a 60°C)
+  float luz;               // Opcional: nivel de luz (>=0 lux)
+  float humedad_ambiente;  // Opcional: humedad ambiente (0-100%)
+  float battery_level;     // Opcional: nivel batería (0-100%)
+  int signal_strength;     // Opcional: fuerza señal (-100 a 0 dBm)
 };
 
 void setup() {
   Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
+  
+  delay(2000);
+  
+  Serial.println(F("\n============================================================"));
+  Serial.println(F("🌱 MONITOR AMBIENTAL - ESP8266 + FASTAPI"));
+  Serial.println(F("💧 Sensores: Humedad del Suelo + BMP180"));
+  Serial.print(F("📡 API Endpoint: "));
+  Serial.println(FPSTR(SERVER_URL));
+  Serial.print(F("🆔 Device ID: "));
+  Serial.println(DEVICE_ID);
+  Serial.println(F("============================================================"));
+  
+  // Inicializar I2C para BMP180
+  Wire.begin();
+  
+  // Inicializar BMP180
+  inicializarBMP180();
+  
+  // Conectar WiFi
+  conectarWiFi();
+  
+  Serial.println(F("============================================================"));
+  Serial.print(F("🚀 SISTEMA INICIADO - Leyendo cada "));
+  Serial.print(INTERVALO_LECTURA/1000);
+  Serial.println(F(" segundos"));
+  Serial.println(F("============================================================"));
+  
   delay(1000);
-  
-  Serial.println("\n🌱 PlantCare - Wemos D1 Mini Sensor Node");
-  Serial.println("==========================================");
-  
-  // Inicializar sensores
-  dht.begin();
-  pinMode(LIGHT_SENSOR_PIN, INPUT);
-  
-  // Conectar a WiFi
-  connectToWiFi();
-  
-  Serial.println("✅ Sistema inicializado correctamente");
-  Serial.println("📡 Enviando datos cada 30 segundos...\n");
 }
 
 void loop() {
-  // Verificar conexión WiFi
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("⚠️  WiFi desconectado. Reconectando...");
-    connectToWiFi();
+  if (millis() - ultimaLectura >= INTERVALO_LECTURA) {
+    contadorLecturas++;
+    
+    Serial.print(F("\n📊 === LECTURA #"));
+    Serial.print(contadorLecturas);
+    Serial.println(F(" ==="));
+    Serial.print(F("🕒 "));
+    Serial.print(millis()/1000);
+    Serial.println(F("s desde el inicio"));
+    
+    // Estructura para almacenar todos los datos
+    DatosSensores datos;
+    datos.device_id = DEVICE_ID;
+    
+    // Leer todos los sensores según schema
+    datos.valor = leerHumedadSuelo();  // Campo obligatorio: humedad del suelo
+    leerDatosBMP180(datos);            // Temperatura opcional
+    datos.luz = 0;                     // Placeholder - añadir sensor de luz si existe
+    datos.humedad_ambiente = 0;        // Placeholder - añadir DHT11/22 si existe
+    datos.battery_level = 0;           // Placeholder - añadir lectura de batería si aplica
+    datos.signal_strength = WiFi.RSSI(); // Fuerza de señal WiFi
+    
+    // Mostrar resumen completo
+    mostrarResumen(datos);
+    
+    // Enviar datos a la API
+    if (verificarWiFi()) {
+      enviarDatosAPI(datos);
+    }
+    
+    ultimaLectura = millis();
   }
   
-  // Leer sensores cada 30 segundos
-  if (millis() - lastSensorRead >= SENSOR_INTERVAL) {
-    SensorData data = readSensors();
-    sendDataToBackend(data);
-    lastSensorRead = millis();
-  }
-  
-  delay(1000); // Pequeña pausa para no saturar el loop
+  delay(100);
 }
 
-void connectToWiFi() {
-  Serial.print("🔌 Conectando a WiFi: ");
-  Serial.println(ssid);
+ICACHE_FLASH_ATTR void inicializarBMP180() {
+  Serial.println(F("\n🌡️ Inicializando sensor BMP180..."));
   
-  WiFi.begin(ssid, password);
-  
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n✅ WiFi conectado!");
-    Serial.print("📍 IP Address: ");
-    Serial.println(WiFi.localIP());
-    Serial.print("📶 Signal Strength: ");
-    Serial.print(WiFi.RSSI());
-    Serial.println(" dBm");
+  if (bmp.begin()) {
+    bmpConectado = true;
+    Serial.println(F("✅ BMP180 inicializado correctamente"));
+    Serial.println(F("📊 Sensores disponibles: Temperatura, Presión"));
   } else {
-    Serial.println("\n❌ Error: No se pudo conectar a WiFi");
-    Serial.println("🔄 Reiniciando en 10 segundos...");
-    delay(10000);
-    ESP.restart();
+    bmpConectado = false;
+    Serial.println(F("❌ Error: No se pudo inicializar BMP180"));
+    Serial.println(F("💡 Verifica las conexiones I2C:"));
+    Serial.println(F("   - VCC -> 3.3V"));
+    Serial.println(F("   - GND -> GND"));
+    Serial.println(F("   - SDA -> D2 (GPIO4)"));
+    Serial.println(F("   - SCL -> D1 (GPIO5)"));
   }
 }
 
-SensorData readSensors() {
-  SensorData data;
-  
-  // Leer DHT22 (humedad y temperatura del aire)
-  data.humidity = dht.readHumidity();
-  data.temperature = dht.readTemperature();
-  
-  // Leer humedad del suelo (sensor analógico)
-  int soilRaw = analogRead(SOIL_MOISTURE_PIN);
-  data.soilMoisture = map(soilRaw, 1024, 0, 0, 100); // Invertir y mapear a 0-100%
-  data.soilMoisture = constrain(data.soilMoisture, 0, 100);
-  
-  // Leer sensor de luz (LDR o similar)
-  int lightRaw = digitalRead(LIGHT_SENSOR_PIN);
-  data.lightLevel = lightRaw * 100; // Simplificado, ajusta según tu sensor
-  
-  // Obtener fuerza de señal WiFi
-  data.signalStrength = WiFi.RSSI();
-  
-  // Nivel de batería (opcional, si usas batería)
-  data.batteryLevel = 100.0; // Placeholder
-  
-  // Validar lecturas del DHT22
-  if (isnan(data.humidity) || isnan(data.temperature)) {
-    Serial.println("⚠️  Error leyendo DHT22, usando valores por defecto");
-    data.humidity = 50.0;
-    data.temperature = 25.0;
-  }
-  
-  // Debug: Mostrar lecturas
-  Serial.println("📊 Lecturas de sensores:");
-  Serial.printf("   🌡️  Temperatura: %.1f°C\n", data.temperature);
-  Serial.printf("   💨 Humedad aire: %.1f%%\n", data.humidity);
-  Serial.printf("   💧 Humedad suelo: %.1f%%\n", data.soilMoisture);
-  Serial.printf("   ☀️  Luz: %.1f%%\n", data.lightLevel);
-  Serial.printf("   📶 Señal: %d dBm\n", data.signalStrength);
-  
-  return data;
-}
-
-void sendDataToBackend(SensorData data) {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("❌ WiFi no conectado, no se puede enviar datos");
+void leerDatosBMP180(DatosSensores &datos) {
+  if (!bmpConectado) {
+    Serial.println(F("\n⚠️ BMP180 no disponible"));
+    datos.temperatura = 0;  // null/0 para campos opcionales
     return;
   }
   
-  http.begin(wifiClient, String(serverURL) + "/humedad");
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Device-Code", deviceCode);
+  Serial.println(F("\n🌡️ === SENSOR BMP180 ==="));
   
-  // Crear JSON con los datos
-  DynamicJsonDocument doc(512);
-  doc["humedad"] = data.soilMoisture;
-  doc["temperatura"] = data.temperature;
-  doc["humedad_aire"] = data.humidity;
-  doc["luz"] = data.lightLevel;
-  doc["bateria"] = data.batteryLevel;
-  doc["senal"] = data.signalStrength;
-  doc["timestamp"] = WiFi.getTime();
+  // Leer temperatura (validación: -20 a 60°C según schema)
+  float tempRaw = bmp.readTemperature();
+  datos.temperatura = constrain(tempRaw, -20.0, 60.0);
   
-  String jsonString;
-  serializeJson(doc, jsonString);
+  Serial.print(F("🌡️ Temperatura: "));
+  Serial.print(datos.temperatura, 1);
+  Serial.println(F("°C"));
   
-  Serial.println("📤 Enviando datos al backend...");
-  Serial.println("JSON: " + jsonString);
+  // Validación según schema
+  if (datos.temperatura < -20 || datos.temperatura > 60) {
+    Serial.println(F("⚠️ Temperatura fuera de rango permitido (-20 a 60°C)"));
+    datos.temperatura = 0;
+  }
   
-  int httpResponseCode = http.POST(jsonString);
+  mostrarEstadoTemperatura(datos.temperatura);
+}
+
+ICACHE_FLASH_ATTR void mostrarEstadoTemperatura(float temperatura) {
+  if (temperatura == 0) return;
   
+  Serial.print(F("🎯 Estado térmico: "));
+  if (temperatura < 10) {
+    Serial.println(F("🟦 MUY FRÍO"));
+  } else if (temperatura < 18) {
+    Serial.println(F("🟨 FRESCO"));
+  } else if (temperatura < 25) {
+    Serial.println(F("🟩 AGRADABLE"));
+  } else if (temperatura < 30) {
+    Serial.println(F("🟨 CÁLIDO"));
+  } else {
+    Serial.println(F("🟥 MUY CALIENTE"));
+  }
+}
+
+ICACHE_FLASH_ATTR void conectarWiFi() {
+  Serial.println(F("\n🔗 Conectando a WiFi..."));
+  Serial.print(F("📶 SSID: "));
+  Serial.println(FPSTR(WIFI_SSID));
+  
+  WiFi.begin(FPSTR(WIFI_SSID), FPSTR(WIFI_PASSWORD));
+  Serial.print(F("🔄 Conectando"));
+  
+  uint8_t intentos = 0;
+  while (WiFi.status() != WL_CONNECTED && intentos < 20) {
+    delay(500); 
+    Serial.print(F("."));
+    digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+    intentos++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiConectado = true;
+    digitalWrite(LED_PIN, LOW);
+    Serial.println(F(" ✅"));
+    Serial.println(F("🌐 ¡CONECTADO AL WiFi!"));
+    Serial.print(F("📍 IP asignada: "));
+    Serial.println(WiFi.localIP());
+    Serial.print(F("📶 Señal WiFi: "));
+    Serial.print(WiFi.RSSI());
+    Serial.println(F(" dBm"));
+  } else {
+    wifiConectado = false;
+    digitalWrite(LED_PIN, HIGH);
+    Serial.println(F(" ❌"));
+    Serial.println(F("⚠️ SIN CONEXIÓN WiFi - Solo modo monitor"));
+  }
+}
+
+float leerHumedadSuelo() {
+  int humedadRaw = analogRead(SENSOR_HUMEDAD_PIN);
+  float humedadPorcentaje = map(humedadRaw, 1024, 0, 0, 100);
+  humedadPorcentaje = constrain(humedadPorcentaje, 0, 100);
+  
+  Serial.println(F("\n💧 === SENSOR DE HUMEDAD DEL SUELO ==="));
+  Serial.print(F("📈 Valor RAW: "));
+  Serial.print(humedadRaw);
+  Serial.println(F(" (0-1024)"));
+  Serial.print(F("💦 Humedad: "));
+  Serial.print(humedadPorcentaje, 1);
+  Serial.println(F("%"));
+  
+  mostrarEstadoHumedad(humedadPorcentaje);
+  
+  return humedadPorcentaje;
+}
+
+ICACHE_FLASH_ATTR void mostrarEstadoHumedad(float humedad) {
+  Serial.print(F("🎯 Estado: "));
+  if (humedad < 30) {
+    Serial.println(F("🟥 MUY SECO - ¡NECESITA RIEGO!"));
+  } else if (humedad < 50) {
+    Serial.println(F("🟨 SECO - Considera regar pronto"));
+  } else if (humedad < 70) {
+    Serial.println(F("🟩 ÓPTIMO - Nivel perfecto"));
+  } else {
+    Serial.println(F("🟦 HÚMEDO - No necesita riego"));
+  }
+}
+
+bool verificarWiFi() {
+  if (wifiConectado && WiFi.status() == WL_CONNECTED) {
+    return true;
+  } else if (!wifiConectado) {
+    Serial.println(F("⚠️ WiFi no conectado inicialmente"));
+    return false;
+  } else {
+    Serial.println(F("❌ WiFi desconectado, reconectando..."));
+    WiFi.begin(FPSTR(WIFI_SSID), FPSTR(WIFI_PASSWORD));
+    digitalWrite(LED_PIN, HIGH);
+    
+    delay(2000);
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println(F("✅ WiFi reconectado!"));
+      wifiConectado = true;
+      digitalWrite(LED_PIN, LOW);
+      return true;
+    }
+    return false;
+  }
+}
+
+// ⭐ FUNCIÓN PRINCIPAL - ENVIAR DATOS SEGÚN SCHEMA SensorReadingCreate
+ICACHE_FLASH_ATTR void enviarDatosAPI(DatosSensores datos) {
+  Serial.println(F("\n📡 === ENVIANDO DATOS A LA API ==="));
+  
+  WiFiClient client;
+  HTTPClient http;
+  
+  http.begin(client, FPSTR(SERVER_URL));
+  http.addHeader(F("Content-Type"), F("application/json"));
+  http.setTimeout(5000);
+  
+  // Crear JSON según schema SensorReadingCreate de Pydantic
+  // Campos obligatorios: device_id, valor
+  // Campos opcionales: temperatura, luz, humedad_ambiente, battery_level, signal_strength
+  
+  if (bmpConectado && datos.temperatura > 0) {
+    // Con temperatura del BMP180
+    snprintf_P(jsonBuffer, sizeof(jsonBuffer), 
+      PSTR("{"
+        "\"device_id\":%d,"
+        "\"valor\":%.2f,"
+        "\"temperatura\":%.1f,"
+        "\"signal_strength\":%d"
+      "}"),
+      datos.device_id,
+      datos.valor,
+      datos.temperatura,
+      datos.signal_strength
+    );
+  } else {
+    // Solo campos obligatorios + señal
+    snprintf_P(jsonBuffer, sizeof(jsonBuffer), 
+      PSTR("{"
+        "\"device_id\":%d,"
+        "\"valor\":%.2f,"
+        "\"signal_strength\":%d"
+      "}"),
+      datos.device_id,
+      datos.valor,
+      datos.signal_strength
+    );
+  }
+  
+  Serial.println(F("📤 JSON a enviar (Schema: SensorReadingCreate):"));
+  Serial.println(jsonBuffer);
+  Serial.println(F("🔑 Validaciones aplicadas:"));
+  Serial.println(F("   ✓ device_id: int"));
+  Serial.println(F("   ✓ valor: 0-100% (ge=0, le=100)"));
+  if (bmpConectado && datos.temperatura > 0) {
+    Serial.println(F("   ✓ temperatura: -20 a 60°C (ge=-20, le=60)"));
+  }
+  Serial.println(F("   ✓ signal_strength: -100 a 0 dBm (ge=-100, le=0)"));
+  
+  Serial.print(F("🌐 Enviando a: "));
+  Serial.println(FPSTR(SERVER_URL));
+
+  int httpResponseCode = http.POST(jsonBuffer);
+
   if (httpResponseCode > 0) {
     String response = http.getString();
-    Serial.printf("✅ Respuesta del servidor (%d): %s\n", httpResponseCode, response.c_str());
+    Serial.println(F("✅ ¡DATOS ENVIADOS EXITOSAMENTE!"));
+    Serial.print(F("📊 HTTP Status Code: "));
+    Serial.println(httpResponseCode);
+    Serial.println(F("💬 Respuesta de la API:"));
+    Serial.println(response);
     
     if (httpResponseCode == 200 || httpResponseCode == 201) {
-      Serial.println("✅ Datos enviados correctamente");
-    } else {
-      Serial.printf("⚠️  Respuesta inesperada del servidor: %d\n", httpResponseCode);
+      Serial.println(F("✨ Estado: Datos guardados en la base de datos"));
+      Serial.println(F("📈 Schema SensorReadingResponse recibido"));
     }
+    
+    // Parpadear LED para confirmar envío exitoso
+    for(uint8_t i = 0; i < 3; i++) {
+      digitalWrite(LED_PIN, HIGH);
+      delay(100);
+      digitalWrite(LED_PIN, LOW);
+      delay(100);
+    }
+    
   } else {
-    Serial.printf("❌ Error enviando datos: %d\n", httpResponseCode);
-    Serial.println("🔍 Verificar:");
-    Serial.println("   - Conexión WiFi");
-    Serial.println("   - URL del servidor");
-    Serial.println("   - Código de dispositivo registrado");
+    Serial.println(F("❌ ERROR AL ENVIAR DATOS!"));
+    Serial.print(F("🔴 HTTP Error Code: "));
+    Serial.println(httpResponseCode);
+    
+    Serial.println(F("\n💡 Diagnóstico de errores:"));
+    if (httpResponseCode == -1) {
+      Serial.println(F("   ⚠️ Error de conexión - Verifica que la API esté corriendo"));
+    } else if (httpResponseCode == 404) {
+      Serial.println(F("   🔍 Error 404: Endpoint no encontrado"));
+      Serial.println(F("   📝 Verifica que el endpoint sea /api/lecturas"));
+    } else if (httpResponseCode == 422) {
+      Serial.println(F("   📝 Error 422: Datos inválidos (ValidationError)"));
+      Serial.println(F("   🔍 Pydantic rechazó el schema"));
+      Serial.println(F("   - Verifica que device_id exista en la BD"));
+      Serial.println(F("   - Verifica rangos: valor(0-100), temp(-20 a 60)"));
+    } else if (httpResponseCode == 500) {
+      Serial.println(F("   💥 Error 500: Error interno del servidor"));
+      Serial.println(F("   🔍 Revisa los logs de FastAPI"));
+    }
+    
+    Serial.println(F("\n🔧 Verifica:"));
+    Serial.print(F("   1. API corriendo en: "));
+    Serial.println(FPSTR(SERVER_URL));
+    Serial.print(F("   2. Device ID existe en BD: "));
+    Serial.println(DEVICE_ID);
+    Serial.println(F("   3. Base de datos conectada"));
+    Serial.println(F("   4. Schema de Pydantic compatible"));
+    
+    digitalWrite(LED_PIN, HIGH);
+    delay(500);
+    digitalWrite(LED_PIN, LOW);
   }
   
   http.end();
-  Serial.println("---");
 }
 
-// Función para obtener información del sistema
-void printSystemInfo() {
-  Serial.println("\n🔧 Información del sistema:");
-  Serial.printf("   Chip ID: %08X\n", ESP.getChipId());
-  Serial.printf("   Flash Size: %d bytes\n", ESP.getFlashChipSize());
-  Serial.printf("   Free Heap: %d bytes\n", ESP.getFreeHeap());
-  Serial.printf("   Uptime: %lu ms\n", millis());
-  Serial.println();
+ICACHE_FLASH_ATTR void mostrarResumen(DatosSensores datos) {
+  Serial.print(F("\n📋 === RESUMEN LECTURA #"));
+  Serial.print(contadorLecturas);
+  Serial.println(F(" ==="));
+  Serial.println(F("📦 Datos según Schema SensorReadingCreate:"));
+  
+  // Campos obligatorios
+  Serial.println(F("\n🔸 CAMPOS OBLIGATORIOS:"));
+  Serial.print(F("   🆔 device_id: "));
+  Serial.println(datos.device_id);
+  
+  Serial.print(F("   💧 valor (humedad suelo): "));
+  Serial.print(datos.valor, 2);
+  Serial.print(F("% "));
+  if (datos.valor < 30) Serial.println(F("🟥"));
+  else if (datos.valor < 50) Serial.println(F("🟨"));
+  else if (datos.valor < 70) Serial.println(F("🟩"));
+  else Serial.println(F("🟦"));
+  
+  // Campos opcionales
+  Serial.println(F("\n🔹 CAMPOS OPCIONALES:"));
+  
+  if (bmpConectado && datos.temperatura > 0) {
+    Serial.print(F("   🌡️ temperatura: "));
+    Serial.print(datos.temperatura, 1);
+    Serial.print(F("°C "));
+    if (datos.temperatura < 18) Serial.println(F("🟦"));
+    else if (datos.temperatura < 25) Serial.println(F("🟩"));
+    else if (datos.temperatura < 30) Serial.println(F("🟨"));
+    else Serial.println(F("🟥"));
+  } else {
+    Serial.println(F("   🌡️ temperatura: null (BMP180 no disponible)"));
+  }
+  
+  Serial.print(F("   💡 luz: "));
+  Serial.print(datos.luz, 0);
+  Serial.println(F(" lux (no implementado)"));
+  
+  Serial.print(F("   💨 humedad_ambiente: "));
+  Serial.print(datos.humedad_ambiente, 1);
+  Serial.println(F("% (no implementado)"));
+  
+  Serial.print(F("   🔋 battery_level: "));
+  Serial.print(datos.battery_level, 1);
+  Serial.println(F("% (no implementado)"));
+  
+  Serial.print(F("   📶 signal_strength: "));
+  Serial.print(datos.signal_strength);
+  Serial.print(F(" dBm "));
+  if (datos.signal_strength > -50) Serial.println(F("🟩"));
+  else if (datos.signal_strength > -70) Serial.println(F("🟨"));
+  else Serial.println(F("🟥"));
+  
+  // Estados de conexión
+  Serial.println(F("\n🔌 Estado de conexiones:"));
+  Serial.print(F("   📡 WiFi: "));
+  Serial.println(WiFi.status() == WL_CONNECTED ? F("✅ Conectado") : F("❌ Desconectado"));
+  Serial.print(F("   🌡️ BMP180: "));
+  Serial.println(bmpConectado ? F("✅ Conectado") : F("❌ Desconectado"));
+  
+  Serial.println(F("============================================================"));
+  Serial.print(F("⏳ Esperando "));
+  Serial.print(INTERVALO_LECTURA/1000);
+  Serial.println(F(" segundos para la próxima lectura..."));
+  Serial.println(F("============================================================"));
 }
