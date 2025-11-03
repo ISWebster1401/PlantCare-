@@ -9,7 +9,7 @@ interface DemoSetupProps {
 const DemoSetup: React.FC<DemoSetupProps> = ({ onComplete }) => {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'setup' | 'admin' | 'complete'>('setup');
+  const [step, setStep] = useState<'setup' | 'complete'>('setup');
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string>('');
 
@@ -37,25 +37,6 @@ const DemoSetup: React.FC<DemoSetupProps> = ({ onComplete }) => {
       setError('');
       
       const result = await apiCall('/api/demo/setup-demo-account', {
-        method: 'POST'
-      });
-      
-      setResults(result);
-      setStep('complete');
-      
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createAdminUser = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const result = await apiCall('/api/demo/create-admin-user', {
         method: 'POST'
       });
       
@@ -178,6 +159,7 @@ const DemoSetup: React.FC<DemoSetupProps> = ({ onComplete }) => {
               <li>✅ Patrones de humedad naturales</li>
               <li>✅ Alertas automáticas</li>
               <li>✅ Gráficos y reportes de IA</li>
+              <li>✅ Recomendaciones inteligentes</li>
             </ul>
             <button 
               onClick={setupDemoAccount}

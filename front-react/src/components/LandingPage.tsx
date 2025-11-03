@@ -1,19 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import RegisterFormEmbedded from './RegisterFormEmbedded';
 import LoginForm from './LoginForm';
 import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
   const [showLogin, setShowLogin] = useState(false);
-  const [theme, setTheme] = useState('dark');
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
 
   return (
     <div className="container">
@@ -189,15 +180,6 @@ const LandingPage: React.FC = () => {
           <p className="footer-text">Transformando la agricultura chilena a través de la innovación tecnológica. Protegemos tu inversión, optimizamos tu producción.</p>
         </div>
       </footer>
-
-      {/* Theme Toggle Button */}
-      <button 
-        className="theme-toggle" 
-        onClick={toggleTheme}
-        aria-label="Cambiar tema"
-      >
-        <span id="themeIcon">{theme === 'dark' ? '☀' : '🌙'}</span>
-      </button>
 
       {/* Login Modal */}
       {showLogin && (

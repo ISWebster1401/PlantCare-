@@ -222,10 +222,13 @@ class AuthService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error registrando usuario: {str(e)}")
+            logger.error(f"❌ Error registrando usuario: {str(e)}")
+            logger.error(f"   Tipo: {type(e).__name__}")
+            import traceback
+            logger.error(f"   Traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error interno del servidor"
+                detail=f"Error interno del servidor: {str(e)}"
             )
 
 # Función para obtener el usuario actual desde el token

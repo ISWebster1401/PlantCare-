@@ -66,6 +66,12 @@ export const authAPI = {
     const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
     return response.data;
   },
+
+  // Reenviar verificación de correo
+  resendVerification: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post('/auth/resend-verification', { email, password: 'x' });
+    return response.data;
+  },
 };
 
 export const deviceAPI = {

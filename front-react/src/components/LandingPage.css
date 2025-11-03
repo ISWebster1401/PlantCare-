@@ -22,30 +22,6 @@
     --shadow-color: rgba(0, 0, 0, 0.3);
 }
 
-[data-theme="light"] {
-    /* Colores modo claro */
-    --bg-primary: #ffffff;
-    --bg-secondary: #f8fafc;
-    --bg-tertiary: #e2e8f0;
-    --bg-gradient-start: #f1f5f9;
-    --bg-gradient-middle: #e2e8f0;
-    --bg-gradient-end: #f1f5f9;
-    --text-primary: #1a1a1a;
-    --text-secondary: rgba(26, 26, 26, 0.9);
-    --text-muted: rgba(26, 26, 26, 0.7);
-    --accent-primary: #059669;
-    --accent-secondary: #047857;
-    --accent-tertiary: #065f46;
-    --border-color: rgba(5, 150, 105, 0.2);
-    --border-color-hover: rgba(5, 150, 105, 0.5);
-    --card-bg: linear-gradient(135deg, #ffffff, #f8fafc);
-    --form-bg: linear-gradient(135deg, rgba(248, 250, 252, 0.9), rgba(226, 232, 240, 0.9));
-    --input-bg: rgba(0, 0, 0, 0.05);
-    --input-bg-focus: rgba(0, 0, 0, 0.1);
-    --placeholder-color: rgba(0, 0, 0, 0.5);
-    --shadow-color: rgba(0, 0, 0, 0.1);
-}
-
 * {
     margin: 0;
     padding: 0;
@@ -80,9 +56,6 @@ header {
     transition: all 0.3s ease;
 }
 
-[data-theme="light"] header {
-    background: rgba(255, 255, 255, 0.3);
-}
 
 .logo {
     font-size: 28px;
@@ -178,7 +151,7 @@ nav a:hover {
     display: inline-block;
     padding: 18px 40px;
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-    color: var(--bg-primary);
+    color: #111111; /* texto negro para mejor contraste en todos los temas */
     text-decoration: none;
     border-radius: 50px;
     font-weight: bold;
@@ -509,8 +482,8 @@ nav a:hover {
     letter-spacing: 0.5px;
 }
 
-.form-group input,
-.form-group select {
+.register-form-container .form-group input,
+.register-form-container .form-group select {
     width: 100%;
     padding: 15px 20px;
     background: var(--input-bg);
@@ -522,21 +495,40 @@ nav a:hover {
     backdrop-filter: blur(10px);
 }
 
-.form-group select option {
+/* Asegurar color de texto correcto según tema */
+.register-form-container .form-group input[type="text"],
+.register-form-container .form-group input[type="email"],
+.register-form-container .form-group input[type="tel"],
+.register-form-container .form-group input[type="password"],
+.register-form-container .form-group input[type="number"] {
+    color: var(--text-primary);
+}
+
+/* Fix autofill en modo oscuro */
+.register-form-container .form-group input:-webkit-autofill,
+.register-form-container .form-group input:-webkit-autofill:hover,
+.register-form-container .form-group input:-webkit-autofill:focus,
+.register-form-container .form-group input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgba(255, 255, 255, 0.05) inset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    color: #ffffff !important;
+}
+
+.register-form-container .form-group select option {
     background: var(--bg-secondary);
     color: var(--text-primary);
     padding: 10px;
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.register-form-container .form-group input:focus,
+.register-form-container .form-group select:focus {
     outline: none;
     border-color: var(--accent-primary);
     background: var(--input-bg-focus);
     box-shadow: 0 0 20px rgba(74, 222, 128, 0.2);
 }
 
-.form-group input::placeholder {
+.register-form-container .form-group input::placeholder {
     color: var(--placeholder-color);
 }
 
@@ -636,35 +628,6 @@ footer {
     line-height: 1.6;
 }
 
-/* Theme Toggle Button */
-.theme-toggle {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    width: 60px;
-    height: 60px;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    color: var(--bg-primary);
-    box-shadow: 0 8px 25px rgba(74, 222, 128, 0.4);
-    transition: all 0.3s ease;
-    z-index: 1001;
-}
-
-.theme-toggle:hover {
-    transform: translateY(-3px) rotate(180deg);
-    box-shadow: 0 12px 35px rgba(74, 222, 128, 0.6);
-}
-
-.theme-toggle:active {
-    transform: translateY(-1px) rotate(180deg);
-}
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -704,13 +667,6 @@ footer {
         gap: 15px;
     }
 
-    .theme-toggle {
-        bottom: 20px;
-        right: 20px;
-        width: 50px;
-        height: 50px;
-        font-size: 20px;
-    }
 }
 
 /* Custom scrollbar */

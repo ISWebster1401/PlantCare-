@@ -92,6 +92,8 @@ class UserResponse(UserBase):
     """Esquema de respuesta para usuario"""
     id: int
     role_id: int = 1
+    avatar_url: Optional[str] = None
+    is_verified: bool = False
     created_at: datetime
     last_login: Optional[datetime]
     active: bool

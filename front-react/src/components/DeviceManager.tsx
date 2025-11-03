@@ -40,7 +40,6 @@ const DeviceManager: React.FC = () => {
   });
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const [settingUpDemo, setSettingUpDemo] = useState(false);
 
   useEffect(() => {
     loadDevices();
@@ -92,32 +91,6 @@ const DeviceManager: React.FC = () => {
     }
   };
 
-  const setupDemoDevices = async () => {
-    try {
-      setSettingUpDemo(true);
-      setError(null);
-      
-      const response = await fetch('/api/demo/setup-demo-account', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        await loadDevices(); // Recargar dispositivos
-        setError(null);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.detail || 'Error configurando demo');
-      }
-    } catch (err: any) {
-      setError('Error configurando demostración');
-    } finally {
-      setSettingUpDemo(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -135,20 +108,6 @@ const DeviceManager: React.FC = () => {
       <div className="manager-header">
         <h1>Mis Dispositivos</h1>
         <div className="header-actions">
-          <button 
-            className="demo-btn"
-            onClick={setupDemoDevices}
-            disabled={settingUpDemo}
-          >
-            {settingUpDemo ? (
-              <>
-                <span className="spinner"></span>
-                Configurando...
-              </>
-            ) : (
-              '🚀 Demo Rápido'
-            )}
-          </button>
           <button 
             className="connect-btn"
             onClick={() => setShowConnectForm(true)}

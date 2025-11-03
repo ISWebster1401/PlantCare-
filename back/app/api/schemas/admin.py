@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 from enum import Enum
 
@@ -16,17 +16,53 @@ class UserAdminResponse(BaseModel):
     first_name: str
     last_name: str
     email: str
-    phone: Optional[str]
-    region: Optional[str]
-    vineyard_name: Optional[str]
-    hectares: Optional[float]
-    grape_type: Optional[str]
+    phone: Optional[str] = None
+    region: Optional[str] = None
+    vineyard_name: Optional[str] = None
+    hectares: Optional[float] = None
+    grape_type: Optional[str] = None
     role_id: int
     role_name: Optional[str] = None
     created_at: datetime
-    last_login: Optional[datetime]
+    last_login: Optional[datetime] = None
     active: bool
     device_count: int = 0
+    
+    @field_validator('id', 'role_id', 'device_count', mode='before')
+    @classmethod
+    def convert_to_int(cls, v: Any) -> int:
+        """Convierte cualquier número a int"""
+        if v is None:
+            return 0
+        if isinstance(v, (int, float)):
+            return int(v)
+        if isinstance(v, str):
+            try:
+                return int(float(v))
+            except (ValueError, TypeError):
+                return 0
+        return 0
+    
+    @field_validator('hectares', mode='before')
+    @classmethod
+    def convert_to_float(cls, v: Any) -> Optional[float]:
+        """Convierte a float o None"""
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+    
+    @field_validator('active', mode='before')
+    @classmethod
+    def convert_to_bool(cls, v: Any) -> bool:
+        """Convierte a bool"""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() in ('true', '1', 't', 'yes', 'y')
+        return bool(v)
 
 class UserAdminCreate(BaseModel):
     """Esquema para crear usuario desde admin"""

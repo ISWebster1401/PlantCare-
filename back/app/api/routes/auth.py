@@ -6,12 +6,52 @@ from app.api.schemas.user import (
     UserCreate, UserLogin, UserResponse, Token, 
     UserUpdate, PasswordChange
 )
-from app.db.queries import get_user_by_email, update_user_password, update_user, deactivate_user
+from app.db.queries import (
+    get_user_by_email, update_user_password, update_user, deactivate_user,
+    create_email_verification_token, get_verification_token, mark_email_verified
+)
+from app.api.core.email_service import email_service
 from pgdbtoolkit import AsyncPgDbToolkit
 import logging
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+# Asegurar que los logs de auth aparezcan en el archivo y consola
+import sys
+from logging.handlers import RotatingFileHandler
+import os
+
+# Agregar handler de archivo si no existe
+if not any(isinstance(h, RotatingFileHandler) for h in logger.handlers):
+    try:
+        log_file = os.getenv("LOG_FILE", "plantcare.log")
+        if log_file:
+            log_dir = os.path.dirname(log_file) if os.path.dirname(log_file) else None
+            if log_dir and not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+            
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setLevel(logging.INFO)
+            file_formatter = logging.Formatter(
+                fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            file_handler.setFormatter(file_formatter)
+            logger.addHandler(file_handler)
+    except Exception as e:
+        print(f"Warning: No se pudo configurar logging a archivo en auth: {e}")
+
+# Asegurar handler de consola si no existe
+if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    logger.addHandler(console_handler)
+logger.setLevel(logging.INFO)
 
 # Crear router para autenticación
 router = APIRouter(
@@ -56,7 +96,7 @@ async def register_user(
         logger.info("Paso 2: Llamando a AuthService.register_user")
         # Registrar el usuario usando el servicio de autenticación
         user = await AuthService.register_user(user_dict, db)
-        logger.info(f"AuthService completado. Usuario ID: {user.get('id', 'N/A')}")
+        logger.info(f"AuthService completado. Usuario ID: {user.get('id', 'N/A')}, Email: {user.get('email', 'N/A')}")
         
         logger.info("Paso 3: Construyendo UserResponse")
         # Convertir el resultado a UserResponse (excluyendo password_hash)
@@ -72,6 +112,8 @@ async def register_user(
                 hectares=user["hectares"],
                 grape_type=user["grape_type"],
                 role_id=user.get("role_id", 1),
+                avatar_url=user.get("avatar_url"),
+                is_verified=bool(user.get("is_verified", False)),
                 created_at=user["created_at"],
                 last_login=user["last_login"],
                 active=user["active"]
@@ -82,6 +124,24 @@ async def register_user(
             logger.error(f"Datos disponibles en user: {list(user.keys()) if isinstance(user, dict) else type(user)}")
             raise
         
+        # Crear token de verificación y enviar email
+        try:
+            logger.info(f"📧 Preparando email de verificación para: {user['email']}")
+            token_data = await create_email_verification_token(db, user["id"])  # 24h por defecto
+            verify_url = f"http://localhost:3000/?token={token_data['token']}"
+            logger.info(f"🔗 URL de verificación: {verify_url[:50]}...")
+            await email_service.send_verification_email(
+                to_email=user["email"],
+                user_name=f"{user['first_name']} {user['last_name']}",
+                verify_url=verify_url
+            )
+            logger.info(f"✅ Email de verificación enviado exitosamente a {user['email']}")
+        except Exception as mail_e:
+            logger.warning(f"⚠️ No se pudo enviar email de verificación: {mail_e}")
+            logger.warning(f"   Detalles del error: {repr(mail_e)}")
+            import traceback
+            logger.warning(f"   Traceback: {traceback.format_exc()}")
+
         logger.info(f"Usuario registrado exitosamente: {user['email']}")
         logger.info("=== FIN PROCESO DE REGISTRO EXITOSO ===")
         return user_response
@@ -143,6 +203,12 @@ async def login_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Usuario inactivo"
             )
+
+        if not bool(user.get("is_verified", False)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verifica tu correo para iniciar sesión"
+            )
         
         # Crear tokens
         token_data = {
@@ -172,6 +238,49 @@ async def login_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
         )
+
+@router.get("/verify-email")
+async def verify_email(token: str, db: AsyncPgDbToolkit = Depends(get_db)):
+    """Verifica el email del usuario usando el token enviado por correo."""
+    try:
+        token_row = await get_verification_token(db, token)
+        if not token_row:
+            raise HTTPException(status_code=400, detail="Token inválido")
+        success = await mark_email_verified(db, token_row)
+        if not success:
+            raise HTTPException(status_code=400, detail="Token inválido o expirado")
+        return {"message": "Correo verificado correctamente. Ya puedes iniciar sesión."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verificando email: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@router.post("/resend-verification")
+async def resend_verification(user_credentials: UserLogin, db: AsyncPgDbToolkit = Depends(get_db)):
+    """Reenvía email de verificación a un usuario no verificado (opcional: por email)."""
+    try:
+        if user_credentials and user_credentials.email:
+            user = await get_user_by_email(db, user_credentials.email)
+        else:
+            raise HTTPException(status_code=400, detail="Email requerido")
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        if bool(user.get("is_verified", False)):
+            return {"message": "El usuario ya está verificado"}
+        token_data = await create_email_verification_token(db, user["id"])  # reemplaza anteriores
+        verify_url = f"http://localhost:3000/?token={token_data['token']}"
+        await email_service.send_verification_email(
+            to_email=user["email"],
+            user_name=f"{user['first_name']} {user['last_name']}",
+            verify_url=verify_url
+        )
+        return {"message": "Email de verificación reenviado"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reenviando verificación: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(

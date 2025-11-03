@@ -1,10 +1,18 @@
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import secrets
 import string
 
-logger = logging.getLogger(__name__)
+# Intentar usar el logger de la app, sino usar el estándar
+try:
+    from app.api.core.log import logger
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
 
 # ===============================================
 # FUNCIONES ASÍNCRONAS PARA USUARIOS
@@ -22,20 +30,19 @@ async def create_user(db, user_data: Dict[str, Any]) -> Dict[str, Any]:
         Dict: Usuario creado
     """
     try:
+        logger.info(f"🆕 Creando usuario con email: {user_data.get('email', 'N/A')}")
         # Insertar el usuario usando pgdbtoolkit
         result = await db.insert_records("users", user_data)
         
-        # Verificar si el resultado es válido
-        if result is not None and len(result) > 0:
-            # Obtener el usuario completo recién creado
-            user_id = result[0]
-            user = await get_user_by_id(db, user_id)
-            if user:
-                return user
-            else:
-                raise Exception("Usuario creado pero no se pudo recuperar")
+        logger.info(f"📊 Resultado de insert_records: {result}")
+        
+        # Recuperar el usuario por email ya que insert_records no devuelve el ID de forma confiable
+        user = await get_user_by_email(db, user_data.get('email'))
+        if user:
+            logger.info(f"✅ Usuario creado y recuperado: ID={user.get('id')}, Email={user.get('email')}")
+            return user
         else:
-            raise Exception("No se pudo crear el usuario")
+            raise Exception("Usuario creado pero no se pudo recuperar por email")
     except Exception as e:
         logger.error(f"Error creando usuario: {str(e)}")
         raise
@@ -805,6 +812,80 @@ async def delete_user_admin(db, user_id: int) -> bool:
         
     except Exception as e:
         logger.error(f"Error eliminando usuario desde admin: {str(e)}")
+        return False
+
+# ===============================================
+# VERIFICACIÓN DE EMAIL
+# ===============================================
+
+def _generate_verification_token() -> str:
+    # 43 chars url-safe ~256 bits
+    return secrets.token_urlsafe(43)
+
+async def create_email_verification_token(db, user_id: int, hours_valid: int = 24) -> Dict[str, Any]:
+    """
+    Crea un token de verificación de email para un usuario.
+    Reemplaza tokens previos no usados del mismo usuario.
+    """
+    try:
+        # Invalidar tokens previos no usados
+        await db.execute_query(
+            """
+            DELETE FROM email_verification_tokens
+            WHERE user_id = %s AND used_at IS NULL
+            """,
+            (user_id,)
+        )
+
+        token = _generate_verification_token()
+        expires_at = datetime.utcnow() + timedelta(hours=hours_valid)
+        result = await db.insert_records("email_verification_tokens", {
+            "user_id": user_id,
+            "token": token,
+            "expires_at": expires_at
+        })
+        return {"token": token, "expires_at": expires_at}
+    except Exception as e:
+        logger.error(f"Error creando token de verificación: {str(e)}")
+        raise
+
+async def get_verification_token(db, token: str) -> Optional[Dict[str, Any]]:
+    try:
+        result = await db.fetch_records(
+            "email_verification_tokens",
+            conditions={"token": token}
+        )
+        if result is not None and not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+    except Exception as e:
+        logger.error(f"Error obteniendo token de verificación: {str(e)}")
+        return None
+
+async def mark_email_verified(db, token_row: Dict[str, Any]) -> bool:
+    """
+    Marca el token como usado y al usuario como verificado si está vigente.
+    """
+    try:
+        if token_row.get("used_at") is not None:
+            return False
+        if token_row.get("expires_at") and token_row["expires_at"] < datetime.utcnow():
+            return False
+
+        user_id = token_row["user_id"]
+        # Marcar usuario verificado
+        await db.execute_query(
+            "UPDATE users SET is_verified = true WHERE id = %s",
+            (user_id,)
+        )
+        # Marcar token usado
+        await db.execute_query(
+            "UPDATE email_verification_tokens SET used_at = %s WHERE id = %s",
+            (datetime.utcnow(), token_row["id"]) 
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error marcando email verificado: {str(e)}")
         return False
 
 async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]]:

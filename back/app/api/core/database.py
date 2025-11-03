@@ -47,8 +47,8 @@ async def init_db() -> AsyncPgDbToolkit:
             # Crear tablas si no existen
             await _create_tables(db)
             
-            # Crear índices para optimizar consultas (comentado temporalmente)
-            # await _create_indexes(db)
+            # Crear índices para optimizar consultas
+            await _create_indexes(db)
             
             _db = db
             logger.info("📊 Base de datos inicializada correctamente")
@@ -94,8 +94,10 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "vineyard_name": "VARCHAR(200)",
                 "hectares": "DECIMAL(10,2) CHECK (hectares >= 0)",
                 "grape_type": "VARCHAR(100)",
+                "avatar_url": "VARCHAR(500)",
+                "is_verified": "BOOLEAN DEFAULT false",
                 "password_hash": "VARCHAR(255) NOT NULL",
-                "role_id": "INTEGER DEFAULT 1 REFERENCES roles(id)",
+                "role_id": "INTEGER DEFAULT 1 REFERENCES roles(id) ON DELETE RESTRICT",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "last_login": "TIMESTAMP",
                 "active": "BOOLEAN DEFAULT true"
@@ -117,13 +119,22 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 except Exception as fk_error:
                     logger.warning(f"No se pudo agregar la clave foránea: {fk_error}")
                 logger.info("✅ Columna role_id agregada y usuarios actualizados")
+
+            # Asegurar columna is_verified
+            try:
+                await db.execute_query("SELECT is_verified FROM users LIMIT 1")
+            except Exception:
+                logger.info("📋 Agregando columna is_verified a tabla users...")
+                await db.execute_query("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT false")
+                # Index para verificación
+                await db.execute_query("CREATE INDEX IF NOT EXISTS idx_users_is_verified ON users(is_verified)")
         
         # Tabla de dispositivos IoT
         if "devices" not in tables:
             logger.info("📋 Creando tabla devices...")
             await db.create_table("devices", {
                 "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE",
                 "device_code": "VARCHAR(12) UNIQUE NOT NULL",  # Código verificador único tipo patente
                 "name": "VARCHAR(100)",
                 "device_type": "VARCHAR(50) NOT NULL DEFAULT 'humidity_sensor'",
@@ -144,19 +155,32 @@ async def _create_tables(db: AsyncPgDbToolkit):
             """)
             logger.info("✅ Índice único para device_code creado")
         
+        # Tabla de verificación de email
+        if "email_verification_tokens" not in tables:
+            logger.info("📋 Creando tabla email_verification_tokens...")
+            await db.create_table("email_verification_tokens", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
+                "token": "VARCHAR(255) UNIQUE NOT NULL",
+                "expires_at": "TIMESTAMP NOT NULL",
+                "used_at": "TIMESTAMP",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            logger.info("✅ Tabla email_verification_tokens creada exitosamente")
+
         # Tabla de sensores de humedad
         if "sensor_humedad_suelo" not in tables:
             logger.info("📋 Creando tabla sensor_humedad_suelo...")
             await db.create_table("sensor_humedad_suelo", {
                 "id": "SERIAL PRIMARY KEY",
-                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE",
+                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE ON UPDATE CASCADE",
                 "valor": "DOUBLE PRECISION NOT NULL CHECK (valor >= 0 AND valor <= 100)",
                 "luz": "DOUBLE PRECISION CHECK (luz >= 0)",
                 "temperatura": "DOUBLE PRECISION CHECK (temperatura >= -20 AND temperatura <= 60)",
-                "humedad_ambiente": "DOUBLE PRECISION CHECK (humedad_ambiente >= 0 AND humedad_ambiente <= 100)",
+                "humedad_aire": "DOUBLE PRECISION CHECK (humedad_aire >= 0 AND humedad_aire <= 100)",
                 "fecha": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
-                "battery_level": "DOUBLE PRECISION CHECK (battery_level >= 0 AND battery_level <= 100)",
-                "signal_strength": "INTEGER CHECK (signal_strength >= -100 AND signal_strength <= 0)"
+                "bateria": "DOUBLE PRECISION CHECK (bateria >= 0 AND bateria <= 100)",
+                "senal": "INTEGER CHECK (senal >= -100 AND senal <= 0)"
             })
             logger.info("✅ Tabla sensor_humedad_suelo creada exitosamente")
         
@@ -165,15 +189,16 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("📋 Creando tabla alerts...")
             await db.create_table("alerts", {
                 "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
-                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE",
+                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE ON UPDATE CASCADE",
                 "alert_type": "VARCHAR(50) NOT NULL CHECK (alert_type IN ('low_humidity', 'high_humidity', 'device_offline', 'battery_low'))",
                 "message": "TEXT NOT NULL",
                 "severity": "VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical'))",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "read_at": "TIMESTAMP",
                 "resolved_at": "TIMESTAMP",
-                "active": "BOOLEAN DEFAULT true"
+                "active": "BOOLEAN DEFAULT true",
+                "deleted_at": "TIMESTAMP"  # Soft delete
             })
             logger.info("✅ Tabla alerts creada exitosamente")
         
@@ -182,8 +207,8 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("📋 Creando tabla ai_recommendations...")
             await db.create_table("ai_recommendations", {
                 "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
-                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE",
+                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE ON UPDATE CASCADE",
                 "recommendation_type": "VARCHAR(50) NOT NULL",
                 "title": "VARCHAR(200) NOT NULL",
                 "description": "TEXT NOT NULL",
@@ -191,7 +216,8 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "priority": "VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high'))",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "applied_at": "TIMESTAMP",
-                "active": "BOOLEAN DEFAULT true"
+                "active": "BOOLEAN DEFAULT true",
+                "deleted_at": "TIMESTAMP"  # Soft delete
             })
             logger.info("✅ Tabla ai_recommendations creada exitosamente")
             
@@ -199,60 +225,77 @@ async def _create_tables(db: AsyncPgDbToolkit):
         log_error_with_context(e, "create_tables")
         raise
 
-#async def _create_indexes(db: AsyncPgDbToolkit):
-#    """Crea índices para optimizar las consultas"""
-#    try:
-#        logger.info("🔍 Creando índices de optimización...")
+async def _create_indexes(db: AsyncPgDbToolkit):
+    """Crea índices para optimizar las consultas"""
+    try:
+        logger.info("🔍 Creando índices de optimización...")
         
-        # Índices para usuarios
-        #await db.execute_query("""
-        #    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        #   CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
-        #   CREATE INDEX IF NOT EXISTS idx_users_region ON users(region);
-        #   CREATE INDEX IF NOT EXISTS idx_users_vineyard ON users(vineyard_name);
-        #   CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-        #""")
+        # Índices para usuarios (campos de búsqueda frecuente)
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+            CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
+            CREATE INDEX IF NOT EXISTS idx_users_is_verified ON users(is_verified);
+            CREATE INDEX IF NOT EXISTS idx_users_region ON users(region);
+            CREATE INDEX IF NOT EXISTS idx_users_vineyard ON users(vineyard_name);
+            CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+            CREATE INDEX IF NOT EXISTS idx_users_first_name ON users(first_name);
+            CREATE INDEX IF NOT EXISTS idx_users_last_name ON users(last_name);
+        """)
+        logger.info("✅ Índices para tabla users creados")
         
         # Índices para dispositivos
-#        await db.execute_query("""
-#            CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
- #           CREATE INDEX IF NOT EXISTS idx_devices_active ON devices(active);
-  #          CREATE INDEX IF NOT EXISTS idx_devices_type ON devices(device_type);
-   #         CREATE INDEX IF NOT EXISTS idx_devices_last_seen ON devices(last_seen DESC);
-    #    """)
-     #   
-        # Índices para sensores
-     #   await db.execute_query("""
-      #      CREATE INDEX IF NOT EXISTS idx_sensor_device_id ON sensor_humedad_suelo(device_id);
-       #     CREATE INDEX IF NOT EXISTS idx_sensor_fecha ON sensor_humedad_suelo(fecha DESC);
-        #    CREATE INDEX IF NOT EXISTS idx_sensor_device_fecha ON sensor_humedad_suelo(device_id, fecha DESC);
-         #   CREATE INDEX IF NOT EXISTS idx_sensor_valor ON sensor_humedad_suelo(valor);
-         #   CREATE INDEX IF NOT EXISTS idx_sensor_temperatura ON sensor_humedad_suelo(temperatura);
-        #""")
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
+            CREATE INDEX IF NOT EXISTS idx_devices_active ON devices(active);
+            CREATE INDEX IF NOT EXISTS idx_devices_type ON devices(device_type);
+            CREATE INDEX IF NOT EXISTS idx_devices_last_seen ON devices(last_seen DESC);
+            CREATE INDEX IF NOT EXISTS idx_devices_connected ON devices(connected);
+        """)
+        logger.info("✅ Índices para tabla devices creados")
+        
+        # Índices para sensores (optimización de consultas con agregaciones)
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_sensor_device_id ON sensor_humedad_suelo(device_id);
+            CREATE INDEX IF NOT EXISTS idx_sensor_fecha ON sensor_humedad_suelo(fecha DESC);
+            CREATE INDEX IF NOT EXISTS idx_sensor_device_fecha ON sensor_humedad_suelo(device_id, fecha DESC);
+            CREATE INDEX IF NOT EXISTS idx_sensor_valor ON sensor_humedad_suelo(valor);
+            CREATE INDEX IF NOT EXISTS idx_sensor_temperatura ON sensor_humedad_suelo(temperatura);
+        """)
+        logger.info("✅ Índices para tabla sensor_humedad_suelo creados")
         
         # Índices para alertas
-#        await db.execute_query("""
- #           CREATE INDEX IF NOT EXISTS idx_alerts_user_id ON alerts(user_id);
-  #          CREATE INDEX IF NOT EXISTS idx_alerts_device_id ON alerts(device_id);
-   #         CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(active);
-    #        CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at DESC);
-     #       CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type);
-      #  """)
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_alerts_user_id ON alerts(user_id);
+            CREATE INDEX IF NOT EXISTS idx_alerts_device_id ON alerts(device_id);
+            CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(active);
+            CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type);
+        """)
+        logger.info("✅ Índices para tabla alerts creados")
         
         # Índices para recomendaciones
-#        await db.execute_query("""
- #           CREATE INDEX IF NOT EXISTS idx_recommendations_user_id ON ai_recommendations(user_id);
-  #          CREATE INDEX IF NOT EXISTS idx_recommendations_device_id ON ai_recommendations(device_id);
-   #         CREATE INDEX IF NOT EXISTS idx_recommendations_active ON ai_recommendations(active);
-    #        CREATE INDEX IF NOT EXISTS idx_recommendations_created_at ON ai_recommendations(created_at DESC);
-     #       CREATE INDEX IF NOT EXISTS idx_recommendations_type ON ai_recommendations(recommendation_type);
-#        """)
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_recommendations_user_id ON ai_recommendations(user_id);
+            CREATE INDEX IF NOT EXISTS idx_recommendations_device_id ON ai_recommendations(device_id);
+            CREATE INDEX IF NOT EXISTS idx_recommendations_active ON ai_recommendations(active);
+            CREATE INDEX IF NOT EXISTS idx_recommendations_created_at ON ai_recommendations(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_recommendations_type ON ai_recommendations(recommendation_type);
+        """)
+        logger.info("✅ Índices para tabla ai_recommendations creados")
+
+        # Índices para verificación de email
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_email_tokens_user_id ON email_verification_tokens(user_id);
+            CREATE INDEX IF NOT EXISTS idx_email_tokens_expires_at ON email_verification_tokens(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_email_tokens_used_at ON email_verification_tokens(used_at);
+        """)
+        logger.info("✅ Índices para tabla email_verification_tokens creados")
         
-#        logger.info("✅ Índices creados exitosamente")
+        logger.info("✅ Todos los índices creados exitosamente")
         
-#    except Exception as e:
-#        log_error_with_context(e, "create_indexes")
-#        raise
+    except Exception as e:
+        log_error_with_context(e, "create_indexes")
+        logger.warning(f"Algunos índices no se pudieron crear: {str(e)}")
 
 async def get_db() -> AsyncPgDbToolkit:
     """

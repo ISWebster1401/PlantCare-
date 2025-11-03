@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import './UserProfile.css';
 
@@ -47,6 +47,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
   });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, {
@@ -64,6 +67,70 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
     }
 
     return response.json();
+  };
+
+  const handleAvatarUpload = async () => {
+    if (!avatarFile) return;
+    
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', avatarFile);
+
+      const response = await fetch('/api/uploads/avatar', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Error desconocido' }));
+        throw new Error(errorData.detail || `Error ${response.status}`);
+      }
+
+      await response.json(); // Response
+      setMessage({ type: 'success', text: 'Avatar actualizado exitosamente' });
+      setAvatarFile(null);
+      setAvatarPreview(null);
+      
+      // Actualizar avatar en el contexto
+      window.location.reload();
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tipo de archivo
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        setMessage({ type: 'error', text: 'Formato no válido. Use JPG, PNG, GIF o WEBP' });
+        return;
+      }
+      
+      // Validar tamaño (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setMessage({ type: 'error', text: 'El archivo es muy grande. Máximo 5MB' });
+        return;
+      }
+      
+      setAvatarFile(file);
+      
+      // Crear preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
@@ -185,6 +252,50 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
             <form onSubmit={handleProfileUpdate} className="profile-form">
               <div className="form-section">
                 <h3>Información Básica</h3>
+                
+                {/* Avatar Upload */}
+                <div className="avatar-section">
+                  <div className="avatar-preview">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Avatar preview" />
+                    ) : user?.avatar_url ? (
+                      <img src={`http://127.0.0.1:5000${user.avatar_url}`} alt="Avatar" onError={(e) => {
+                        console.error('Error loading avatar:', user.avatar_url);
+                        e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="50" cy="50" r="40" fill="%23e5e7eb"/><text x="50%" y="60%" font-size="50" text-anchor="middle" fill="%23cbd5e1">👤</text></svg>';
+                      }} />
+                    ) : (
+                      <div className="avatar-placeholder">
+                        <span>👤</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="avatar-actions">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                      onChange={handleFileChange}
+                      style={{ display: 'none' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      📷 Cambiar Avatar
+                    </button>
+                    {avatarFile && (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleAvatarUpload}
+                        disabled={loading}
+                      >
+                        {loading ? 'Subiendo...' : '💾 Subir Avatar'}
+                      </button>
+                    )}
+                  </div>
+                </div>
                 
                 <div className="form-row">
                   <div className="form-group">

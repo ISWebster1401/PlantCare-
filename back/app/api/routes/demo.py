@@ -63,22 +63,31 @@ async def setup_demo_account(
         ]
         
         for config in device_configs:
-            # Generar código de dispositivo
-            devices = await create_device_code(db, config["device_type"], 1)
-            if devices:
-                device_code = devices[0]["device_code"]
-                
-                # Conectar dispositivo al usuario
-                connected_device = await connect_device_to_user(
-                    db, 
-                    device_code, 
-                    current_user["id"],
-                    config
-                )
-                
-                if connected_device:
-                    demo_devices.append(connected_device)
-                    logger.info(f"Dispositivo demo creado: {device_code}")
+            try:
+                # Generar código de dispositivo
+                devices = await create_device_code(db, config["device_type"], 1)
+                if devices:
+                    device_code = devices[0]["device_code"]
+                    
+                    # Intentar conectar dispositivo al usuario
+                    try:
+                        connected_device = await connect_device_to_user(
+                            db, 
+                            device_code, 
+                            current_user["id"],
+                            config
+                        )
+                        
+                        if connected_device:
+                            demo_devices.append(connected_device)
+                            logger.info(f"Dispositivo demo creado: {device_code}")
+                    except Exception as connect_error:
+                        # Si el dispositivo ya está conectado, intentar con otro
+                        logger.warning(f"Dispositivo {device_code} ya está conectado, creando otro...")
+                        continue
+            except Exception as e:
+                logger.warning(f"Error creando dispositivo demo: {str(e)}")
+                continue
         
         # Generar datos históricos para cada dispositivo
         for device in demo_devices:
@@ -106,11 +115,12 @@ async def setup_demo_account(
 async def generate_historical_data(db: AsyncPgDbToolkit, device_id: int):
     """
     Genera datos históricos simulados para un dispositivo
+    Optimizado para generar datos suficientes para gráficos útiles
     """
     try:
-        # Generar datos de los últimos 7 días
+        # Generar datos de los últimos 14 días para gráficos más completos
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
+        start_date = end_date - timedelta(days=14)
         
         # Patrones realistas para diferentes tipos de plantas
         base_humidity = random.uniform(40, 70)  # Humedad base
@@ -118,64 +128,62 @@ async def generate_historical_data(db: AsyncPgDbToolkit, device_id: int):
         readings = []
         current_date = start_date
         
+        # Generar menos lecturas pero más realistas (cada 2 horas)
         while current_date <= end_date:
-            # Simular lecturas cada 30 minutos
-            for hour in range(0, 24, 1):  # Cada hora para no saturar
-                for minute in [0, 30]:  # Dos lecturas por hora
-                    reading_time = current_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                    
-                    if reading_time > end_date:
-                        break
-                    
-                    # Simular variaciones naturales
-                    time_factor = hour / 24.0  # Factor de hora del día
-                    day_factor = (current_date - start_date).days / 7.0  # Factor de día
-                    
-                    # Humedad del suelo (patrón realista)
-                    humidity_variation = random.uniform(-5, 5)
-                    daily_cycle = 10 * (0.5 - abs(time_factor - 0.5))  # Más húmedo en la mañana/noche
-                    weekly_trend = -15 * day_factor  # Disminuye gradualmente
-                    
-                    humidity = max(15, min(85, base_humidity + humidity_variation + daily_cycle + weekly_trend))
-                    
-                    # Temperatura (patrón diurno)
-                    temp_base = 22
-                    temp_daily = 8 * abs(0.5 - abs(time_factor - 0.5))  # Más calor al mediodía
-                    temperature = temp_base + temp_daily + random.uniform(-2, 2)
-                    
-                    # Humedad del aire (inversa a temperatura)
-                    air_humidity = max(30, min(90, 80 - (temperature - 22) * 2 + random.uniform(-5, 5)))
-                    
-                    # Luz (patrón solar)
-                    if 6 <= hour <= 18:  # Día
-                        light = max(20, min(100, 70 + 20 * (0.5 - abs((hour - 12) / 6)) + random.uniform(-10, 10)))
-                    else:  # Noche
-                        light = random.uniform(0, 10)
-                    
-                    # Batería (disminuye gradualmente)
-                    battery = max(20, 100 - (day_factor * 15) + random.uniform(-5, 5))
-                    
-                    # Señal WiFi (simulada)
-                    signal = random.randint(-80, -40)
-                    
-                    reading = {
-                        "device_id": device_id,
-                        "valor": round(humidity, 2),
-                        "temperatura": round(temperature, 2),
-                        "humedad_aire": round(air_humidity, 2),
-                        "luz": round(light, 2),
-                        "bateria": round(battery, 2),
-                        "senal": signal,
-                        "fecha": reading_time,
-                        "timestamp_sensor": reading_time
-                    }
-                    
-                    readings.append(reading)
+            for hour in range(0, 24, 2):  # Cada 2 horas
+                reading_time = current_date.replace(hour=hour, minute=0, second=0, microsecond=0)
+                
+                if reading_time > end_date:
+                    break
+                
+                # Simular variaciones naturales
+                time_factor = hour / 24.0  # Factor de hora del día
+                day_factor = (current_date - start_date).days / 14.0  # Factor de día
+                
+                # Humedad del suelo (patrón realista)
+                humidity_variation = random.uniform(-8, 8)
+                daily_cycle = 12 * (0.5 - abs(time_factor - 0.5))  # Más húmedo en la mañana/noche
+                weekly_trend = -10 * day_factor  # Disminuye gradualmente
+                
+                humidity = max(15, min(85, base_humidity + humidity_variation + daily_cycle + weekly_trend))
+                
+                # Temperatura (patrón diurno)
+                temp_base = 22
+                temp_daily = 10 * abs(0.5 - abs(time_factor - 0.5))  # Más calor al mediodía
+                temperature = temp_base + temp_daily + random.uniform(-3, 3)
+                
+                # Humedad del aire (inversa a temperatura)
+                air_humidity = max(30, min(90, 75 - (temperature - 22) * 2 + random.uniform(-8, 8)))
+                
+                # Luz (patrón solar)
+                if 6 <= hour <= 18:  # Día
+                    light = max(20, min(100, 65 + 25 * (0.5 - abs((hour - 12) / 6)) + random.uniform(-15, 15)))
+                else:  # Noche
+                    light = random.uniform(0, 10)
+                
+                # Batería (disminuye gradualmente)
+                battery = max(15, 95 - (day_factor * 20) + random.uniform(-5, 5))
+                
+                # Señal WiFi (simulada)
+                signal = random.randint(-85, -45)
+                
+                reading = {
+                    "device_id": device_id,
+                    "valor": round(humidity, 2),
+                    "temperatura": round(temperature, 2),
+                    "humedad_aire": round(air_humidity, 2),
+                    "luz": round(light, 2),
+                    "bateria": round(battery, 2),
+                    "senal": signal,
+                    "fecha": reading_time
+                }
+                
+                readings.append(reading)
             
             current_date += timedelta(days=1)
         
         # Insertar datos en lotes para mejor rendimiento
-        batch_size = 50
+        batch_size = 100
         for i in range(0, len(readings), batch_size):
             batch = readings[i:i + batch_size]
             await db.insert_records("sensor_humedad_suelo", batch)
@@ -239,8 +247,7 @@ async def generate_realtime_data(
                 "luz": max(0, min(100, base_values["luz"] + random.uniform(-5, 5))),
                 "bateria": max(0, min(100, base_values["bateria"] - random.uniform(0, 0.5))),
                 "senal": max(-90, min(-30, base_values["senal"] + random.randint(-5, 5))),
-                "fecha": now,
-                "timestamp_sensor": now
+                "fecha": now
             }
             
             # Redondear valores
@@ -300,13 +307,12 @@ async def simulate_alerts(
             alert_reading = {
                 "device_id": device["id"],
                 "valor": scenario["humidity"],
-                "temperatura": random.uniform(20, 25),
-                "humedad_aire": random.uniform(50, 70),
-                "luz": random.uniform(30, 80),
-                "bateria": random.uniform(70, 90),
+                "temperatura": round(random.uniform(20, 25), 2),
+                "humedad_aire": round(random.uniform(50, 70), 2),
+                "luz": round(random.uniform(30, 80), 2),
+                "bateria": round(random.uniform(70, 90), 2),
                 "senal": random.randint(-70, -50),
-                "fecha": now,
-                "timestamp_sensor": now
+                "fecha": now
             }
             
             await db.insert_records("sensor_humedad_suelo", [alert_reading])

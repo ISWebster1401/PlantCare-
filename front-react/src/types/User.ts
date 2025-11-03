@@ -22,6 +22,8 @@ export interface UserResponse {
   hectares: number;
   grape_type: string;
   role_id: number;
+  avatar_url?: string;
+  is_verified: boolean;
   created_at: string;
   last_login: string | null;
   active: boolean;

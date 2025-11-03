@@ -79,25 +79,57 @@
   font-size: 0.95rem;
 }
 
-.form-group input {
+.auth-modal .form-group input,
+.auth-modal .auth-form input,
+.auth-modal input {
   padding: 15px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(74, 222, 128, 0.2);
+  background: rgba(17, 24, 39, 0.9) !important;
+  border: 2px solid rgba(74, 222, 128, 0.18) !important;
   border-radius: 10px;
-  color: white;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   font-size: 1rem;
   transition: all 0.3s ease;
+  caret-color: #ffffff;
+  color-scheme: dark; /* hints browsers for autofill */
 }
 
-.form-group input:focus {
+.auth-modal .form-group input[type="email"],
+.auth-modal .form-group input[type="password"],
+.auth-modal .form-group input[type="text"],
+.auth-modal .form-group input[type="tel"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.auth-modal .form-group input:focus {
   outline: none;
-  border-color: #4ade80;
-  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.1);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: #4ade80 !important;
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.25) !important;
+  background: rgba(17, 24, 39, 0.95) !important;
+  color: #ffffff !important;
+}
+
+.auth-modal .form-group input:-webkit-autofill,
+.auth-modal .form-group input:-webkit-autofill:hover,
+.auth-modal .form-group input:-webkit-autofill:focus,
+.auth-modal .form-group input:-webkit-autofill:active {
+  background-color: transparent !important;
+  -webkit-box-shadow: 0 0 0 30px rgba(17, 24, 39, 0.95) inset !important;
+  box-shadow: 0 0 0 30px rgba(17, 24, 39, 0.95) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 2px solid rgba(74, 222, 128, 0.18) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Safari/iOS fallback */
+.auth-modal input:-internal-autofill-selected {
+  background-color: rgba(17, 24, 39, 0.95) !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .form-group input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* Submit Button */

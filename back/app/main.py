@@ -6,6 +6,10 @@ from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
+from dotenv import load_dotenv
+load_dotenv() 
 
 # Configurar event loop para Windows
 if sys.platform == "win32":
@@ -14,7 +18,7 @@ if sys.platform == "win32":
 from app.api.core.config import settings
 from app.api.core.log import logger, log_startup, log_shutdown, log_error_with_context
 from app.api.core.database import init_db, close_db, health_check, get_database_stats
-from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo
+from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo, uploads
 
 # Crear aplicación FastAPI
 app = FastAPI(
@@ -23,6 +27,15 @@ app = FastAPI(
     version=settings.PROJECT_VERSION,
     openapi_tags=settings.OPENAPI_TAGS
 )
+
+# Montar directorio de uploads para servir archivos estáticos
+import os
+from pathlib import Path
+
+UPLOAD_DIR = Path("uploads")
+if UPLOAD_DIR.exists():
+    app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+    logger.info("📁 Directorio de uploads montado en /uploads")
 
 # Configurar CORS
 app.add_middleware(
@@ -109,6 +122,7 @@ app.include_router(contact.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(demo.router, prefix="/api")
+app.include_router(uploads.router, prefix="/api")
 
 # Ruta raíz
 @app.get("/", response_class=HTMLResponse)

@@ -15,6 +15,7 @@ from app.db.queries import (
 )
 from app.api.core.auth_user import AuthService
 from pgdbtoolkit import AsyncPgDbToolkit
+import pandas as pd
 from typing import List, Optional
 import logging
 
@@ -68,7 +69,7 @@ async def get_admin_statistics(
 # ENDPOINTS DE GESTIÓN DE USUARIOS
 # ===============================================
 
-@router.get("/users", response_model=List[UserAdminResponse])
+@router.get("/users")
 async def get_all_users(
     role_id: Optional[int] = Query(None, description="Filtrar por rol"),
     active: Optional[bool] = Query(None, description="Filtrar por estado activo"),
@@ -94,43 +95,48 @@ async def get_all_users(
         
         users = await get_all_users_admin(db, filters)
         
-        # Convertir usuarios a formato esperado
+        logger.info(f"Total usuarios obtenidos: {len(users)}")
+        
         user_responses = []
         for user in users:
             try:
-                user_response = UserAdminResponse(
-                    id=user["id"],
-                    first_name=user["first_name"],
-                    last_name=user["last_name"],
-                    email=user["email"],
-                    phone=user.get("phone"),
-                    region=user.get("region"),
-                    vineyard_name=user.get("vineyard_name"),
-                    hectares=user.get("hectares"),
-                    grape_type=user.get("grape_type"),
-                    role_id=user.get("role_id", 1),
-                    role_name=user.get("role_name"),
-                    created_at=user["created_at"],
-                    last_login=user.get("last_login"),
-                    active=user["active"],
-                    device_count=user.get("device_count", 0)
-                )
-                user_responses.append(user_response)
+                cleaned_user = {
+                    "id": int(user["id"]) if user.get("id") is not None else 0,
+                    "first_name": user["first_name"],
+                    "last_name": user["last_name"],
+                    "email": user["email"],
+                    "phone": user.get("phone"),
+                    "region": user.get("region"),
+                    "vineyard_name": user.get("vineyard_name"),
+                    "hectares": float(user.get("hectares")) if user.get("hectares") is not None else None,
+                    "grape_type": user.get("grape_type"),
+                    "role_id": int(user.get("role_id", 1)),
+                    "role_name": user.get("role_name"),
+                    "created_at": user["created_at"],
+                    "last_login": user.get("last_login"),
+                    "active": bool(user.get("active", True)),
+                    "device_count": int(user.get("device_count", 0)) if user.get("device_count") is not None else 0
+                }
+                
+                user_response = UserAdminResponse(**cleaned_user)
+                user_responses.append(user_response.model_dump())
             except Exception as convert_error:
                 logger.error(f"Error convirtiendo usuario {user.get('id', 'unknown')}: {str(convert_error)}")
-                logger.error(f"Datos del usuario: {user}")
                 continue
         
+        logger.info(f"Usuarios procesados: {len(user_responses)}")
         return user_responses
         
     except Exception as e:
         logger.error(f"Error obteniendo usuarios: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
         )
 
-@router.get("/users/{user_id}", response_model=UserAdminResponse)
+@router.get("/users/{user_id}")
 async def get_user_by_id(
     user_id: int,
     current_user: dict = Depends(require_admin),
@@ -147,7 +153,7 @@ async def get_user_by_id(
                 detail="Usuario no encontrado"
             )
         
-        return UserAdminResponse(**user)
+        return UserAdminResponse(**user).model_dump()
         
     except HTTPException:
         raise
@@ -168,7 +174,6 @@ async def create_user(
     Crea un nuevo usuario desde el panel de administración
     """
     try:
-        # Verificar que el email no exista
         from app.db.queries import get_user_by_email
         existing_user = await get_user_by_email(db, user_data.email)
         if existing_user:
@@ -177,16 +182,11 @@ async def create_user(
                 detail="Ya existe un usuario con este email"
             )
         
-        # Preparar datos del usuario
         user_dict = user_data.model_dump()
         password = user_dict.pop("password")
-        
-        # Hash de la contraseña
         user_dict["password_hash"] = AuthService.get_password_hash(password)
         
-        # Crear usuario
         created_user = await create_user_admin(db, user_dict)
-        
         logger.info(f"Usuario creado por admin {current_user['email']}: {user_data.email}")
         
         return UserAdminResponse(**created_user)
@@ -211,7 +211,6 @@ async def update_user(
     Actualiza un usuario existente
     """
     try:
-        # Verificar que el usuario existe
         existing_user = await get_user_by_id_admin(db, user_id)
         if not existing_user:
             raise HTTPException(
@@ -219,10 +218,7 @@ async def update_user(
                 detail="Usuario no encontrado"
             )
         
-        # Preparar datos de actualización
         update_data = user_data.model_dump(exclude_unset=True)
-        
-        # Actualizar usuario
         updated_user = await update_user_admin(db, user_id, update_data)
         
         if not updated_user:
@@ -232,7 +228,6 @@ async def update_user(
             )
         
         logger.info(f"Usuario {user_id} actualizado por admin {current_user['email']}")
-        
         return UserAdminResponse(**updated_user)
         
     except HTTPException:
@@ -254,7 +249,6 @@ async def delete_user(
     Elimina un usuario completamente
     """
     try:
-        # Verificar que el usuario existe
         existing_user = await get_user_by_id_admin(db, user_id)
         if not existing_user:
             raise HTTPException(
@@ -262,14 +256,12 @@ async def delete_user(
                 detail="Usuario no encontrado"
             )
         
-        # No permitir eliminar administradores
         if existing_user.get("role_id") == 2:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No se puede eliminar un usuario administrador"
             )
         
-        # Eliminar usuario
         success = await delete_user_admin(db, user_id)
         
         if not success:
@@ -279,7 +271,6 @@ async def delete_user(
             )
         
         logger.info(f"Usuario {user_id} eliminado por admin {current_user['email']}")
-        
         return {"message": "Usuario eliminado exitosamente"}
         
     except HTTPException:
@@ -326,7 +317,7 @@ async def bulk_action_users(
 # ENDPOINTS DE GESTIÓN DE DISPOSITIVOS
 # ===============================================
 
-@router.get("/devices", response_model=List[DeviceAdminResponse])
+@router.get("/devices")
 async def get_all_devices(
     device_type: Optional[str] = Query(None, description="Filtrar por tipo"),
     connected: Optional[bool] = Query(None, description="Filtrar por conexión"),
@@ -354,36 +345,47 @@ async def get_all_devices(
         
         devices = await get_all_devices_admin(db, filters)
         
-        # Convertir dispositivos a formato esperado
+        logger.info(f"Total dispositivos obtenidos: {len(devices)}")
+        
         device_responses = []
         for device in devices:
             try:
+                user_id_val = device.get("user_id")
+                if user_id_val is None or (isinstance(user_id_val, float) and pd.isna(user_id_val)):
+                    user_id_clean = None
+                else:
+                    user_id_clean = int(user_id_val)
+                
+                device_id = int(device["id"]) if device.get("id") is not None else 0
+                
                 device_response = DeviceAdminResponse(
-                    id=device["id"],
+                    id=device_id,
                     device_code=device["device_code"],
                     name=device.get("name"),
                     device_type=device["device_type"],
                     location=device.get("location"),
                     plant_type=device.get("plant_type"),
-                    user_id=device.get("user_id"),
+                    user_id=user_id_clean,
                     user_name=device.get("user_name"),
                     user_email=device.get("user_email"),
                     created_at=device["created_at"],
                     last_seen=device.get("last_seen"),
                     connected_at=device.get("connected_at"),
-                    active=device["active"],
-                    connected=device["connected"]
+                    active=bool(device["active"]),
+                    connected=bool(device["connected"])
                 )
-                device_responses.append(device_response)
+                device_responses.append(device_response.model_dump())
             except Exception as convert_error:
                 logger.error(f"Error convirtiendo dispositivo {device.get('id', 'unknown')}: {str(convert_error)}")
-                logger.error(f"Datos del dispositivo: {device}")
                 continue
         
+        logger.info(f"Dispositivos procesados: {len(device_responses)}")
         return device_responses
         
     except Exception as e:
         logger.error(f"Error obteniendo dispositivos: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
@@ -399,14 +401,12 @@ async def generate_device_codes_admin(
     Genera códigos de dispositivos en lote
     """
     try:
-        # Generar códigos
         devices = await create_device_code(
             db, 
             batch_data.device_type, 
             batch_data.quantity
         )
         
-        # Convertir a DeviceCodeResponse
         code_responses = []
         for device in devices:
             code_responses.append(DeviceCodeResponse(

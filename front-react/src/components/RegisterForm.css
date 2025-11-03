@@ -52,36 +52,68 @@
   letter-spacing: 0.5px;
 }
 
-.form-group input,
-.form-group select {
+/* Inputs/select en modo oscuro con alta especificidad */
+.register-form-container .form-group input,
+.register-form-container .form-group select {
   width: 100%;
   padding: 15px 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(74, 222, 128, 0.2);
+  background: rgba(17, 24, 39, 0.85) !important; /* gris oscuro translúcido */
+  border: 2px solid rgba(74, 222, 128, 0.18) !important;
   border-radius: 12px;
-  color: white;
+  color: #ffffff !important; /* Texto claro */
+  -webkit-text-fill-color: #ffffff !important;
   font-size: 1rem;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
   box-sizing: border-box;
+  caret-color: #ffffff;
+  color-scheme: dark;
 }
 
-.form-group select option {
-  background: #2a2a2a;
-  color: white;
+.register-form-container .form-group input[type="email"],
+.register-form-container .form-group input[type="password"],
+.register-form-container .form-group input[type="text"],
+.register-form-container .form-group input[type="tel"],
+.register-form-container .form-group input[type="number"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.register-form-container .form-group select option {
+  background: #0f172a;
+  color: #ffffff;
   padding: 10px;
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.register-form-container .form-group input:focus,
+.register-form-container .form-group select:focus {
   outline: none;
-  border-color: #4ade80;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 20px rgba(74, 222, 128, 0.2);
+  border-color: #4ade80 !important;
+  background: rgba(17, 24, 39, 0.95) !important;
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.25) !important;
+  color: #ffffff !important;
 }
 
-.form-group input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
+.register-form-container .form-group input:-webkit-autofill,
+.register-form-container .form-group input:-webkit-autofill:hover,
+.register-form-container .form-group input:-webkit-autofill:focus,
+.register-form-container .form-group input:-webkit-autofill:active {
+  background-color: transparent !important;
+  -webkit-box-shadow: 0 0 0 30px rgba(17, 24, 39, 0.95) inset !important;
+  box-shadow: 0 0 0 30px rgba(17, 24, 39, 0.95) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 2px solid rgba(74, 222, 128, 0.18) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Safari/iOS fallback */
+.register-form-container input:-internal-autofill-selected {
+  background-color: rgba(17, 24, 39, 0.95) !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.register-form-container .form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .password-help {
@@ -176,8 +208,8 @@
     font-size: 1.5rem;
   }
 
-  .form-group input,
-  .form-group select {
+  .register-form-container .form-group input,
+  .register-form-container .form-group select {
     padding: 12px 16px;
   }
 }
