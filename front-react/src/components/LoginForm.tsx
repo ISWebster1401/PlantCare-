@@ -45,7 +45,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onClose }) =>
         <button className="modal-close" onClick={onClose}>×</button>
         
         <div className="auth-header">
-          <h2>🌱 Iniciar Sesión</h2>
+          <img src="/Plantcare_solo-removebg-preview.png" alt="PlantCare" style={{width: '80px', height: '80px', marginBottom: '12px'}} />
+          <h2>Iniciar Sesión</h2>
           <p>Accede a tu cuenta de PlantCare</p>
         </div>
 

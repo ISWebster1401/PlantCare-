@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from app.api.core.database import get_db
 from app.api.core.email_service import email_service
 from app.api.schemas.contact import (
@@ -135,29 +136,52 @@ async def request_quote(
         quote_data["ip_address"] = client_ip
         quote_data["reference_id"] = reference_id
         
-        # Guardar en base de datos (opcional)
+        # Obtener user_id si el usuario está autenticado (opcional)
+        user_id = None
         try:
-            await db.insert_records("quote_requests", [{
+            from app.api.core.auth_user import get_current_active_user
+            # Intentar obtener usuario actual si hay token
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                try:
+                    # Usar Depends de forma manual para obtener el usuario
+                    from fastapi import Depends
+                    # Esto es un workaround - normalmente usaríamos Depends en la función
+                    # pero como es opcional, lo hacemos manualmente
+                    credentials = HTTPAuthorizationCredentials(
+                        scheme="Bearer",
+                        credentials=auth_header.split(" ")[1]
+                    )
+                    current_user = await get_current_active_user(credentials=credentials, db=db)
+                    user_id = current_user["id"]
+                    logger.info(f"Cotización asociada al usuario {current_user['email']} (ID: {user_id})")
+                except Exception as auth_error:
+                    # Si falla la autenticación, continuar sin user_id
+                    logger.debug(f"No se pudo obtener usuario autenticado: {str(auth_error)}")
+        except Exception as e:
+            logger.debug(f"Error obteniendo user_id: {str(e)}")
+            pass
+        
+        # Guardar en base de datos (tabla quotes)
+        try:
+            await db.insert_records("quotes", [{
+                "user_id": user_id,
                 "reference_id": reference_id,
                 "name": quote_request.name,
                 "email": quote_request.email,
                 "phone": quote_request.phone,
                 "company": quote_request.company,
-                "position": quote_request.position,
-                "project_type": quote_request.project_type.value,
-                "sensor_quantity": quote_request.sensor_quantity,
-                "coverage_area": quote_request.coverage_area,
+                "vineyard_name": quote_request.company,  # Usar company como vineyard_name si aplica
+                "location": quote_request.location,
+                "num_devices": quote_request.sensor_quantity,
+                "installation_type": "full" if quote_request.requires_installation else "self",
                 "budget_range": quote_request.budget_range.value,
-                "desired_date": quote_request.desired_date,
-                "description": quote_request.description,
-                "has_existing_infrastructure": quote_request.has_existing_infrastructure,
-                "requires_installation": quote_request.requires_installation,
-                "requires_training": quote_request.requires_training,
+                "message": quote_request.description,
                 "ip_address": client_ip,
                 "status": "pending",
-                "priority": "high",
                 "created_at": datetime.utcnow()
             }])
+            logger.info(f"Cotización guardada en BD - Ref: {reference_id}")
         except Exception as db_error:
             logger.warning(f"No se pudo guardar cotización en BD: {str(db_error)}")
             # Continuar aunque falle la BD
@@ -165,10 +189,11 @@ async def request_quote(
         # Enviar email de notificación al equipo de ventas
         notification_sent = await email_service.send_quote_request_notification(quote_data)
         
-        # Enviar confirmación al usuario
-        confirmation_sent = await email_service.send_contact_confirmation(
+        # Enviar confirmación al usuario con el mensaje específico de cotización
+        confirmation_sent = await email_service.send_quote_confirmation(
             quote_request.email, 
-            quote_request.name
+            quote_request.name,
+            reference_id
         )
         
         if notification_sent:

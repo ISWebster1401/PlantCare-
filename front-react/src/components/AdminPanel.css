@@ -604,3 +604,223 @@
     min-width: auto;
   }
 }
+
+/* Quotes Section */
+.quotes-section {
+  padding: 20px;
+}
+
+.quotes-section .filters {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.quotes-section .filters input,
+.quotes-section .filters select {
+  padding: 10px 15px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  color: white;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.quotes-section .filters input:focus,
+.quotes-section .filters select:focus {
+  outline: none;
+  border-color: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+}
+
+.quotes-section .filters input {
+  flex: 1;
+  min-width: 300px;
+}
+
+.quotes-table {
+  overflow-x: auto;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.quotes-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.quotes-table th {
+  text-align: left;
+  padding: 15px;
+  border-bottom: 2px solid rgba(74, 222, 128, 0.3);
+  color: #4ade80;
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.quotes-table td {
+  padding: 15px;
+  border-bottom: 1px solid rgba(74, 222, 128, 0.1);
+  color: #e2e8f0;
+  font-size: 14px;
+}
+
+.quotes-table tr:hover {
+  background: rgba(74, 222, 128, 0.05);
+}
+
+.quotes-table code {
+  background: rgba(74, 222, 128, 0.15);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  color: #4ade80;
+  font-size: 12px;
+}
+
+.status-badge.status-pending {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.status-contacted {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.status-quoted {
+  background: rgba(139, 92, 246, 0.2);
+  color: #8b5cf6;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.status-accepted {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.status-rejected,
+.status-badge.status-cancelled {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn-edit {
+  padding: 8px 16px;
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 6px;
+  color: #4ade80;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-edit:hover {
+  background: rgba(74, 222, 128, 0.25);
+  border-color: #4ade80;
+  transform: translateY(-1px);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 16px;
+  padding: 30px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+}
+
+.modal-content h3 {
+  color: #4ade80;
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+}
+
+.modal-content .form-group {
+  margin-bottom: 20px;
+}
+
+.modal-content .form-group label {
+  display: block;
+  color: #e2e8f0;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.modal-content .form-group select,
+.modal-content .form-group input,
+.modal-content .form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  color: white;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.modal-content .form-group select:focus,
+.modal-content .form-group input:focus,
+.modal-content .form-group textarea:focus {
+  outline: none;
+  border-color: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+}
+
+.modal-content .form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(74, 222, 128, 0.2);
+}

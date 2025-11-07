@@ -68,8 +68,14 @@ export const authAPI = {
   },
 
   // Reenviar verificación de correo
-  resendVerification: async (email: string): Promise<{ message: string }> => {
-    const response = await api.post('/auth/resend-verification', { email, password: 'x' });
+  resendCode: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post('/auth/resend-code', { email });
+    return response.data;
+  },
+
+  // Verificar código de 4 dígitos
+  verifyCode: async (email: string, code: string): Promise<{ message: string }> => {
+    const response = await api.post('/auth/verify-code', { email, code });
     return response.data;
   },
 };
@@ -134,6 +140,20 @@ export const humedadAPI = {
   // Obtener alertas inteligentes
   getSmartAlerts: async (deviceId: number) => {
     const response = await api.get(`/humedad/alertas-inteligentes/${deviceId}`);
+    return response.data;
+  },
+};
+
+export const quotesAPI = {
+  // Obtener mis cotizaciones
+  getMyQuotes: async () => {
+    const response = await api.get('/quotes/my-quotes');
+    return response.data;
+  },
+
+  // Crear nueva cotización
+  createQuote: async (quoteData: any) => {
+    const response = await api.post('/contact/request-quote', quoteData);
     return response.data;
   },
 };

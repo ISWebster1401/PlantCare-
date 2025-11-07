@@ -13,6 +13,7 @@ import {
   Filler
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { DeviceCardIcon, ChartIcon, HumidityIcon, AlertIcon, BellIcon, RefreshIcon, LineChartIcon } from './Icons';
 import './DashboardCharts.css';
 
 // Registrar componentes de Chart.js
@@ -279,23 +280,22 @@ const DashboardCharts: React.FC = () => {
 
   return (
     <div className="dashboard-charts">
-      <div className="charts-toolbar" style={{display:'flex',justifyContent:'flex-end',marginBottom:12,gap:8}}>
-        <button className="btn-secondary" onClick={() => setViewMode(viewMode==='line'?'gauge':'line')}>
-          {viewMode==='line' ? '🔁 Ver como velocímetro' : '📈 Ver como línea'}
-        </button>
-      </div>
       {/* Resumen de estadísticas */}
       <div className="stats-overview">
         <div className="stat-card">
-          <div className="stat-icon">📱</div>
-        <div className="stat-content">
+          <div className="stat-icon">
+            <DeviceCardIcon />
+          </div>
+          <div className="stat-content">
             <h3>{dashboardData.summary?.total_devices ?? 0}</h3>
             <p>Dispositivos Conectados</p>
           </div>
         </div>
         
         <div className="stat-card">
-          <div className="stat-icon">📊</div>
+          <div className="stat-icon">
+            <ChartIcon />
+          </div>
           <div className="stat-content">
             <h3>{dashboardData.summary?.total_readings_today ?? 0}</h3>
             <p>Lecturas Hoy</p>
@@ -303,7 +303,9 @@ const DashboardCharts: React.FC = () => {
         </div>
         
         <div className="stat-card">
-          <div className="stat-icon">💧</div>
+          <div className="stat-icon">
+            <HumidityIcon />
+          </div>
           <div className="stat-content">
             <h3>{dashboardData.summary?.avg_humidity_all ?? 0}%</h3>
             <p>Humedad Promedio</p>
@@ -311,7 +313,9 @@ const DashboardCharts: React.FC = () => {
         </div>
         
         <div className="stat-card">
-          <div className="stat-icon">⚠️</div>
+          <div className="stat-icon">
+            <AlertIcon />
+          </div>
           <div className="stat-content">
             <h3>{(dashboardData.alerts || []).length}</h3>
             <p>Alertas Activas</p>
@@ -322,7 +326,12 @@ const DashboardCharts: React.FC = () => {
       {/* Alertas importantes */}
       {(dashboardData.alerts || []).length > 0 && (
         <div className="alerts-section">
-          <h3>🚨 Alertas Importantes</h3>
+          <h3>
+            <span style={{marginRight: 8, display: 'inline-flex', color: '#ef4444'}}>
+              <BellIcon className="nav-icon" />
+            </span>
+            Alertas Importantes
+          </h3>
           <div className="alerts-grid">
             {(dashboardData.alerts || []).map((alert, index) => (
               <div key={index} className={`alert-card ${alert.urgency}`}>
@@ -342,49 +351,136 @@ const DashboardCharts: React.FC = () => {
       )}
 
       {/* Gráfico principal */}
-      {viewMode==='line' ? (
-        <div className="chart-section">
+      <div className="chart-section">
+        <h3 className="chart-title">{viewMode === 'line' ? 'Gráfico 1' : 'Gráfico 2'}</h3>
+        {viewMode==='line' ? (
           <div className="chart-container">
             <Line data={chartData} options={chartOptions} />
           </div>
-        </div>
-      ) : (
-        <div className="chart-section" style={{display:'flex',justifyContent:'center'}}>
-          <svg viewBox="0 0 200 120" width="100%" style={{maxWidth:480}}>
-            <defs>
-              <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ef4444"/>
-                <stop offset="50%" stopColor="#f59e0b"/>
-                <stop offset="100%" stopColor="#22c55e"/>
-              </linearGradient>
-            </defs>
-            <path d="M10,110 A90,90 0 0,1 190,110" fill="none" stroke="url(#g1)" strokeWidth="14" strokeLinecap="round"/>
-            {/* Aguja */}
-            {(() => {
-              const angle = (-180 + (gaugeValue/100)*180) * Math.PI/180; // -180 a 0 grados
-              const cx = 100, cy = 110, r = 75;
-              const x = cx + r*Math.cos(angle);
-              const y = cy + r*Math.sin(angle);
-              return (
-                <g>
-                  <line x1={cx} y1={cy} x2={x} y2={y} stroke="#e5e7eb" strokeWidth="4" strokeLinecap="round" />
-                  <circle cx={cx} cy={cy} r="6" fill="#e5e7eb" />
-                </g>
-              );
-            })()}
-            <text x="100" y="105" textAnchor="middle" fill="#cbd5e1" fontSize="12">0%</text>
-            <text x="190" y="105" textAnchor="end" fill="#cbd5e1" fontSize="12">100%</text>
-            <text x="100" y="75" textAnchor="middle" fill="#ffffff" fontSize="28" fontWeight="700">{gaugeValue}%</text>
-            <text x="100" y="90" textAnchor="middle" fill="#9ca3af" fontSize="12">Humedad</text>
-          </svg>
-        </div>
-      )}
+        ) : (
+          <div className="gauge-container">
+            <svg viewBox="0 0 220 140" width="100%" style={{maxWidth: 500}}>
+              <defs>
+                <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8"/>
+                  <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.8"/>
+                  <stop offset="100%" stopColor="#22c55e" stopOpacity="0.8"/>
+                </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              {/* Arco del medidor */}
+              <path 
+                d="M20,120 A90,90 0 0,1 200,120" 
+                fill="none" 
+                stroke="url(#gaugeGradient)" 
+                strokeWidth="16" 
+                strokeLinecap="round"
+                filter="url(#glow)"
+              />
+              {/* Marcas de escala */}
+              {[0, 25, 50, 75, 100].map((val, i) => {
+                const angle = (-180 + (val/100)*180) * Math.PI/180;
+                const cx = 110, cy = 120, r = 85;
+                const x1 = cx + (r-10)*Math.cos(angle);
+                const y1 = cy + (r-10)*Math.sin(angle);
+                const x2 = cx + r*Math.cos(angle);
+                const y2 = cy + r*Math.sin(angle);
+                return (
+                  <g key={i}>
+                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#94a3b8" strokeWidth="2"/>
+                    <text 
+                      x={x1 - 5} 
+                      y={y1 + 5} 
+                      textAnchor="middle" 
+                      fill="#cbd5e1" 
+                      fontSize="11"
+                      fontWeight="500"
+                    >
+                      {val}%
+                    </text>
+                  </g>
+                );
+              })}
+              {/* Aguja */}
+              {(() => {
+                const angle = (-180 + (gaugeValue/100)*180) * Math.PI/180;
+                const cx = 110, cy = 120, r = 80;
+                const x = cx + r*Math.cos(angle);
+                const y = cy + r*Math.sin(angle);
+                return (
+                  <g>
+                    <line 
+                      x1={cx} 
+                      y1={cy} 
+                      x2={x} 
+                      y2={y} 
+                      stroke="#ffffff" 
+                      strokeWidth="5" 
+                      strokeLinecap="round"
+                      filter="url(#glow)"
+                    />
+                    <circle cx={cx} cy={cy} r="8" fill="#ffffff" filter="url(#glow)"/>
+                    <circle cx={cx} cy={cy} r="4" fill="#0f172a"/>
+                  </g>
+                );
+              })()}
+              {/* Valor central */}
+              <text 
+                x="110" 
+                y="90" 
+                textAnchor="middle" 
+                fill="#ffffff" 
+                fontSize="36" 
+                fontWeight="700"
+                filter="url(#glow)"
+              >
+                {gaugeValue}%
+              </text>
+              <text 
+                x="110" 
+                y="110" 
+                textAnchor="middle" 
+                fill="#94a3b8" 
+                fontSize="14"
+                fontWeight="500"
+              >
+                Humedad Promedio
+              </text>
+            </svg>
+          </div>
+        )}
+      </div>
+      
+      {/* Botón de cambio de vista */}
+      <div className="charts-toolbar">
+        <button className="btn-secondary" onClick={() => setViewMode(viewMode==='line'?'gauge':'line')}>
+          {viewMode==='line' ? (
+            <>
+              <RefreshIcon className="nav-icon" />
+              Cambiar a Gráfico 2
+            </>
+          ) : (
+            <>
+              <LineChartIcon className="nav-icon" />
+              Cambiar a Gráfico 1
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Insights de IA */}
       <div className="ai-insights-section">
-        <h3>🤖 Insights de IA</h3>
+        <h3>Insights de IA</h3>
         <div className="ai-insights-content">
-          <div className="ai-avatar">🌱</div>
+          <div className="ai-avatar">
+            <img src="/Plantcareblanco-removebg-preview.png" alt="PlantCare AI" style={{width: '40px', height: '40px'}} />
+          </div>
           <div className="ai-text">
             <p>{dashboardData.ai_insights || 'Conecta tu primer sensor para comenzar a recibir recomendaciones personalizadas de IA.'}</p>
             <small>

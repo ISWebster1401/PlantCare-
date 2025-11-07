@@ -97,6 +97,105 @@ async def get_user_by_email(db, email: str) -> Optional[Dict[str, Any]]:
         logger.error(f"Error obteniendo usuario por email: {str(e)}")
         return None
 
+# ===============================================
+# VERIFICACIÓN POR CÓDIGO (OTP)
+# ===============================================
+
+async def create_email_verification_code(db, user_id: int, code: Optional[str] = None, hours_valid: int = 24) -> Dict[str, Any]:
+    """
+    Crea o reemplaza un código de verificación de 4 dígitos para un usuario.
+    Reutiliza la tabla email_verification_tokens guardando el código en el campo token.
+    Invalida códigos anteriores (no usados) del mismo usuario.
+    """
+    try:
+        # Generar código de 4 dígitos si no se provee
+        if not code:
+            code = ''.join(secrets.choice('0123456789') for _ in range(4))
+
+        # Marcar como usados los códigos previos sin usar
+        try:
+            await db.execute_raw_sql(
+                "UPDATE email_verification_tokens SET used_at = NOW() WHERE user_id = %s AND used_at IS NULL",
+                (user_id,)
+            )
+        except Exception:
+            # Silencioso: puede no existir la tabla aún
+            pass
+
+        # Insertar nuevo código
+        expires_at = datetime.utcnow() + timedelta(hours=hours_valid)
+        await db.execute_raw_sql(
+            """
+            INSERT INTO email_verification_tokens (user_id, token, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, code, expires_at)
+        )
+
+        return {"user_id": user_id, "token": code, "expires_at": expires_at}
+    except Exception as e:
+        logger.error(f"Error creando código de verificación: {str(e)}")
+        raise
+
+async def get_active_verification_code(db, user_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene el código activo (no usado, no vencido) del usuario.
+    """
+    try:
+        df = await db.execute_query(
+            """
+            SELECT * FROM email_verification_tokens
+            WHERE user_id = %s AND used_at IS NULL AND expires_at > NOW()
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (user_id,)
+        )
+        if df is not None and not df.empty:
+            return df.iloc[0].to_dict()
+        return None
+    except Exception as e:
+        logger.error(f"Error obteniendo código activo: {str(e)}")
+        return None
+
+async def verify_email_with_code(db, email: str, code: str) -> bool:
+    """
+    Verifica el email del usuario comparando el código (4 dígitos).
+    Marca el token como usado y al usuario como verificado.
+    """
+    try:
+        user = await get_user_by_email(db, email)
+        if not user:
+            return False
+
+        df = await db.execute_query(
+            """
+            SELECT * FROM email_verification_tokens
+            WHERE user_id = %s AND token = %s AND used_at IS NULL AND expires_at > NOW()
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (user["id"], code)
+        )
+        if df is None or df.empty:
+            return False
+
+        token_row = df.iloc[0].to_dict()
+
+        # Marcar usuario como verificado y token como usado
+        await db.execute_raw_sql(
+            "UPDATE users SET is_verified = true WHERE id = %s",
+            (user["id"],)
+        )
+        await db.execute_raw_sql(
+            "UPDATE email_verification_tokens SET used_at = NOW() WHERE id = %s",
+            (token_row["id"],)
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error verificando email con código: {str(e)}")
+        return False
+
 async def update_user(db, user_id: int, user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Actualiza un usuario existente usando pgdbtoolkit
@@ -815,7 +914,7 @@ async def delete_user_admin(db, user_id: int) -> bool:
         return False
 
 # ===============================================
-# VERIFICACIÓN DE EMAIL
+# VERIFICACIÓN DE EMAIL (LINK Y CÓDIGO)
 # ===============================================
 
 def _generate_verification_token() -> str:
@@ -886,6 +985,82 @@ async def mark_email_verified(db, token_row: Dict[str, Any]) -> bool:
         return True
     except Exception as e:
         logger.error(f"Error marcando email verificado: {str(e)}")
+        return False
+
+# === NUEVO: Verificación por código de 4 dígitos ===
+
+def _generate_4_digit_code() -> str:
+    """Genera un código de 4 dígitos (como string con ceros a la izquierda)."""
+    # Usamos secrets para aleatoriedad criptográfica
+    number = secrets.randbelow(10000)
+    return f"{number:04d}"
+
+async def create_email_verification_code(db, user_id: int, minutes_valid: int = 15) -> Dict[str, Any]:
+    """
+    Crea un código de 4 dígitos para verificación de email.
+    Reutiliza la tabla email_verification_tokens guardando el código en la columna token.
+    Invalida códigos/tokens previos no usados para ese usuario.
+    """
+    try:
+        # Invalidar tokens/códigos previos no usados
+        await db.execute_query(
+            """
+            DELETE FROM email_verification_tokens
+            WHERE user_id = %s AND used_at IS NULL
+            """,
+            (user_id,)
+        )
+
+        code = _generate_4_digit_code()
+        expires_at = datetime.utcnow() + timedelta(minutes=minutes_valid)
+        await db.insert_records("email_verification_tokens", {
+            "user_id": user_id,
+            "token": code,
+            "expires_at": expires_at
+        })
+        return {"code": code, "expires_at": expires_at}
+    except Exception as e:
+        logger.error(f"Error creando código de verificación: {str(e)}")
+        raise
+
+async def verify_email_with_code(db, email: str, code: str) -> bool:
+    """
+    Verifica el email buscando por email del usuario y el código (token) activo.
+    """
+    try:
+        user = await get_user_by_email(db, email)
+        if not user:
+            return False
+
+        rows = await db.execute_query(
+            """
+            SELECT * FROM email_verification_tokens
+            WHERE user_id = %s AND token = %s AND used_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (user["id"], code)
+        )
+
+        if rows is None or rows.empty:
+            return False
+
+        token_row = rows.iloc[0].to_dict()
+        if token_row.get("expires_at") and token_row["expires_at"] < datetime.utcnow():
+            return False
+
+        # Marcar verificado
+        await db.execute_query(
+            "UPDATE users SET is_verified = true WHERE id = %s",
+            (user["id"],)
+        )
+        await db.execute_query(
+            "UPDATE email_verification_tokens SET used_at = %s WHERE id = %s",
+            (datetime.utcnow(), token_row["id"]) 
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error verificando email con código: {str(e)}")
         return False
 
 async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]]:

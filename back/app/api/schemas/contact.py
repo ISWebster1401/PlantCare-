@@ -25,10 +25,10 @@ class ProjectType(str, Enum):
 class BudgetRange(str, Enum):
     """Rangos de presupuesto para cotizaciones"""
     UNDER_1000 = "under_1000"
-    RANGE_1000_5000 = "1000_5000"
-    RANGE_5000_10000 = "5000_10000"
-    RANGE_10000_25000 = "10000_25000"
-    RANGE_25000_50000 = "25000_50000"
+    RANGE_1000_5000 = "range_1000_5000"
+    RANGE_5000_10000 = "range_5000_10000"
+    RANGE_10000_25000 = "range_10000_25000"
+    RANGE_25000_50000 = "range_25000_50000"
     OVER_50000 = "over_50000"
 
 class ContactForm(BaseModel):
@@ -75,6 +75,7 @@ class QuoteRequest(BaseModel):
     project_type: ProjectType = Field(..., description="Tipo de proyecto")
     sensor_quantity: int = Field(..., ge=1, le=10000, description="Cantidad de sensores estimada")
     coverage_area: Optional[str] = Field(None, max_length=100, description="Área a cubrir (ej: 50 hectáreas)")
+    location: Optional[str] = Field(None, max_length=200, description="Ubicación del proyecto")
     budget_range: BudgetRange = Field(..., description="Rango de presupuesto estimado")
     desired_date: Optional[str] = Field(None, max_length=50, description="Fecha deseada de implementación")
     description: str = Field(..., min_length=20, max_length=2000, description="Descripción detallada del proyecto")

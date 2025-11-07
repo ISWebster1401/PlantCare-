@@ -1,17 +1,11 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-import mysql.connector
 import socket
-import os
 from datetime import datetime
+from collections import deque
 
-# Configuración de la base de datos
-DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'admin123',  # Cambia por tu contraseña de MySQL
-    'database': 'sensor_humedad'
-}
+# Almacenamiento en memoria (sin MySQL)
+LECTURAS = deque(maxlen=200)  # guarda las últimas 200 lecturas
 
 def get_local_ip():
     """Obtener la IP local de la máquina"""
@@ -23,28 +17,6 @@ def get_local_ip():
         return ip
     except:
         return "127.0.0.1"
-
-def test_database_connection():
-    """Probar la conexión a la base de datos"""
-    try:
-        conn = mysql.connector.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM sensor_humedad_suelo")
-        count = cursor.fetchone()[0]
-        cursor.close()
-        conn.close()
-        print(f"✅ Base de datos conectada correctamente ({count} registros)")
-        return True
-    except mysql.connector.Error as e:
-        print(f"❌ Error de conexión a MySQL: {e}")
-        print("💡 Soluciones:")
-        print("   - Verifica que MySQL esté corriendo")
-        print("   - Revisa usuario y contraseña en DB_CONFIG")
-        print("   - Asegúrate que la base de datos 'sensor_humedad' exista")
-        return False
-    except Exception as e:
-        print(f"❌ Error inesperado: {e}")
-        return False
 
 class HumedadHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -76,32 +48,24 @@ class HumedadHandler(BaseHTTPRequestHandler):
             if humedad < 0 or humedad > 100:
                 raise ValueError(f"Valor de humedad fuera de rango: {humedad}%")
 
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO sensor_humedad_suelo (valor) VALUES (%s)", (humedad,))
-            conn.commit()
-            cursor.close()
-            conn.close()
+            # Guardar en memoria (sin base de datos)
+            now = datetime.now()
+            LECTURAS.append({
+                "id": len(LECTURAS) + 1,
+                "valor": humedad,
+                "fecha": now.strftime("%Y-%m-%d %H:%M:%S")
+            })
 
             self.send_response(201)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            response = {'mensaje': 'Dato guardado correctamente', 'humedad': humedad}
+            response = {'mensaje': 'Dato recibido', 'humedad': humedad}
             self.wfile.write(json.dumps(response).encode('utf-8'))
             
             # Log colorido
             nivel = "🟥 MUY SECO" if humedad < 30 else "🟨 SECO" if humedad < 50 else "🟩 ÓPTIMO" if humedad < 70 else "🟦 HÚMEDO"
             print(f"📊 Humedad recibida: {humedad}% | {nivel}")
-
-        except mysql.connector.Error as db_error:
-            print(f"❌ Error de base de datos: {db_error}")
-            self.send_response(500)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            response = {'error': f'Error de base de datos: {str(db_error)}'}
-            self.wfile.write(json.dumps(response).encode('utf-8'))
 
         except Exception as e:
             print(f"❌ Error en POST: {e}")
@@ -115,20 +79,8 @@ class HumedadHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/lector-humedad":
             try:
-                conn = mysql.connector.connect(**DB_CONFIG)
-                cursor = conn.cursor()
-                cursor.execute("SELECT id, valor, fecha FROM sensor_humedad_suelo ORDER BY fecha DESC LIMIT 50")
-                datos = cursor.fetchall()
-                cursor.close()
-                conn.close()
-
-                resultados = []
-                for r in datos:
-                    resultados.append({
-                        "id": r[0], 
-                        "valor": float(r[1]), 
-                        "fecha": r[2].strftime("%Y-%m-%d %H:%M:%S")
-                    })
+                # Devolver últimas lecturas en memoria
+                resultados = list(LECTURAS)[-50:][::-1]
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -136,15 +88,6 @@ class HumedadHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps(resultados).encode('utf-8'))
                 print(f"📤 Enviados {len(resultados)} registros al dashboard")
-
-            except mysql.connector.Error as db_error:
-                print(f"❌ Error de base de datos en GET: {db_error}")
-                self.send_response(500)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                response = {'error': f'Error de base de datos: {str(db_error)}'}
-                self.wfile.write(json.dumps(response).encode('utf-8'))
 
             except Exception as e:
                 print(f"❌ Error en GET: {e}")
@@ -190,12 +133,7 @@ def run(server_class=HTTPServer, handler_class=HumedadHandler, port=5000):
     print("=" * 70)
     print("🌱 INICIANDO SERVIDOR DE HUMEDAD DEL SUELO")
     print("=" * 70)
-    
-    # Probar conexión a base de datos antes de iniciar servidor
-    if not test_database_connection():
-        print("❌ No se puede iniciar el servidor sin conexión a la base de datos")
-        return
-    
+
     try:
         server_address = ('', port)
         httpd = server_class(server_address, handler_class)
@@ -221,12 +159,5 @@ def run(server_class=HTTPServer, handler_class=HumedadHandler, port=5000):
         print("👋 Cerrando servidor...")
 
 if __name__ == "__main__":
-    # Verificar dependencias
-    try:
-        import mysql.connector
-    except ImportError:
-        print("❌ Error: mysql-connector-python no está instalado")
-        print("💡 Instálalo con: pip install mysql-connector-python")
-        exit(1)
-    
-    run()
+    # Cambiar puerto a 5001 para no conflictar con FastAPI (puerto 5000)
+    run(port=5001)

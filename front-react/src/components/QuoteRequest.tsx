@@ -10,6 +10,7 @@ interface QuoteRequestData {
   project_type: string;
   sensor_quantity: number;
   coverage_area: string;
+  location: string;
   budget_range: string;
   desired_date: string;
   description: string;
@@ -32,6 +33,7 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
     project_type: 'commercial',
     sensor_quantity: 1,
     coverage_area: '',
+    location: '',
     budget_range: 'range_5000_10000',
     desired_date: '',
     description: '',
@@ -45,12 +47,12 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
   const [referenceId, setReferenceId] = useState<string>('');
 
   const projectTypes = [
-    { value: 'residential', label: '🏠 Residencial' },
-    { value: 'commercial', label: '🏢 Comercial' },
-    { value: 'agricultural', label: '🌾 Agrícola' },
-    { value: 'research', label: '🔬 Investigación' },
-    { value: 'educational', label: '🎓 Educativo' },
-    { value: 'other', label: '📋 Otro' }
+    { value: 'residential', label: 'Residencial' },
+    { value: 'commercial', label: 'Comercial' },
+    { value: 'agricultural', label: 'Agrícola' },
+    { value: 'research', label: 'Investigación' },
+    { value: 'educational', label: 'Educativo' },
+    { value: 'other', label: 'Otro' }
   ];
 
   const budgetRanges = [
@@ -154,11 +156,11 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="quote-form-container">
+    <div className={`quote-form-container ${onClose ? 'modal' : 'view'}`}>
       <div className="quote-form">
         <div className="form-header">
-          <h2>💰 Solicitar Cotización</h2>
-          <p>Cuéntanos sobre tu proyecto y te enviaremos una cotización personalizada</p>
+          <h2>Solicitar Cotización</h2>
+          <p>Completa el formulario y nuestro equipo te contactará con una propuesta personalizada</p>
           {onClose && (
             <button className="close-btn" onClick={onClose}>×</button>
           )}
@@ -167,7 +169,7 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
         <form onSubmit={handleSubmit} className="quote-form-fields">
           {/* Información de Contacto */}
           <div className="section">
-            <h3>👤 Información de Contacto</h3>
+            <h3>Información de Contacto</h3>
             
             <div className="form-row">
               <div className="form-group">
@@ -238,7 +240,7 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
 
           {/* Detalles del Proyecto */}
           <div className="section">
-            <h3>🏗️ Detalles del Proyecto</h3>
+            <h3>Detalles del Proyecto</h3>
             
             <div className="form-row">
               <div className="form-group">
@@ -286,6 +288,20 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
                 />
               </div>
               <div className="form-group">
+                <label htmlFor="location">Ubicación</label>
+                <input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  placeholder="Ej: Región Metropolitana, Valparaíso, etc."
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
                 <label htmlFor="budget_range">Presupuesto Estimado *</label>
                 <select
                   id="budget_range"
@@ -331,7 +347,7 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
 
           {/* Información Adicional */}
           <div className="section">
-            <h3>ℹ️ Información Adicional</h3>
+            <h3>Información Adicional</h3>
             
             <div className="boolean-group">
               <label>¿Tienes infraestructura tecnológica existente?</label>
@@ -417,7 +433,7 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
 
           {submitStatus === 'error' && (
             <div className="error-message">
-              ❌ Hubo un error enviando tu solicitud. Por favor intenta nuevamente.
+              Hubo un error enviando tu solicitud. Por favor intenta nuevamente.
             </div>
           )}
 
@@ -433,7 +449,7 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
                   Enviando...
                 </>
               ) : (
-                '📤 Solicitar Cotización'
+                'Solicitar Cotización'
               )}
             </button>
             {onClose && (

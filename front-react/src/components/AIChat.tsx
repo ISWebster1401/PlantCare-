@@ -15,7 +15,7 @@ const AIChat: React.FC = () => {
     {
       id: '1',
       type: 'ai',
-      content: '¡Hola! 🌱 Soy PlantCare AI, tu asistente experto en cuidado de plantas. Puedo ayudarte con preguntas generales sobre plantas o analizar datos específicos de tus dispositivos. ¿En qué puedo ayudarte hoy?',
+      content: '¡Hola! Soy PlantCare AI, tu asistente experto en cuidado de plantas. Puedo ayudarte con preguntas generales sobre plantas o analizar datos específicos de tus dispositivos. ¿En qué puedo ayudarte hoy?',
       timestamp: new Date().toISOString()
     }
   ]);

@@ -488,7 +488,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
                   <div className="info-item">
                     <span className="info-label">Rol:</span>
                     <span className={`role-badge ${user?.role_id === 2 ? 'admin' : 'user'}`}>
-                      {user?.role_id === 2 ? '👑 Administrador' : '🌱 Usuario'}
+                      {user?.role_id === 2 ? 'Administrador' : 'Usuario'}
                     </span>
                   </div>
                   <div className="info-item">

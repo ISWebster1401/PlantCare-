@@ -40,37 +40,33 @@ class EmailService:
             logger.info(f"Intentando enviar email a: {to_email}")
             logger.info(f"Desde: {self.from_email} ({self.from_name})")
             logger.info(f"Asunto: {subject}")
-            
+
             from_email = Email(self.from_email, self.from_name)
             to_email_obj = To(to_email)
-            
+
             # Crear el email
             if plain_text_content:
-                # Si hay texto plano, crear el Mail sin html_content y agregarlo manualmente
                 mail = Mail(
                     from_email=from_email,
                     to_emails=to_email_obj,
                     subject=subject
                 )
-                # Agregar ambos contenidos en el orden correcto
                 mail.content = [
                     Content("text/plain", plain_text_content),
                     Content("text/html", html_content)
                 ]
             else:
-                # Si no hay texto plano, solo HTML
                 mail = Mail(
                     from_email=from_email,
                     to_emails=to_email_obj,
                     subject=subject,
                     html_content=html_content
                 )
-            
+
             logger.info("Enviando petición a SendGrid...")
-            
-            # Enviar el email
+
             response = self.client.send(mail)
-            
+
             if response.status_code in [200, 202]:
                 logger.info(f"Email enviado exitosamente a {to_email}")
                 return True
@@ -79,11 +75,10 @@ class EmailService:
                 logger.error(f"Response body: {response.body}")
                 logger.error(f"Response headers: {response.headers}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Error enviando email a {to_email}: {str(e)}")
-            
-            # Capturar el body del error de SendGrid
+            # Capturar el body del error de SendGrid si existe
             try:
                 if hasattr(e, 'body'):
                     import json
@@ -91,9 +86,40 @@ class EmailService:
                     logger.error(f"SendGrid error details: {json.dumps(error_body, indent=2)}")
             except Exception as parse_error:
                 logger.error(f"No se pudo parsear el error de SendGrid: {parse_error}")
-            
+
             import traceback
             logger.error(f"Traceback completo: {traceback.format_exc()}")
+            return False
+
+    async def send_verification_code(self, to_email: str, user_name: str, code: str, minutes_valid: int = 15) -> bool:
+        """
+        Envía un código de verificación de 4 dígitos por correo.
+        """
+        try:
+            if not self.api_key:
+                print("[EmailService] SENDGRID_API_KEY no configurada")
+                return False
+
+            subject = "Tu código de verificación - PlantCare"
+            html_content = f"""
+                <div style='font-family: Arial, sans-serif; color:#0f172a'>
+                    <h2>Hola {user_name.split()[0]},</h2>
+                    <p>Usa este código para verificar tu correo en PlantCare:</p>
+                    <div style='font-size:32px; font-weight:bold; letter-spacing:6px; padding:16px 24px; display:inline-block; background:#0f172a; color:#fff; border-radius:12px;'>
+                        {code}
+                    </div>
+                    <p style='margin-top:16px; color:#334155'>Vence en {minutes_valid} minutos.</p>
+                    <p style='margin-top:24px'>Si no solicitaste este código, ignora este mensaje.</p>
+                </div>
+            """
+
+            return await self.send_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content
+            )
+        except Exception as e:
+            print(f"[EmailService] Error enviando código: {e}")
             return False
 
     async def send_contact_form_notification(self, form_data: Dict[str, Any]) -> bool:
@@ -261,6 +287,96 @@ class EmailService:
             plain_text_content=plain_text
         )
     
+    async def send_quote_confirmation(self, user_email: str, user_name: str, reference_id: str) -> bool:
+        """
+        Envía confirmación al usuario cuando se registra su cotización
+        
+        Args:
+            user_email: Email del usuario
+            user_name: Nombre del usuario
+            reference_id: ID de referencia de la cotización
+            
+        Returns:
+            bool: True si se envió correctamente
+        """
+        subject = "Cotización Registrada - PlantCare"
+        
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #2c5530; margin-bottom: 10px;">PlantCare</h1>
+                    <p style="color: #666; font-size: 18px;">Cotización Registrada</p>
+                </div>
+                
+                <div style="background-color: #f9f9f9; padding: 25px; border-radius: 8px; margin: 20px 0;">
+                    <h2 style="color: #2c5530; margin-top: 0;">Hola {user_name},</h2>
+                    <p>Se ha registrado tu cotización exitosamente. Nuestro equipo de ventas la revisará y te contactará pronto.</p>
+                    <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center;">
+                        <p style="margin: 0; font-size: 14px; color: #666;">
+                            <strong>Número de Referencia:</strong><br>
+                            <span style="font-size: 24px; color: #2c5530; font-weight: bold;">{reference_id}</span>
+                        </p>
+                    </div>
+                </div>
+                
+                <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="color: #856404; margin-top: 0;">¿Qué sigue?</h3>
+                    <p>Se le indicará el estado de tu cotización en tu perfil. Puedes acceder a tu perfil en cualquier momento para:</p>
+                    <ul>
+                        <li>Ver el estado de tu cotización</li>
+                        <li>Revisar los detalles de tu solicitud</li>
+                        <li>Recibir actualizaciones sobre el proceso</li>
+                    </ul>
+                </div>
+                
+                <div style="background-color: #fff; padding: 20px; border-left: 4px solid #4CAF50; margin: 20px 0;">
+                    <h3 style="color: #2c5530; margin-top: 0;">Próximos pasos</h3>
+                    <p>Nuestro equipo de ventas:</p>
+                    <ul>
+                        <li>Revisará tu solicitud en un plazo máximo de <strong>12 horas</strong></li>
+                        <li>Te contactará para discutir los detalles de tu proyecto</li>
+                        <li>Te enviará una cotización personalizada</li>
+                    </ul>
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    <p style="color: #666; font-size: 14px;">
+                        Gracias por confiar en PlantCare para el cuidado de tus plantas<br>
+                        <strong>Equipo PlantCare</strong>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        plain_text = f"""
+        Hola {user_name},
+        
+        Se ha registrado tu cotización exitosamente. Nuestro equipo de ventas la revisará y te contactará pronto.
+        
+        Número de Referencia: {reference_id}
+        
+        ¿Qué sigue?
+        Se le indicará el estado de tu cotización en tu perfil. Puedes acceder a tu perfil en cualquier momento para ver el estado de tu cotización, revisar los detalles de tu solicitud y recibir actualizaciones sobre el proceso.
+        
+        Próximos pasos:
+        Nuestro equipo de ventas revisará tu solicitud en un plazo máximo de 12 horas, te contactará para discutir los detalles de tu proyecto y te enviará una cotización personalizada.
+        
+        Gracias por confiar en PlantCare para el cuidado de tus plantas.
+        
+        Equipo PlantCare
+        """
+        
+        return await self.send_email(
+            to_email=user_email,
+            subject=subject,
+            html_content=html_content,
+            plain_text_content=plain_text
+        )
+    
     async def send_quote_request_notification(self, quote_data: Dict[str, Any]) -> bool:
         """
         Envía notificación de solicitud de cotización al equipo de ventas
@@ -351,6 +467,25 @@ class EmailService:
         </html>
         """
         plain_text = f"Hola {user_name},\n\nVerifica tu correo visitando: {verify_url}\n\nEl enlace expira en 24 horas."
+        return await self.send_email(to_email=to_email, subject=subject, html_content=html_content, plain_text_content=plain_text)
+
+    async def send_verification_code_email(self, to_email: str, user_name: str, code: str) -> bool:
+        """Envía un email con un código de verificación de 4 dígitos."""
+        subject = "Verifica tu correo - Código PlantCare"
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #2c5530;">Verificación de Cuenta</h2>
+                <p>Hola {user_name},</p>
+                <p>Usa este código para verificar tu cuenta:</p>
+                <div style="text-align:center; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #16a34a; margin: 20px 0;">{code}</div>
+                <p style="color:#666;">Este código expira en 24 horas.</p>
+            </div>
+        </body>
+        </html>
+        """
+        plain_text = f"Hola {user_name}, tu código de verificación es: {code}. Expira en 24 horas."
         return await self.send_email(to_email=to_email, subject=subject, html_content=html_content, plain_text_content=plain_text)
 
 # Instancia global del servicio de email

@@ -4,7 +4,7 @@ from app.api.core.database import get_db
 from app.api.schemas.admin import (
     UserAdminResponse, UserAdminCreate, UserAdminUpdate, DeviceAdminResponse,
     DeviceCodeBatch, AdminStats, UserListFilters, DeviceListFilters,
-    BulkAction, BulkDeviceAction, RoleResponse
+    BulkAction, BulkDeviceAction, RoleResponse, QuoteAdminResponse, QuoteAdminUpdate
 )
 from app.api.schemas.device import DeviceCodeResponse
 from app.db.queries import (
@@ -17,6 +17,7 @@ from app.api.core.auth_user import AuthService
 from pgdbtoolkit import AsyncPgDbToolkit
 import pandas as pd
 from typing import List, Optional
+from datetime import datetime
 import logging
 
 # Configurar logging
@@ -480,6 +481,228 @@ async def get_all_roles(
         
     except Exception as e:
         logger.error(f"Error obteniendo roles: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+# ===============================================
+# ENDPOINTS DE COTIZACIONES
+# ===============================================
+
+@router.get("/quotes", response_model=List[QuoteAdminResponse])
+async def get_all_quotes(
+    status: Optional[str] = Query(None, description="Filtrar por estado"),
+    search: Optional[str] = Query(None, description="Buscar por nombre, email o referencia"),
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Obtiene todas las cotizaciones (solo admin)
+    """
+    try:
+        # Obtener todas las cotizaciones
+        conditions = {"deleted_at": None}
+        if status:
+            conditions["status"] = status
+        
+        quotes_df = await db.fetch_records("quotes", conditions=conditions)
+        
+        quotes = []
+        if quotes_df is not None and not quotes_df.empty:
+            all_quotes = quotes_df.to_dict('records')
+            # Filtrar deleted_at
+            for q in all_quotes:
+                if q.get('deleted_at') is None:
+                    quotes.append(q)
+            
+            # Aplicar búsqueda si se proporciona
+            if search:
+                search_lower = search.lower()
+                quotes = [q for q in quotes if (
+                    search_lower in q.get('name', '').lower() or
+                    search_lower in q.get('email', '').lower() or
+                    search_lower in q.get('reference_id', '').lower() or
+                    search_lower in q.get('company', '').lower()
+                )]
+        
+        # Ordenar por fecha de creación descendente
+        quotes.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        # Convertir a QuoteAdminResponse
+        result = []
+        for q in quotes:
+            try:
+                result.append(QuoteAdminResponse(
+                    id=int(q.get('id', 0)),
+                    user_id=int(q.get('user_id')) if q.get('user_id') else None,
+                    reference_id=str(q.get('reference_id', '')),
+                    name=str(q.get('name', '')),
+                    email=str(q.get('email', '')),
+                    phone=q.get('phone'),
+                    company=q.get('company'),
+                    vineyard_name=q.get('vineyard_name'),
+                    location=q.get('location'),
+                    num_devices=int(q.get('num_devices', 0)),
+                    budget_range=q.get('budget_range'),
+                    status=str(q.get('status', 'pending')),
+                    quoted_price=float(q.get('quoted_price')) if q.get('quoted_price') else None,
+                    quoted_at=q.get('quoted_at'),
+                    assigned_to=int(q.get('assigned_to')) if q.get('assigned_to') else None,
+                    created_at=q.get('created_at'),
+                    updated_at=q.get('updated_at'),
+                    message=q.get('message')
+                ))
+            except Exception as e:
+                logger.warning(f"Error procesando cotización {q.get('id')}: {str(e)}")
+                continue
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo cotizaciones: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.get("/quotes/{quote_id}", response_model=QuoteAdminResponse)
+async def get_quote_by_id(
+    quote_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Obtiene una cotización por ID (solo admin)
+    """
+    try:
+        quote_df = await db.fetch_records(
+            "quotes",
+            conditions={"id": quote_id, "deleted_at": None}
+        )
+        
+        if quote_df is None or quote_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cotización no encontrada"
+            )
+        
+        quote = quote_df.iloc[0].to_dict()
+        
+        return QuoteAdminResponse(
+            id=int(quote.get('id', 0)),
+            user_id=int(quote.get('user_id')) if quote.get('user_id') else None,
+            reference_id=str(quote.get('reference_id', '')),
+            name=str(quote.get('name', '')),
+            email=str(quote.get('email', '')),
+            phone=quote.get('phone'),
+            company=quote.get('company'),
+            vineyard_name=quote.get('vineyard_name'),
+            location=quote.get('location'),
+            num_devices=int(quote.get('num_devices', 0)),
+            budget_range=quote.get('budget_range'),
+            status=str(quote.get('status', 'pending')),
+            quoted_price=float(quote.get('quoted_price')) if quote.get('quoted_price') else None,
+            quoted_at=quote.get('quoted_at'),
+            assigned_to=int(quote.get('assigned_to')) if quote.get('assigned_to') else None,
+            created_at=quote.get('created_at'),
+            updated_at=quote.get('updated_at'),
+            message=quote.get('message')
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obteniendo cotización {quote_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.put("/quotes/{quote_id}", response_model=QuoteAdminResponse)
+async def update_quote(
+    quote_id: int,
+    quote_update: QuoteAdminUpdate,
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Actualiza una cotización (solo admin)
+    """
+    try:
+        # Verificar que la cotización existe
+        quote_df = await db.fetch_records(
+            "quotes",
+            conditions={"id": quote_id, "deleted_at": None}
+        )
+        
+        if quote_df is None or quote_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cotización no encontrada"
+            )
+        
+        # Preparar datos de actualización
+        update_data = quote_update.model_dump(exclude_unset=True)
+        
+        # Si se actualiza el precio, también actualizar quoted_at
+        if 'quoted_price' in update_data and update_data['quoted_price'] is not None:
+            from datetime import datetime
+            update_data['quoted_at'] = datetime.utcnow()
+        
+        # Validar estado si se proporciona
+        if 'status' in update_data and update_data['status']:
+            valid_statuses = ['pending', 'contacted', 'quoted', 'accepted', 'rejected', 'cancelled']
+            if update_data['status'] not in valid_statuses:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Estado inválido. Debe ser uno de: {', '.join(valid_statuses)}"
+                )
+        
+        update_data['updated_at'] = datetime.utcnow()
+        
+        # Actualizar en la base de datos
+        await db.update_records(
+            "quotes",
+            conditions={"id": quote_id},
+            updates=update_data
+        )
+        
+        # Obtener la cotización actualizada
+        updated_quote_df = await db.fetch_records(
+            "quotes",
+            conditions={"id": quote_id}
+        )
+        
+        updated_quote = updated_quote_df.iloc[0].to_dict()
+        
+        logger.info(f"Admin {current_user['email']} actualizó cotización {quote_id}")
+        
+        return QuoteAdminResponse(
+            id=int(updated_quote.get('id', 0)),
+            user_id=int(updated_quote.get('user_id')) if updated_quote.get('user_id') else None,
+            reference_id=str(updated_quote.get('reference_id', '')),
+            name=str(updated_quote.get('name', '')),
+            email=str(updated_quote.get('email', '')),
+            phone=updated_quote.get('phone'),
+            company=updated_quote.get('company'),
+            vineyard_name=updated_quote.get('vineyard_name'),
+            location=updated_quote.get('location'),
+            num_devices=int(updated_quote.get('num_devices', 0)),
+            budget_range=updated_quote.get('budget_range'),
+            status=str(updated_quote.get('status', 'pending')),
+            quoted_price=float(updated_quote.get('quoted_price')) if updated_quote.get('quoted_price') else None,
+            quoted_at=updated_quote.get('quoted_at'),
+            assigned_to=int(updated_quote.get('assigned_to')) if updated_quote.get('assigned_to') else None,
+            created_at=updated_quote.get('created_at'),
+            updated_at=updated_quote.get('updated_at'),
+            message=updated_quote.get('message')
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error actualizando cotización {quote_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"

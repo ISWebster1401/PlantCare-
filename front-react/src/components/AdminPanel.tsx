@@ -62,7 +62,7 @@ interface DeviceCodeBatch {
 
 const AdminPanel: React.FC = () => {
   const { user, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'devices' | 'codes'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'devices' | 'codes' | 'quotes'>('dashboard');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -92,6 +92,31 @@ const AdminPanel: React.FC = () => {
 
   const [generatedCodes, setGeneratedCodes] = useState<any[]>([]);
 
+  // Estados para cotizaciones
+  interface Quote {
+    id: number;
+    reference_id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+    location?: string;
+    num_devices: number;
+    budget_range?: string;
+    status: string;
+    quoted_price?: number;
+    quoted_at?: string;
+    created_at: string;
+    message?: string;
+  }
+
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [quoteFilters, setQuoteFilters] = useState({
+    status: '',
+    search: ''
+  });
+  const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
+
   // ✅ HOOK MOVIDO AQUÍ - ANTES DEL RETURN CONDICIONAL
   useEffect(() => {
     if (activeTab === 'dashboard') {
@@ -100,6 +125,8 @@ const AdminPanel: React.FC = () => {
       loadUsers();
     } else if (activeTab === 'devices') {
       loadDevices();
+    } else if (activeTab === 'quotes') {
+      loadQuotes();
     }
   }, [activeTab]);
 
@@ -179,6 +206,35 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const loadQuotes = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (quoteFilters.status) params.append('status', quoteFilters.status);
+      if (quoteFilters.search) params.append('search', quoteFilters.search);
+      
+      const data = await apiCall(`/api/admin/quotes?${params}`);
+      setQuotes(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateQuote = async (quoteId: number, updates: Partial<Quote>) => {
+    try {
+      await apiCall(`/api/admin/quotes/${quoteId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+      });
+      loadQuotes();
+      setEditingQuote(null);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const generateDeviceCodes = async () => {
     try {
       setLoading(true);
@@ -252,6 +308,12 @@ const AdminPanel: React.FC = () => {
           onClick={() => setActiveTab('codes')}
         >
           🏷️ Generar Códigos
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'quotes' ? 'active' : ''}`}
+          onClick={() => setActiveTab('quotes')}
+        >
+          💰 Cotizaciones
         </button>
       </div>
 
@@ -485,6 +547,147 @@ const AdminPanel: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'quotes' && (
+          <div className="quotes-section">
+            <div className="section-header">
+              <h2>Gestión de Cotizaciones</h2>
+              <div className="filters">
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre, email o referencia..."
+                  value={quoteFilters.search}
+                  onChange={(e) => {
+                    setQuoteFilters({ ...quoteFilters, search: e.target.value });
+                    setTimeout(() => loadQuotes(), 500);
+                  }}
+                />
+                <select
+                  value={quoteFilters.status}
+                  onChange={(e) => {
+                    setQuoteFilters({ ...quoteFilters, status: e.target.value });
+                    loadQuotes();
+                  }}
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="contacted">Contactado</option>
+                  <option value="quoted">Cotizado</option>
+                  <option value="accepted">Aceptada</option>
+                  <option value="rejected">Rechazada</option>
+                  <option value="cancelled">Cancelada</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="quotes-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ref.</th>
+                    <th>Cliente</th>
+                    <th>Email</th>
+                    <th>Empresa</th>
+                    <th>Ubicación</th>
+                    <th>Sensores</th>
+                    <th>Estado</th>
+                    <th>Precio</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quotes.map(quote => (
+                    <tr key={quote.id}>
+                      <td><code>{quote.reference_id}</code></td>
+                      <td>{quote.name}</td>
+                      <td>{quote.email}</td>
+                      <td>{quote.company || '-'}</td>
+                      <td>{quote.location || '-'}</td>
+                      <td>{quote.num_devices}</td>
+                      <td>
+                        <span className={`status-badge status-${quote.status}`}>
+                          {quote.status === 'pending' ? 'Pendiente' :
+                           quote.status === 'contacted' ? 'Contactado' :
+                           quote.status === 'quoted' ? 'Cotizado' :
+                           quote.status === 'accepted' ? 'Aceptada' :
+                           quote.status === 'rejected' ? 'Rechazada' :
+                           'Cancelada'}
+                        </span>
+                      </td>
+                      <td>
+                        {quote.quoted_price ? 
+                          new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(quote.quoted_price) :
+                          '-'
+                        }
+                      </td>
+                      <td>{new Date(quote.created_at).toLocaleDateString('es-ES')}</td>
+                      <td>
+                        <button 
+                          className="btn-edit"
+                          onClick={() => setEditingQuote(quote)}
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {editingQuote && (
+              <div className="modal-overlay" onClick={() => setEditingQuote(null)}>
+                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                  <h3>Editar Cotización {editingQuote.reference_id}</h3>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target as HTMLFormElement);
+                    updateQuote(editingQuote.id, {
+                      status: formData.get('status') as string,
+                      quoted_price: formData.get('quoted_price') ? parseFloat(formData.get('quoted_price') as string) : undefined,
+                      message: formData.get('message') as string || undefined
+                    });
+                  }}>
+                    <div className="form-group">
+                      <label>Estado:</label>
+                      <select name="status" defaultValue={editingQuote.status}>
+                        <option value="pending">Pendiente</option>
+                        <option value="contacted">Contactado</option>
+                        <option value="quoted">Cotizado</option>
+                        <option value="accepted">Aceptada</option>
+                        <option value="rejected">Rechazada</option>
+                        <option value="cancelled">Cancelada</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Precio Cotizado (CLP):</label>
+                      <input 
+                        type="number" 
+                        name="quoted_price" 
+                        defaultValue={editingQuote.quoted_price || ''}
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Mensaje/Notas:</label>
+                      <textarea 
+                        name="message" 
+                        rows={4}
+                        defaultValue={editingQuote.message || ''}
+                      />
+                    </div>
+                    <div className="form-actions">
+                      <button type="submit" className="btn-primary">Guardar</button>
+                      <button type="button" className="btn-secondary" onClick={() => setEditingQuote(null)}>Cancelar</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

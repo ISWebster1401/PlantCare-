@@ -86,6 +86,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (userData: UserRegistration): Promise<UserResponse> => {
     try {
       const response = await authAPI.register(userData);
+      // Redirigir a verificación por código inmediatamente
+      const emailParam = encodeURIComponent(userData.email);
+      const url = `/?verify=code&email=${emailParam}`;
+      if (typeof window !== 'undefined') {
+        window.location.href = url; // navegación explícita asegura render inmediato
+      }
       return response;
     } catch (error: any) {
       console.error('Registration error:', error);

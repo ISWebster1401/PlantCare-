@@ -109,7 +109,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin, onClose })
         <button className="modal-close" onClick={onClose}>×</button>
         
         <div className="auth-header">
-          <h2>🌱 Crear Cuenta</h2>
+          <img src="/Plantcare_solo-removebg-preview.png" alt="PlantCare" style={{width: '80px', height: '80px', marginBottom: '12px'}} />
+          <h2>Crear Cuenta</h2>
           <p>Únete a PlantCare y cuida tus plantas</p>
         </div>
 

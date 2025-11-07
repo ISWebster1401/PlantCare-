@@ -103,6 +103,16 @@
   font-family: inherit;
 }
 
+/* Estilos para inputs autocompletados */
+.form-group input:-webkit-autofill,
+.form-group input:-webkit-autofill:hover,
+.form-group input:-webkit-autofill:focus,
+.form-group input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: #374151 !important;
+  background-color: white !important;
+}
+
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {

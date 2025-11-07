@@ -8,7 +8,8 @@ from app.api.schemas.user import (
 )
 from app.db.queries import (
     get_user_by_email, update_user_password, update_user, deactivate_user,
-    create_email_verification_token, get_verification_token, mark_email_verified
+    create_email_verification_token, get_verification_token, mark_email_verified,
+    create_email_verification_code, verify_email_with_code
 )
 from app.api.core.email_service import email_service
 from pgdbtoolkit import AsyncPgDbToolkit
@@ -124,20 +125,19 @@ async def register_user(
             logger.error(f"Datos disponibles en user: {list(user.keys()) if isinstance(user, dict) else type(user)}")
             raise
         
-        # Crear token de verificación y enviar email
+        # Crear código de verificación y enviar email
         try:
-            logger.info(f"📧 Preparando email de verificación para: {user['email']}")
-            token_data = await create_email_verification_token(db, user["id"])  # 24h por defecto
-            verify_url = f"http://localhost:3000/?token={token_data['token']}"
-            logger.info(f"🔗 URL de verificación: {verify_url[:50]}...")
-            await email_service.send_verification_email(
+            logger.info(f"📧 Preparando email de verificación (código) para: {user['email']}")
+            code_data = await create_email_verification_code(db, user["id"], minutes_valid=15)
+            await email_service.send_verification_code(
                 to_email=user["email"],
                 user_name=f"{user['first_name']} {user['last_name']}",
-                verify_url=verify_url
+                code=code_data["code"],
+                minutes_valid=15
             )
-            logger.info(f"✅ Email de verificación enviado exitosamente a {user['email']}")
+            logger.info(f"✅ Email de verificación (código) enviado a {user['email']}")
         except Exception as mail_e:
-            logger.warning(f"⚠️ No se pudo enviar email de verificación: {mail_e}")
+            logger.warning(f"⚠️ No se pudo enviar email de verificación por código: {mail_e}")
             logger.warning(f"   Detalles del error: {repr(mail_e)}")
             import traceback
             logger.warning(f"   Traceback: {traceback.format_exc()}")
@@ -239,26 +239,27 @@ async def login_user(
             detail="Error interno del servidor"
         )
 
-@router.get("/verify-email")
-async def verify_email(token: str, db: AsyncPgDbToolkit = Depends(get_db)):
-    """Verifica el email del usuario usando el token enviado por correo."""
+@router.post("/verify-code")
+async def verify_code(payload: dict, db: AsyncPgDbToolkit = Depends(get_db)):
+    """Verifica el email validando un código de 4 dígitos enviado por correo."""
     try:
-        token_row = await get_verification_token(db, token)
-        if not token_row:
-            raise HTTPException(status_code=400, detail="Token inválido")
-        success = await mark_email_verified(db, token_row)
-        if not success:
-            raise HTTPException(status_code=400, detail="Token inválido o expirado")
+        email = payload.get("email")
+        code = payload.get("code")
+        if not email or not code:
+            raise HTTPException(status_code=400, detail="Email y código son requeridos")
+        ok = await verify_email_with_code(db, email, str(code))
+        if not ok:
+            raise HTTPException(status_code=400, detail="Código inválido o expirado")
         return {"message": "Correo verificado correctamente. Ya puedes iniciar sesión."}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error verificando email: {str(e)}")
+        logger.error(f"Error verificando código: {str(e)}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-@router.post("/resend-verification")
+@router.post("/resend-code")
 async def resend_verification(user_credentials: UserLogin, db: AsyncPgDbToolkit = Depends(get_db)):
-    """Reenvía email de verificación a un usuario no verificado (opcional: por email)."""
+    """Reenvía el código de verificación a un usuario no verificado."""
     try:
         if user_credentials and user_credentials.email:
             user = await get_user_by_email(db, user_credentials.email)
@@ -268,18 +269,18 @@ async def resend_verification(user_credentials: UserLogin, db: AsyncPgDbToolkit 
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         if bool(user.get("is_verified", False)):
             return {"message": "El usuario ya está verificado"}
-        token_data = await create_email_verification_token(db, user["id"])  # reemplaza anteriores
-        verify_url = f"http://localhost:3000/?token={token_data['token']}"
-        await email_service.send_verification_email(
+        code_data = await create_email_verification_code(db, user["id"], minutes_valid=15)  # reemplaza anteriores
+        await email_service.send_verification_code(
             to_email=user["email"],
             user_name=f"{user['first_name']} {user['last_name']}",
-            verify_url=verify_url
+            code=code_data["code"],
+            minutes_valid=15
         )
-        return {"message": "Email de verificación reenviado"}
+        return {"message": "Código de verificación reenviado"}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error reenviando verificación: {str(e)}")
+        logger.error(f"Error reenviando código: {str(e)}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/refresh", response_model=Token)

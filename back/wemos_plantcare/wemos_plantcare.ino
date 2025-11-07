@@ -10,7 +10,11 @@ const char WIFI_SSID[] PROGMEM = "CPM";
 const char WIFI_PASSWORD[] PROGMEM = "EPDPM2025";
 
 // API - ACTUALIZA CON LA IP DE TU SERVIDOR PYTHON
-const char SERVER_URL[] PROGMEM = "http://192.168.103.209:5000/sensor-humedad-suelo";  // ⚠️ ENDPOINT CORRECTO
+// Puerto 5001 para server.py (FastAPI usa 5000)
+const char SERVER_URL[] PROGMEM = "http://192.168.103.209:5001/sensor-humedad-suelo";  // ⚠️ ENDPOINT CORRECTO
+
+// Código del dispositivo (para integración futura con PlantCare)
+const char DEVICE_CODE[] PROGMEM = "KWZ-1401";
 
 // Intervalo de lecturas (en milisegundos)
 const unsigned long INTERVALO_LECTURA = 10000; // 10 segundos

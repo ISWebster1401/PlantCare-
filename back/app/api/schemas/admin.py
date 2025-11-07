@@ -10,6 +10,34 @@ class RoleResponse(BaseModel):
     description: Optional[str]
     created_at: datetime
 
+class QuoteAdminResponse(BaseModel):
+    """Esquema de respuesta para cotizaciones en panel admin"""
+    id: int
+    user_id: Optional[int] = None
+    reference_id: str
+    name: str
+    email: str
+    phone: Optional[str] = None
+    company: Optional[str] = None
+    vineyard_name: Optional[str] = None
+    location: Optional[str] = None
+    num_devices: int
+    budget_range: Optional[str] = None
+    status: str
+    quoted_price: Optional[float] = None
+    quoted_at: Optional[datetime] = None
+    assigned_to: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    message: Optional[str] = None
+
+class QuoteAdminUpdate(BaseModel):
+    """Esquema para actualizar cotización desde admin"""
+    status: Optional[str] = Field(None, description="Estado de la cotización")
+    quoted_price: Optional[float] = Field(None, ge=0, description="Precio cotizado")
+    assigned_to: Optional[int] = Field(None, description="ID del usuario asignado")
+    message: Optional[str] = Field(None, max_length=2000, description="Mensaje adicional")
+
 class UserAdminResponse(BaseModel):
     """Esquema de respuesta para usuarios en panel admin"""
     id: int

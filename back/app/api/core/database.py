@@ -220,6 +220,37 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "deleted_at": "TIMESTAMP"  # Soft delete
             })
             logger.info("✅ Tabla ai_recommendations creada exitosamente")
+        
+        # Tabla de cotizaciones
+        if "quotes" not in tables:
+            logger.info("📋 Creando tabla quotes...")
+            await db.create_table("quotes", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE",
+                "reference_id": "VARCHAR(20) UNIQUE NOT NULL",
+                "name": "VARCHAR(100) NOT NULL",
+                "email": "VARCHAR(255) NOT NULL",
+                "phone": "VARCHAR(20)",
+                "company": "VARCHAR(200)",
+                "vineyard_name": "VARCHAR(200)",
+                "hectares": "DECIMAL(10,2)",
+                "grape_type": "VARCHAR(100)",
+                "region": "VARCHAR(100)",
+                "location": "VARCHAR(200)",
+                "num_devices": "INTEGER DEFAULT 1 CHECK (num_devices > 0)",
+                "installation_type": "VARCHAR(50)",
+                "budget_range": "VARCHAR(50)",
+                "message": "TEXT",
+                "status": "VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'contacted', 'quoted', 'accepted', 'rejected', 'cancelled'))",
+                "assigned_to": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
+                "quoted_price": "DECIMAL(12,2)",
+                "quoted_at": "TIMESTAMP",
+                "ip_address": "VARCHAR(45)",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "deleted_at": "TIMESTAMP"  # Soft delete
+            })
+            logger.info("✅ Tabla quotes creada exitosamente")
             
     except Exception as e:
         log_error_with_context(e, "create_tables")
@@ -290,6 +321,16 @@ async def _create_indexes(db: AsyncPgDbToolkit):
             CREATE INDEX IF NOT EXISTS idx_email_tokens_used_at ON email_verification_tokens(used_at);
         """)
         logger.info("✅ Índices para tabla email_verification_tokens creados")
+        
+        # Índices para cotizaciones
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_quotes_user_id ON quotes(user_id);
+            CREATE INDEX IF NOT EXISTS idx_quotes_reference_id ON quotes(reference_id);
+            CREATE INDEX IF NOT EXISTS idx_quotes_email ON quotes(email);
+            CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
+            CREATE INDEX IF NOT EXISTS idx_quotes_created_at ON quotes(created_at DESC);
+        """)
+        logger.info("✅ Índices para tabla quotes creados")
         
         logger.info("✅ Todos los índices creados exitosamente")
         
