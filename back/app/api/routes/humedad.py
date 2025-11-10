@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import logging
@@ -7,13 +7,13 @@ from pgdbtoolkit import AsyncPgDbToolkit
 from app.api.schemas.humedad import HumedadData, DatoHumedad, MensajeRespuesta
 from app.api.core.ai_service import ai_service
 from datetime import datetime, timedelta
+from app.db.queries import update_device_last_seen
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api",
     tags=["humedad"]
 )
 
@@ -66,6 +66,10 @@ async def save_humedad(
                 "valor": data.humedad
             }]
         )
+        
+        # Actualizar última conexión del dispositivo
+        await update_device_last_seen(db, device_id)
+        
         return {"message": "Datos guardados correctamente"}
     except Exception as e:
         logger.error(f"Error guardando datos: {str(e)}")
@@ -143,6 +147,7 @@ async def save_multi_sensor_data(
 @router.get("/lector-humedad")
 async def get_humedad(
     device_id: int = Depends(get_device_id),
+    limit: int = Query(20, ge=1, le=200),
     db: AsyncPgDbToolkit = Depends(get_db)
 ) -> List[dict]:
     """
@@ -151,10 +156,10 @@ async def get_humedad(
     try:
         result = await db.fetch_records(
             "sensor_humedad_suelo",
-            columns=["id", "valor", "fecha"],
+            columns=["id", "valor", "fecha", "device_id"],
             conditions={"device_id": device_id},
             order_by=[("fecha", "DESC")],
-            limit=20
+            limit=limit
         )
         
         if result.empty:
@@ -164,6 +169,7 @@ async def get_humedad(
         return [
             {
                 "id": int(row["id"]),
+                "device_id": int(row["device_id"]),
                 "valor": float(row["valor"]),
                 "fecha": row["fecha"].strftime("%Y-%m-%d %H:%M:%S")
             }

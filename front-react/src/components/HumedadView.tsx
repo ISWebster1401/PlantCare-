@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, CSSProperties } from 'react';
 import { humedadAPI, deviceAPI, aiAPI } from '../services/api';
 import './HumedadView.css';
 
@@ -26,7 +26,8 @@ const HumedadView: React.FC = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
   const [humedadData, setHumedadData] = useState<HumedadData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingDevices, setLoadingDevices] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiRecommendation, setAiRecommendation] = useState<AIResponse | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
@@ -38,37 +39,56 @@ const HumedadView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedDevice) {
-      loadHumedadData();
+    if (!selectedDevice) return;
+    const deviceInfo = devices.find((device) => device.id === selectedDevice);
+    if (deviceInfo) {
+      loadHumedadData(deviceInfo);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDevice]);
+  }, [selectedDevice, devices]);
 
   const loadDevices = async () => {
     try {
+      setLoadingDevices(true);
       const response = await deviceAPI.getMyDevices();
       setDevices(response.devices);
-      if (response.devices.length > 0 && !selectedDevice) {
-        setSelectedDevice(response.devices[0].id);
+      if (response.devices.length > 0) {
+        const alreadySelected = response.devices.some(device => device.id === selectedDevice);
+        if (!alreadySelected) {
+          setSelectedDevice(response.devices[0].id);
+        }
+      } else {
+        setSelectedDevice(null);
       }
     } catch (error: any) {
       setError('Error al cargar dispositivos');
     } finally {
-      setLoading(false);
+      setLoadingDevices(false);
     }
   };
 
-  const loadHumedadData = async () => {
-    if (!selectedDevice) return;
-    
+  const loadHumedadData = async (device: Device) => {
     try {
-      setLoading(true);
-      const data = await humedadAPI.getHumedadData(selectedDevice, 50);
-      setHumedadData(data);
+      setLoadingData(true);
+      const data = await humedadAPI.getHumedadData(device.device_code, 50);
+      const formatted = Array.isArray(data)
+        ? data.map((item: any, index: number) => {
+            const isoDate = typeof item.fecha === 'string'
+              ? (item.fecha.includes('T') ? item.fecha : `${item.fecha.replace(' ', 'T')}Z`)
+              : new Date().toISOString();
+            return {
+              id: Number(item.id ?? index),
+              valor: Number(item.valor ?? 0),
+              fecha: isoDate,
+              device_id: Number(item.device_id ?? device.id),
+            } as HumedadData;
+          })
+        : [];
+      setHumedadData(formatted);
     } catch (error: any) {
       setError('Error al cargar datos de humedad');
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   };
 
@@ -137,7 +157,7 @@ const HumedadView: React.FC = () => {
     return Math.round(sum / humedadData.length);
   };
 
-  if (loading && devices.length === 0) {
+  if (loadingDevices && devices.length === 0) {
     return (
       <div className="humedad-view">
         <div className="loading-state">
@@ -163,6 +183,13 @@ const HumedadView: React.FC = () => {
   const latestReading = getLatestReading();
   const averageHumidity = getAverageHumidity();
   const humidityLevel = latestReading ? getHumidityLevel(latestReading.valor) : null;
+  const selectedDeviceInfo = selectedDevice
+    ? devices.find((device) => device.id === selectedDevice)
+    : null;
+  const humidityDisplay = latestReading ? Math.round(latestReading.valor) : null;
+  const humidityProgress = latestReading
+    ? Math.max(0, Math.min(100, latestReading.valor)) / 100
+    : 0;
 
   return (
     <div className="humedad-view">
@@ -193,14 +220,30 @@ const HumedadView: React.FC = () => {
       {/* Resumen actual */}
       <div className="summary-cards">
         <div className="summary-card current">
-          <div className="card-icon">💧</div>
+          <div className="humidity-gauge-wrapper">
+            <div
+              className="humidity-gauge"
+              style={{ '--progress': humidityProgress } as CSSProperties}
+            >
+              <div className="gauge-value">
+                {humidityDisplay !== null ? humidityDisplay : '--'}
+                <span>%</span>
+              </div>
+            </div>
+            <div className="gauge-label">Nivel actual</div>
+          </div>
           <div className="card-content">
             <div className="card-title">Humedad Actual</div>
-            <div className="card-value">
-              {latestReading ? `${latestReading.valor}%` : 'N/A'}
+            <div className="card-description">
+              {selectedDeviceInfo
+                ? selectedDeviceInfo.name
+                : 'Selecciona un dispositivo para ver los datos'}
             </div>
             {humidityLevel && (
-              <div className="card-status" style={{ color: humidityLevel.color }}>
+              <div
+                className="card-badge"
+                style={{ color: humidityLevel.color }}
+              >
                 {humidityLevel.text}
               </div>
             )}
@@ -282,7 +325,7 @@ const HumedadView: React.FC = () => {
       {/* Tabla de datos */}
       <div className="data-table-section">
         <h2>Registros Detallados</h2>
-        {loading ? (
+        {loadingData ? (
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Cargando datos...</p>

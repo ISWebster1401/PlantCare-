@@ -114,12 +114,13 @@ export const deviceAPI = {
 
 export const humedadAPI = {
   // Obtener datos de humedad
-  getHumedadData: async (deviceId?: number, limit: number = 20) => {
-    const params = new URLSearchParams();
-    if (deviceId) params.append('device_id', deviceId.toString());
-    params.append('limit', limit.toString());
-    
-    const response = await api.get(`/humedad?${params.toString()}`);
+  getHumedadData: async (deviceCode: string, limit: number = 20) => {
+    const response = await api.get('/lector-humedad', {
+      headers: {
+        'X-Device-Code': deviceCode
+      },
+      params: { limit }
+    });
     return response.data;
   },
 
