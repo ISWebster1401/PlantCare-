@@ -101,6 +101,12 @@ const AdminPanel: React.FC = () => {
     phone?: string;
     company?: string;
     location?: string;
+    project_type?: string;
+    coverage_area?: string;
+    desired_date?: string;
+    has_existing_infrastructure?: boolean | null;
+    requires_installation?: boolean | null;
+    requires_training?: boolean | null;
     num_devices: number;
     budget_range?: string;
     status: string;
@@ -108,6 +114,7 @@ const AdminPanel: React.FC = () => {
     quoted_at?: string;
     created_at: string;
     message?: string;
+    ip_address?: string;
   }
 
   const [quotes, setQuotes] = useState<Quote[]>([]);

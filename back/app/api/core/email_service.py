@@ -1,6 +1,8 @@
+import asyncio
 import os
 import logging
 from typing import Optional, Dict, Any
+from functools import partial
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content
 from datetime import datetime
@@ -15,6 +17,7 @@ class EmailService:
         self.from_email = os.getenv("SENDGRID_FROM_EMAIL", "noreply@plantcare.com")
         self.from_name = os.getenv("SENDGRID_FROM_NAME", "PlantCare Support")
         self.contact_email = os.getenv("CONTACT_EMAIL", "contacto@plantcare.com")
+        self.timeout_seconds = float(os.getenv("SENDGRID_TIMEOUT", "15"))
         
         if not self.api_key:
             # Mostrar warning en pantalla para debugging
@@ -37,14 +40,17 @@ class EmailService:
             return False
         
         try:
-            logger.info(f"Intentando enviar email a: {to_email}")
-            logger.info(f"Desde: {self.from_email} ({self.from_name})")
-            logger.info(f"Asunto: {subject}")
+            # ✅ CORREGIDO: Comillas simples dentro del string
+            logger.info(
+                "[email] send START to=%s subject='%s' timeout=%ss",
+                to_email,
+                subject,
+                self.timeout_seconds,
+            )
 
             from_email = Email(self.from_email, self.from_name)
             to_email_obj = To(to_email)
 
-            # Crear el email
             if plain_text_content:
                 mail = Mail(
                     from_email=from_email,
@@ -63,32 +69,47 @@ class EmailService:
                     html_content=html_content
                 )
 
-            logger.info("Enviando petición a SendGrid...")
-
-            response = self.client.send(mail)
+            loop = asyncio.get_running_loop()
+            send_callable = partial(self.client.send, mail)
+            response = await asyncio.wait_for(
+                loop.run_in_executor(None, send_callable),
+                timeout=self.timeout_seconds,
+            )
 
             if response.status_code in [200, 202]:
-                logger.info(f"Email enviado exitosamente a {to_email}")
+                logger.info("[email] send SUCCESS to=%s status=%s", to_email, response.status_code)
                 return True
-            else:
-                logger.error(f"Error enviando email: Status {response.status_code}")
-                logger.error(f"Response body: {response.body}")
-                logger.error(f"Response headers: {response.headers}")
-                return False
 
+            logger.error(
+                "[email] send FAILED to=%s status=%s body=%s headers=%s",
+                to_email,
+                response.status_code,
+                getattr(response, 'body', 'no-body'),
+                getattr(response, 'headers', {}),
+            )
+            return False
+
+        except asyncio.TimeoutError:
+            # ✅ CORREGIDO: Comillas simples dentro del string
+            logger.error(
+                "[email] send TIMEOUT to=%s subject='%s' timeout=%ss",
+                to_email,
+                subject,
+                self.timeout_seconds,
+            )
+            return False
         except Exception as e:
-            logger.error(f"Error enviando email a {to_email}: {str(e)}")
-            # Capturar el body del error de SendGrid si existe
+            logger.error(f"[email] send ERROR to={to_email}: {str(e)}")
             try:
                 if hasattr(e, 'body'):
                     import json
                     error_body = json.loads(e.body) if isinstance(e.body, (str, bytes)) else e.body
-                    logger.error(f"SendGrid error details: {json.dumps(error_body, indent=2)}")
+                    logger.error(f"[email] send error body: {json.dumps(error_body, indent=2)}")
             except Exception as parse_error:
-                logger.error(f"No se pudo parsear el error de SendGrid: {parse_error}")
+                logger.error(f"[email] error body parse failed: {parse_error}")
 
             import traceback
-            logger.error(f"Traceback completo: {traceback.format_exc()}")
+            logger.error(f"[email] traceback: {traceback.format_exc()}")
             return False
 
     async def send_verification_code(self, to_email: str, user_name: str, code: str, minutes_valid: int = 15) -> bool:
@@ -312,7 +333,7 @@ class EmailService:
                 
                 <div style="background-color: #f9f9f9; padding: 25px; border-radius: 8px; margin: 20px 0;">
                     <h2 style="color: #2c5530; margin-top: 0;">Hola {user_name},</h2>
-                    <p>Se ha registrado tu cotización exitosamente. Nuestro equipo de ventas la revisará y te contactará pronto.</p>
+                    <p>Se ha registrado tu cotización exitosamente. Nuestro equipo de ventas la revisará y te contactará lo antes posible.</p>
                     <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center;">
                         <p style="margin: 0; font-size: 14px; color: #666;">
                             <strong>Número de Referencia:</strong><br>
@@ -355,7 +376,7 @@ class EmailService:
         plain_text = f"""
         Hola {user_name},
         
-        Se ha registrado tu cotización exitosamente. Nuestro equipo de ventas la revisará y te contactará pronto.
+        Se ha registrado tu cotización exitosamente. Nuestro equipo de ventas la revisará y te contactará lo antes posible.
         
         Número de Referencia: {reference_id}
         
@@ -438,10 +459,37 @@ class EmailService:
         </html>
         """
         
+        # ✅ AGREGADO: plain_text_content que faltaba
+        plain_text = f"""
+        Nueva Solicitud de Cotizacion - PlantCare
+        
+        Informacion del Cliente:
+        - Nombre: {quote_data.get('name', 'No proporcionado')}
+        - Email: {quote_data.get('email', 'No proporcionado')}
+        - Telefono: {quote_data.get('phone', 'No proporcionado')}
+        - Empresa: {quote_data.get('company', 'No proporcionado')}
+        - Cargo: {quote_data.get('position', 'No proporcionado')}
+        
+        Detalles del Proyecto:
+        - Tipo de proyecto: {quote_data.get('project_type', 'No especificado')}
+        - Cantidad de sensores: {quote_data.get('sensor_quantity', 'No especificado')}
+        - Area a cubrir: {quote_data.get('coverage_area', 'No especificado')}
+        - Presupuesto estimado: {quote_data.get('budget_range', 'No especificado')}
+        - Fecha deseada: {quote_data.get('desired_date', 'No especificado')}
+        
+        Descripcion del Proyecto:
+        {quote_data.get('description', 'Sin descripcion')}
+        
+        Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+        IP: {quote_data.get('ip_address', 'No disponible')}
+        Prioridad: Alta (Solicitud de Cotizacion)
+        """
+        
         return await self.send_email(
             to_email=self.contact_email,
             subject=subject,
-            html_content=html_content
+            html_content=html_content,
+            plain_text_content=plain_text  # ✅ Ahora sí lo incluimos
         )
 
     async def send_verification_email(self, to_email: str, user_name: str, verify_url: str) -> bool:

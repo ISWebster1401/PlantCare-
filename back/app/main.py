@@ -5,7 +5,8 @@ import time
 from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 from dotenv import load_dotenv
@@ -40,21 +41,12 @@ if UPLOAD_DIR.exists():
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "*",  # Permitir todos los orígenes para desarrollo
-        "http://localhost:3000",
-        "http://127.0.0.1:3000", 
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-        "file://",  # Para archivos HTML abiertos directamente
-        "null"      # Para archivos HTML locales
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"],
+    allow_credentials=True, 
+    allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 # Eventos de la aplicación
@@ -112,6 +104,25 @@ async def log_requests(request: Request, call_next):
             print(f"Error en request {request.method} {request.url.path}: {str(e)}")
         
         raise
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log detallado para errores de validación (422)."""
+    try:
+        body_bytes = await request.body()
+        body_text = body_bytes.decode("utf-8") if body_bytes else ""
+    except Exception:
+        body_text = "<no-body>"
+
+    logger.error(
+        "❌ Error de validación en solicitud",
+        path=request.url.path,
+        errors=exc.errors(),
+        body=body_text
+    )
+
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 # Incluir routers
 app.include_router(humedad.router, prefix="/api")

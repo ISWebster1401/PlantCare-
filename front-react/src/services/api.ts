@@ -153,7 +153,7 @@ export const quotesAPI = {
 
   // Crear nueva cotización
   createQuote: async (quoteData: any) => {
-    const response = await api.post('/contact/request-quote', quoteData);
+    const response = await api.post('/quotes', quoteData);
     return response.data;
   },
 };

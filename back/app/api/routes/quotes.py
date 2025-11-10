@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from app.api.core.auth_user import get_current_active_user
 from app.api.core.database import get_db
 from app.api.core.log import logger
+from app.api.routes.contact import process_quote_submission
+from app.api.schemas.contact import QuoteRequest, ContactResponse
 from pgdbtoolkit import AsyncPgDbToolkit
 from typing import List, Dict, Any
 import pandas as pd
@@ -95,4 +97,14 @@ async def get_my_quotes(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener cotizaciones: {str(e)}"
         )
+
+
+@router.post("", response_model=ContactResponse, status_code=status.HTTP_201_CREATED)
+async def create_quote(
+    quote_request: QuoteRequest,
+    request: Request,
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Crea una nueva cotización y envía confirmación por correo."""
+    return await process_quote_submission(quote_request, request, db)
 

@@ -2,6 +2,20 @@ import React, { useState, useEffect } from 'react';
 import ContactForm from './ContactForm';
 import QuoteRequest from './QuoteRequest';
 import './HelpCenter.css';
+import api from '../services/api';
+import {
+  HelpIcon,
+  ChatIcon,
+  QuoteIcon,
+  StatusIcon,
+  PhoneIcon,
+  MailIcon,
+  AnalyticsIcon,
+  IdeaIcon,
+  TargetIcon,
+  RocketIcon,
+  QuestionIcon
+} from './Icons';
 
 interface FAQItem {
   id: number;
@@ -21,9 +35,121 @@ interface HelpCategory {
 
 interface HelpCenterProps {
   onClose?: () => void;
+  onRequestQuote?: () => void;
 }
 
-const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
+const DEFAULT_FAQ_ITEMS: FAQItem[] = [
+  {
+    id: 1,
+    question: '¿Cómo conecto mi sensor PlantCare?',
+    answer:
+      "Ve a 'Dispositivos' > 'Agregar Dispositivo' e ingresa el código que viene en la caja. Sigue las instrucciones para completar la configuración.",
+    category: 'configuracion',
+    helpful_count: 45,
+  },
+  {
+    id: 2,
+    question: '¿Con qué frecuencia debo regar mis plantas?',
+    answer:
+      'Depende de la planta, la época del año y las condiciones. PlantCare analiza estos factores y te recomienda cuándo regar.',
+    category: 'cuidado',
+    helpful_count: 38,
+  },
+  {
+    id: 3,
+    question: '¿Qué significa cada nivel de humedad?',
+    answer:
+      '0-20% (muy seco), 21-40% (seco), 41-60% (óptimo), 61-80% (húmedo) y 81-100% (muy húmedo, revisar drenaje).',
+    category: 'interpretacion',
+    helpful_count: 52,
+  },
+  {
+    id: 4,
+    question: '¿Puedo usar PlantCare en exteriores?',
+    answer:
+      'Sí, los sensores son IP65 y funcionan entre -10°C y 60°C. Para proyectos grandes contáctanos para planes empresariales.',
+    category: 'producto',
+    helpful_count: 29,
+  },
+  {
+    id: 5,
+    question: '¿Cómo funciona la IA de recomendaciones?',
+    answer:
+      'La IA analiza datos históricos, clima, tipo de planta y buenas prácticas para generar sugerencias cada vez más precisas.',
+    category: 'ia',
+    helpful_count: 41,
+  },
+  {
+    id: 6,
+    question: '¿Qué hago si mi sensor no envía datos?',
+    answer:
+      'Verifica WiFi, batería y que el código esté registrado. Si persiste usa "Soporte Técnico" para contactarnos.',
+    category: 'problemas',
+    helpful_count: 33,
+  },
+];
+
+const DEFAULT_CATEGORIES: HelpCategory[] = [
+  {
+    id: 1,
+    name: 'Primeros Pasos',
+    description: 'Configuración inicial y conexión de sensores',
+    icon: 'rocket',
+    article_count: 8,
+  },
+  {
+    id: 2,
+    name: 'Cuidado de Plantas',
+    description: 'Guías para el cuidado óptimo de tus plantas',
+    icon: 'idea',
+    article_count: 12,
+  },
+  {
+    id: 3,
+    name: 'Interpretación de Datos',
+    description: 'Cómo entender las lecturas y gráficos',
+    icon: 'analytics',
+    article_count: 6,
+  },
+  {
+    id: 4,
+    name: 'Solución de Problemas',
+    description: 'Resolución de problemas comunes',
+    icon: 'status',
+    article_count: 10,
+  },
+  {
+    id: 5,
+    name: 'Inteligencia Artificial',
+    description: 'Cómo funciona y usar las recomendaciones de IA',
+    icon: 'target',
+    article_count: 5,
+  },
+  {
+    id: 6,
+    name: 'Cuenta y Facturación',
+    description: 'Gestión de cuenta, planes y pagos',
+    icon: 'mail',
+    article_count: 7,
+  },
+];
+
+const categoryIcons: Record<string, React.ReactNode> = {
+  rocket: <RocketIcon />,
+  '🚀': <RocketIcon />,
+  idea: <IdeaIcon />,
+  '🌱': <IdeaIcon />,
+  analytics: <AnalyticsIcon />,
+  '📊': <AnalyticsIcon />,
+  status: <StatusIcon />,
+  '🔧': <StatusIcon />,
+  target: <TargetIcon />,
+  '🤖': <TargetIcon />,
+  mail: <MailIcon />,
+  '💳': <MailIcon />,
+};
+
+const HelpCenter: React.FC<HelpCenterProps> = ({ onClose, onRequestQuote }) => {
   const [activeTab, setActiveTab] = useState<'faq' | 'contact' | 'quote' | 'status'>('faq');
   const [faqItems, setFaqItems] = useState<FAQItem[]>([]);
   const [categories, setCategories] = useState<HelpCategory[]>([]);
@@ -42,35 +168,28 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
 
   const loadFAQ = async () => {
     try {
-      const response = await fetch('/api/contact/faq');
-      if (response.ok) {
-        const data = await response.json();
-        setFaqItems(data);
-      }
+      const { data } = await api.get<FAQItem[]>('/contact/faq');
+      setFaqItems(data.length ? data : DEFAULT_FAQ_ITEMS);
     } catch (error) {
       console.error('Error cargando FAQ:', error);
+      setFaqItems(DEFAULT_FAQ_ITEMS);
     }
   };
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('/api/contact/help-categories');
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data);
-      }
+      const { data } = await api.get<HelpCategory[]>('/contact/help-categories');
+      setCategories(data.length ? data : DEFAULT_CATEGORIES);
     } catch (error) {
       console.error('Error cargando categorías:', error);
+      setCategories(DEFAULT_CATEGORIES);
     }
   };
 
   const loadSystemStatus = async () => {
     try {
-      const response = await fetch('/api/contact/system-status');
-      if (response.ok) {
-        const data = await response.json();
-        setSystemStatus(data);
-      }
+      const { data } = await api.get('/contact/system-status');
+      setSystemStatus(data);
     } catch (error) {
       console.error('Error cargando estado del sistema:', error);
     }
@@ -95,11 +214,27 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
     return <QuoteRequest onClose={() => setShowQuoteForm(false)} />;
   }
 
+  const handleQuoteRedirect = () => {
+    if (onRequestQuote) {
+      if (onClose) {
+        onClose();
+      }
+      onRequestQuote();
+    } else {
+      setShowQuoteForm(true);
+    }
+  };
+
   return (
     <div className="help-center-container">
       <div className="help-center">
         <div className="help-header">
-          <h2>🆘 Centro de Ayuda</h2>
+          <div className="help-title">
+            <span className="help-icon">
+              <HelpIcon />
+            </span>
+            <h2>Centro de Ayuda</h2>
+          </div>
           <p>Encuentra respuestas rápidas o contáctanos para obtener soporte personalizado</p>
           {onClose && (
             <button className="close-btn" onClick={onClose}>×</button>
@@ -111,25 +246,25 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
             className={`tab-btn ${activeTab === 'faq' ? 'active' : ''}`}
             onClick={() => setActiveTab('faq')}
           >
-            ❓ Preguntas Frecuentes
+            <QuestionIcon className="tab-icon" /> Preguntas Frecuentes
           </button>
           <button 
             className={`tab-btn ${activeTab === 'contact' ? 'active' : ''}`}
             onClick={() => setActiveTab('contact')}
           >
-            💬 Contacto
+            <ChatIcon className="tab-icon" /> Contacto
           </button>
           <button 
             className={`tab-btn ${activeTab === 'quote' ? 'active' : ''}`}
             onClick={() => setActiveTab('quote')}
           >
-            💰 Cotizaciones
+            <QuoteIcon className="tab-icon" /> Cotizaciones
           </button>
           <button 
             className={`tab-btn ${activeTab === 'status' ? 'active' : ''}`}
             onClick={() => setActiveTab('status')}
           >
-            📊 Estado del Sistema
+            <StatusIcon className="tab-icon" /> Estado del Sistema
           </button>
         </div>
 
@@ -140,7 +275,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
                 <div className="search-box">
                   <input
                     type="text"
-                    placeholder="🔍 Buscar en preguntas frecuentes..."
+                    placeholder="Buscar en preguntas frecuentes..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -164,7 +299,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
               <div className="categories-grid">
                 {categories.map(category => (
                   <div key={category.id} className="category-card">
-                    <div className="category-icon">{category.icon}</div>
+                    <div className="category-icon">
+                      {categoryIcons[category.icon] ?? <HelpIcon />}
+                    </div>
                     <h4>{category.name}</h4>
                     <p>{category.description}</p>
                     <span className="article-count">{category.article_count} artículos</span>
@@ -216,7 +353,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
             <div className="contact-section">
               <div className="contact-options">
                 <div className="contact-option">
-                  <div className="option-icon">💬</div>
+                  <div className="option-icon">
+                    <ChatIcon />
+                  </div>
                   <h3>Soporte General</h3>
                   <p>¿Tienes una pregunta o necesitas ayuda? Envíanos un mensaje y te responderemos pronto.</p>
                   <button 
@@ -228,7 +367,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
                 </div>
 
                 <div className="contact-option">
-                  <div className="option-icon">🔧</div>
+                  <div className="option-icon">
+                    <StatusIcon />
+                  </div>
                   <h3>Soporte Técnico</h3>
                   <p>¿Problemas con tu sensor o la plataforma? Nuestro equipo técnico te ayudará.</p>
                   <button 
@@ -242,7 +383,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
                 </div>
 
                 <div className="contact-option">
-                  <div className="option-icon">📞</div>
+                  <div className="option-icon">
+                    <PhoneIcon />
+                  </div>
                   <h3>Llamada Directa</h3>
                   <p>Para consultas urgentes, puedes llamarnos directamente.</p>
                   <div className="phone-info">
@@ -253,7 +396,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
                 </div>
 
                 <div className="contact-option">
-                  <div className="option-icon">📧</div>
+                  <div className="option-icon">
+                    <MailIcon />
+                  </div>
                   <h3>Email Directo</h3>
                   <p>También puedes escribirnos directamente a nuestro email.</p>
                   <div className="email-info">
@@ -269,34 +414,36 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
           {activeTab === 'quote' && (
             <div className="quote-section">
               <div className="quote-intro">
-                <h3>💰 Solicita una Cotización Personalizada</h3>
+                <h3>
+                  <QuoteIcon className="section-icon" /> Solicita una Cotización Personalizada
+                </h3>
                 <p>¿Interesado en implementar PlantCare en tu empresa o proyecto? Obtén una cotización personalizada.</p>
               </div>
 
               <div className="quote-benefits">
                 <div className="benefit-item">
-                  <span className="benefit-icon">📊</span>
+                  <span className="benefit-icon"><AnalyticsIcon /></span>
                   <div>
                     <h4>Análisis Personalizado</h4>
                     <p>Evaluamos tus necesidades específicas</p>
                   </div>
                 </div>
                 <div className="benefit-item">
-                  <span className="benefit-icon">💡</span>
+                  <span className="benefit-icon"><IdeaIcon /></span>
                   <div>
                     <h4>Solución a Medida</h4>
                     <p>Diseñamos la mejor solución para tu caso</p>
                   </div>
                 </div>
                 <div className="benefit-item">
-                  <span className="benefit-icon">🎯</span>
+                  <span className="benefit-icon"><TargetIcon /></span>
                   <div>
                     <h4>Precios Competitivos</h4>
                     <p>Ofertas especiales para proyectos grandes</p>
                   </div>
                 </div>
                 <div className="benefit-item">
-                  <span className="benefit-icon">🚀</span>
+                  <span className="benefit-icon"><RocketIcon /></span>
                   <div>
                     <h4>Implementación Rápida</h4>
                     <p>Te ayudamos con la instalación y configuración</p>
@@ -307,9 +454,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
               <div className="quote-cta">
                 <button 
                   className="btn-primary large"
-                  onClick={() => setShowQuoteForm(true)}
+                  onClick={handleQuoteRedirect}
                 >
-                  📋 Solicitar Cotización Gratuita
+                  <QuoteIcon className="cta-icon" /> Ir a Cotizaciones
                 </button>
                 <p className="cta-note">
                   Sin compromiso • Respuesta en 12 horas • Consulta gratuita
@@ -397,13 +544,13 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
               className="btn-secondary"
               onClick={() => setShowContactForm(true)}
             >
-              💬 Contáctanos
+              <ChatIcon className="footer-icon" /> Contáctanos
             </button>
             <button 
               className="btn-primary"
-              onClick={() => setShowQuoteForm(true)}
+              onClick={handleQuoteRedirect}
             >
-              💰 Solicitar Cotización
+              <QuoteIcon className="footer-icon" /> Solicitar Cotización
             </button>
           </div>
         </div>

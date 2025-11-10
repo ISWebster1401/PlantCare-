@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
 import './ContactForm.css';
+import {
+  ChatIcon,
+  MailIcon,
+  PhoneIcon,
+  ClockIcon,
+  CheckCircleIcon,
+  AlertIcon
+} from './Icons';
 
 interface ContactFormData {
   name: string;
@@ -32,13 +40,13 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
   const [referenceId, setReferenceId] = useState<string>('');
 
   const inquiryTypes = [
-    { value: 'general', label: '📋 Consulta General' },
-    { value: 'technical_support', label: '🔧 Soporte Técnico' },
-    { value: 'sales', label: '💰 Ventas' },
-    { value: 'quote_request', label: '📊 Solicitar Cotización' },
-    { value: 'partnership', label: '🤝 Alianzas' },
-    { value: 'billing', label: '💳 Facturación' },
-    { value: 'feedback', label: '💬 Comentarios' }
+    { value: 'general', label: 'Consulta General' },
+    { value: 'technical_support', label: 'Soporte Técnico' },
+    { value: 'sales', label: 'Ventas' },
+    { value: 'quote_request', label: 'Solicitar Cotización' },
+    { value: 'partnership', label: 'Alianzas' },
+    { value: 'billing', label: 'Facturación' },
+    { value: 'feedback', label: 'Comentarios' }
   ];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -93,7 +101,9 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
     return (
       <div className="contact-form-container">
         <div className="contact-form success-message">
-          <div className="success-icon">✅</div>
+          <div className="success-icon">
+            <CheckCircleIcon />
+          </div>
           <h2>¡Mensaje Enviado!</h2>
           <p>Tu mensaje ha sido enviado exitosamente.</p>
           <div className="reference-info">
@@ -128,7 +138,12 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
     <div className="contact-form-container">
       <div className="contact-form">
         <div className="form-header">
-          <h2>💬 Contáctanos</h2>
+          <div className="form-title">
+            <span className="form-title-icon">
+              <ChatIcon />
+            </span>
+            <h2>Contáctanos</h2>
+          </div>
           <p>Estamos aquí para ayudarte. Envíanos tu consulta y te responderemos pronto.</p>
           {onClose && (
             <button className="close-btn" onClick={onClose}>×</button>
@@ -233,7 +248,8 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
 
           {submitStatus === 'error' && (
             <div className="error-message">
-              ❌ Hubo un error enviando tu mensaje. Por favor intenta nuevamente.
+              <AlertIcon className="error-icon" />
+              Hubo un error enviando tu mensaje. Por favor intenta nuevamente.
             </div>
           )}
 
@@ -249,7 +265,9 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
                   Enviando...
                 </>
               ) : (
-                '📤 Enviar Mensaje'
+                <>
+                  <MailIcon className="button-icon" /> Enviar Mensaje
+                </>
               )}
             </button>
             {onClose && (
@@ -268,15 +286,21 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
           <h4>Otras formas de contacto:</h4>
           <div className="contact-methods">
             <div className="contact-method">
-              <span className="icon">📧</span>
+              <span className="icon">
+                <MailIcon />
+              </span>
               <span>contacto@plantcare.com</span>
             </div>
             <div className="contact-method">
-              <span className="icon">📱</span>
+              <span className="icon">
+                <PhoneIcon />
+              </span>
               <span>+56 9 1234 5678</span>
             </div>
             <div className="contact-method">
-              <span className="icon">⏰</span>
+              <span className="icon">
+                <ClockIcon />
+              </span>
               <span>Lun-Vie 9:00-18:00</span>
             </div>
           </div>

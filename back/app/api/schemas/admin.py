@@ -21,12 +21,19 @@ class QuoteAdminResponse(BaseModel):
     company: Optional[str] = None
     vineyard_name: Optional[str] = None
     location: Optional[str] = None
+    project_type: Optional[str] = None
+    coverage_area: Optional[str] = None
+    desired_date: Optional[str] = None
+    has_existing_infrastructure: Optional[bool] = None
+    requires_installation: Optional[bool] = None
+    requires_training: Optional[bool] = None
     num_devices: int
     budget_range: Optional[str] = None
     status: str
     quoted_price: Optional[float] = None
     quoted_at: Optional[datetime] = None
     assigned_to: Optional[int] = None
+    ip_address: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     message: Optional[str] = None

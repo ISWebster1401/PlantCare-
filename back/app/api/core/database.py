@@ -237,6 +237,12 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "grape_type": "VARCHAR(100)",
                 "region": "VARCHAR(100)",
                 "location": "VARCHAR(200)",
+                "project_type": "VARCHAR(50)",
+                "coverage_area": "VARCHAR(200)",
+                "desired_date": "VARCHAR(50)",
+                "has_existing_infrastructure": "BOOLEAN",
+                "requires_installation": "BOOLEAN",
+                "requires_training": "BOOLEAN",
                 "num_devices": "INTEGER DEFAULT 1 CHECK (num_devices > 0)",
                 "installation_type": "VARCHAR(50)",
                 "budget_range": "VARCHAR(50)",
@@ -251,6 +257,20 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "deleted_at": "TIMESTAMP"  # Soft delete
             })
             logger.info("✅ Tabla quotes creada exitosamente")
+        else:
+            # Asegurar columnas recientes
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS location VARCHAR(200)")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS project_type VARCHAR(50)")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS coverage_area VARCHAR(200)")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS desired_date VARCHAR(50)")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS has_existing_infrastructure BOOLEAN")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS requires_installation BOOLEAN")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS requires_training BOOLEAN")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS num_devices INTEGER DEFAULT 1")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS installation_type VARCHAR(50)")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS budget_range VARCHAR(50)")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
             
     except Exception as e:
         log_error_with_context(e, "create_tables")

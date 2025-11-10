@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import './QuoteRequest.css';
+import { quotesAPI } from '../services/api';
+import { CheckCircleIcon, PhoneIcon, AnalyticsIcon, RocketIcon, TargetIcon } from './Icons';
 
 interface QuoteRequestData {
   name: string;
@@ -45,6 +47,7 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [referenceId, setReferenceId] = useState<string>('');
+  const [errorDetails, setErrorDetails] = useState<string>('');
 
   const projectTypes = [
     { value: 'residential', label: 'Residencial' },
@@ -91,26 +94,26 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus('idle');
+    setErrorDetails('');
 
     try {
-      const response = await fetch('/api/contact/request-quote', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setSubmitStatus('success');
-        setReferenceId(result.reference_id);
-      } else {
-        setSubmitStatus('error');
-      }
-    } catch (error) {
+      const result = await quotesAPI.createQuote(formData);
+      setSubmitStatus('success');
+      setReferenceId(result.reference_id || '');
+    } catch (error: any) {
       console.error('Error enviando cotización:', error);
+      const detail = error?.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        // Pydantic validation errors
+        const messages = detail
+          .map((item: any) => `${item.loc?.join('.')}: ${item.msg}`)
+          .join('\n');
+        setErrorDetails(messages);
+      } else if (typeof detail === 'string') {
+        setErrorDetails(detail);
+      } else {
+        setErrorDetails('Inténtalo nuevamente en unos minutos.');
+      }
       setSubmitStatus('error');
     } finally {
       setIsSubmitting(false);
@@ -121,7 +124,9 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
     return (
       <div className="quote-form-container">
         <div className="quote-form success-message">
-          <div className="success-icon">🎉</div>
+          <div className="success-icon">
+            <CheckCircleIcon />
+          </div>
           <h2>¡Solicitud Enviada!</h2>
           <p>Tu solicitud de cotización ha sido enviada exitosamente.</p>
           <div className="reference-info">
@@ -133,10 +138,22 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
           <div className="next-steps">
             <h4>Próximos pasos:</h4>
             <ul>
-              <li>📞 Te llamaremos para discutir los detalles</li>
-              <li>📋 Evaluaremos tus necesidades específicas</li>
-              <li>💰 Te enviaremos una cotización personalizada</li>
-              <li>📅 Programaremos una demostración si es necesario</li>
+              <li>
+                <PhoneIcon className="step-icon" />
+                <span>Te llamaremos para discutir los detalles</span>
+              </li>
+              <li>
+                <AnalyticsIcon className="step-icon" />
+                <span>Evaluaremos tus necesidades específicas</span>
+              </li>
+              <li>
+                <TargetIcon className="step-icon" />
+                <span>Te enviaremos una propuesta personalizada</span>
+              </li>
+              <li>
+                <RocketIcon className="step-icon" />
+                <span>Coordinaremos la implementación y demostraciones</span>
+              </li>
             </ul>
           </div>
           <div className="success-actions">
@@ -433,7 +450,9 @@ const QuoteRequest: React.FC<QuoteRequestProps> = ({ onClose }) => {
 
           {submitStatus === 'error' && (
             <div className="error-message">
-              Hubo un error enviando tu solicitud. Por favor intenta nuevamente.
+              <span>
+                Hubo un error enviando tu solicitud. {errorDetails && <><br />{errorDetails}</>}
+              </span>
             </div>
           )}
 

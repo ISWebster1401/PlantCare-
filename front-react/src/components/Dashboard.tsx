@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import DashboardCharts from './DashboardCharts';
 import DeviceManager from './DeviceManager';
@@ -19,27 +19,27 @@ const Dashboard: React.FC = () => {
   const [showContactForm, setShowContactForm] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const lastScrollYRef = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       
       // Si el usuario baja (scrollY aumenta), ocultar el header
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+      if (currentScrollY > lastScrollYRef.current && currentScrollY > 100) {
         setHeaderVisible(false);
       } 
       // Si el usuario sube (scrollY disminuye), mostrar el header
-      else if (currentScrollY < lastScrollY) {
+      else if (currentScrollY < lastScrollYRef.current) {
         setHeaderVisible(true);
       }
       
-      setLastScrollY(currentScrollY);
+      lastScrollYRef.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, []);
 
   return (
     <div className="dashboard authenticated">
@@ -159,7 +159,13 @@ const Dashboard: React.FC = () => {
 
       {/* Modales */}
       {showHelpCenter && (
-        <HelpCenter onClose={() => setShowHelpCenter(false)} />
+        <HelpCenter
+          onClose={() => setShowHelpCenter(false)}
+          onRequestQuote={() => {
+            setShowHelpCenter(false);
+            setActiveView('quotes');
+          }}
+        />
       )}
       {showContactForm && (
         <ContactForm onClose={() => setShowContactForm(false)} />
