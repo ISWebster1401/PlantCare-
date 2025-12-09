@@ -492,6 +492,108 @@ class EmailService:
             plain_text_content=plain_text  # ✅ Ahora sí lo incluimos
         )
 
+    async def send_quote_status_update(
+        self,
+        to_email: str,
+        user_name: str,
+        reference_id: str,
+        status: str,
+        admin_message: str,
+        admin_name: Optional[str] = None
+    ) -> bool:
+        """
+        Envía una actualización de estado personalizada al cliente.
+        """
+        if not self.api_key:
+            logger.error("[email] SENDGRID_API_KEY no configurada. No se envió estado de cotización.")
+            return False
+
+        status_titles = {
+            "pending": "Estado: En revisión",
+            "contacted": "Estado: Contactado",
+            "quoted": "Estado: Cotización disponible",
+            "accepted": "Estado: Aceptada",
+            "rejected": "Estado: Rechazada",
+            "cancelled": "Estado: Cancelada",
+        }
+
+        default_messages = {
+            "pending": "Tu solicitud está en revisión. Nuestro equipo te confirmará los próximos pasos muy pronto.",
+            "contacted": "Ya tomamos contacto contigo para avanzar con tu solicitud. Revisa tu correo o teléfono para más detalles.",
+            "quoted": "Tu cotización personalizada ya está disponible. Revisa la propuesta adjunta y cuéntanos tus comentarios.",
+            "accepted": "¡Excelente noticia! Aceptamos avanzar con tu proyecto. Coordinaremos contigo los próximos pasos.",
+            "rejected": "Hemos revisado tu solicitud y, por ahora, no podremos avanzar. Si deseas, conversemos alternativas.",
+            "cancelled": "La cotización fue cancelada según lo solicitado. Estamos disponibles si quieres retomarla en el futuro.",
+        }
+
+        normalized_status = status.lower().strip()
+        status_title = status_titles.get(normalized_status, "Actualización de tu cotización")
+        contact_name = admin_name or "Equipo PlantCare"
+        message_body = admin_message.strip() if admin_message else default_messages.get(
+            normalized_status,
+            "Seguimos trabajando en tu solicitud. Pronto recibirás más novedades."
+        )
+
+        subject = f"{status_title} - Cotización {reference_id}"
+
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+            <div style="max-width: 640px; margin: 0 auto; padding: 32px 24px;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <h1 style="color: #16a34a; margin: 0;">PlantCare</h1>
+                    <p style="color: #64748b; margin: 8px 0 0 0;">Actualización de tu solicitud</p>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; padding: 20px 24px; border-radius: 14px;">
+                    <h2 style="margin: 0 0 8px 0;">Hola {user_name},</h2>
+                    <p style="margin: 0; font-size: 15px;">Tenemos novedades sobre tu cotización <strong>{reference_id}</strong>.</p>
+                </div>
+
+                <div style="background: #f8fafc; border: 1px solid #d1fae5; border-radius: 12px; padding: 24px; margin: 24px 0;">
+                    <h3 style="color: #15803d; margin-top: 0;">{status_title}</h3>
+                    <p style="color: #0f172a; margin: 0; white-space: pre-line;">{message_body}</p>
+                </div>
+
+                <div style="background: #fff; border-left: 4px solid #22c55e; padding: 18px 22px; border-radius: 10px;">
+                    <p style="margin: 0; color: #0f172a;">
+                        Si tienes dudas o necesitas hacer algún cambio, puedes responder directamente a este correo o escribirnos a
+                        <a href="mailto:contacto@plantcare.cl" style="color: #16a34a; font-weight: 600;">contacto@plantcare.cl</a>.
+                    </p>
+                </div>
+
+                <div style="margin-top: 32px; text-align: center; color: #64748b; font-size: 14px;">
+                    <p style="margin-bottom: 8px;">Un saludo,<br><strong>{contact_name}</strong></p>
+                    <p style="margin: 0;">Equipo PlantCare</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        plain_text = f"""
+Hola {user_name},
+
+Tenemos novedades sobre tu cotización {reference_id}.
+
+{status_title}
+
+{message_body}
+
+Si tienes dudas o necesitas hacer algún cambio, responde a este correo o escríbenos a contacto@plantcare.cl.
+
+Un saludo,
+{contact_name}
+Equipo PlantCare
+        """.strip()
+
+        return await self.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            plain_text_content=plain_text
+        )
+
     async def send_verification_email(self, to_email: str, user_name: str, verify_url: str) -> bool:
         """Envía email de verificación de cuenta."""
         subject = "Verifica tu correo - PlantCare"

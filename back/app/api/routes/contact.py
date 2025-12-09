@@ -12,6 +12,7 @@ import time
 import uuid
 from datetime import datetime
 from typing import List, Optional
+import asyncio
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -195,16 +196,21 @@ async def process_quote_submission(
             logger.debug(f"Error obteniendo user_id: {str(e)}")
             pass
 
+        if quote_request.sensor_quantity < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La cantidad de sensores debe ser mayor o igual a 1"
+            )
+
         # Guardar en base de datos (tabla quotes)
-        try:
-            await db.insert_records("quotes", [{
+        payload = {
                 "user_id": user_id,
                 "reference_id": reference_id,
                 "name": quote_request.name,
                 "email": quote_request.email,
                 "phone": quote_request.phone,
                 "company": quote_request.company,
-                "vineyard_name": quote_request.company,  # Usar company como vineyard_name si aplica
+                "vineyard_name": quote_request.company,
                 "location": quote_request.location,
                 "project_type": quote_request.project_type.value,
                 "coverage_area": quote_request.coverage_area,
@@ -212,44 +218,87 @@ async def process_quote_submission(
                 "has_existing_infrastructure": quote_request.has_existing_infrastructure,
                 "requires_installation": quote_request.requires_installation,
                 "requires_training": quote_request.requires_training,
-                "num_devices": quote_request.sensor_quantity,
+                "num_devices": int(quote_request.sensor_quantity),
                 "installation_type": "full" if quote_request.requires_installation else "self",
                 "budget_range": quote_request.budget_range.value,
                 "message": quote_request.description,
                 "ip_address": client_ip,
                 "status": "pending",
                 "created_at": datetime.utcnow()
-            }])
+            }
+        try:
+            await db.insert_records("quotes", [payload])
             logger.info("[contact] request_quote stored ref=%s", reference_id)
         except Exception as db_error:
-            logger.warning("[contact] request_quote store_failed ref=%s error=%s", reference_id, str(db_error))
-            # Continuar aunque falle la BD
+            logger.error(
+                "[contact] request_quote store_failed ref=%s error=%s payload=%s",
+                reference_id,
+                str(db_error),
+                payload
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se pudo registrar la cotización, intenta más tarde."
+            )
         
-        # Enviar email de notificación al equipo de ventas
-        logger.info("[contact] request_quote notification START ref=%s to=%s", reference_id, email_service.contact_email)
-        notification_start = time.perf_counter()
-        notification_sent = await email_service.send_quote_request_notification(quote_data)
-        logger.info(
-            "[contact] request_quote notification END ref=%s success=%s duration=%.2fs",
-            reference_id,
-            notification_sent,
-            time.perf_counter() - notification_start,
-        )
- 
-        # Enviar confirmación al usuario con el mensaje específico de cotización
-        logger.info("[contact] request_quote confirmation START ref=%s to=%s", reference_id, quote_request.email)
-        confirmation_start = time.perf_counter()
-        confirmation_sent = await email_service.send_quote_confirmation(
-            quote_request.email,
-            quote_request.name,
-            reference_id
-        )
-        logger.info(
-            "[contact] request_quote confirmation END ref=%s success=%s duration=%.2fs",
-            reference_id,
-            confirmation_sent,
-            time.perf_counter() - confirmation_start,
-        )
+        notification_sent = False
+        confirmation_sent = False
+
+        try:
+            logger.info("[contact] request_quote notification START ref=%s to=%s", reference_id, email_service.contact_email)
+            notification_start = time.perf_counter()
+            notification_task = asyncio.create_task(email_service.send_quote_request_notification(quote_data))
+
+            logger.info("[contact] request_quote confirmation START ref=%s to=%s", reference_id, quote_request.email)
+            confirmation_start = time.perf_counter()
+            confirmation_task = asyncio.create_task(
+                email_service.send_quote_confirmation(
+                    quote_request.email,
+                    quote_request.name,
+                    reference_id
+                )
+            )
+
+            results = await asyncio.gather(notification_task, confirmation_task, return_exceptions=True)
+            notification_result, confirmation_result = results
+
+            if isinstance(notification_result, Exception):
+                logger.error(
+                    "[contact] request_quote notification ERROR ref=%s error=%s",
+                    reference_id,
+                    str(notification_result)
+                )
+            else:
+                notification_sent = bool(notification_result)
+
+            if isinstance(confirmation_result, Exception):
+                logger.error(
+                    "[contact] request_quote confirmation ERROR ref=%s error=%s",
+                    reference_id,
+                    str(confirmation_result)
+                )
+            else:
+                confirmation_sent = bool(confirmation_result)
+
+            logger.info(
+                "[contact] request_quote notification END ref=%s success=%s duration=%.2fs",
+                reference_id,
+                notification_sent,
+                time.perf_counter() - notification_start,
+            )
+
+            logger.info(
+                "[contact] request_quote confirmation END ref=%s success=%s duration=%.2fs",
+                reference_id,
+                confirmation_sent,
+                time.perf_counter() - confirmation_start,
+            )
+        except Exception as email_error:
+            logger.error(
+                "[contact] request_quote email send failed ref=%s error=%s",
+                reference_id,
+                str(email_error)
+            )
  
         if not notification_sent:
             logger.warning("[contact] request_quote notification FAILED ref=%s", reference_id)

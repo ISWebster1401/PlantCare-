@@ -16,12 +16,123 @@ from app.db.queries import (
 from app.api.core.auth_user import AuthService
 from pgdbtoolkit import AsyncPgDbToolkit
 import pandas as pd
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from datetime import datetime
 import logging
+from app.api.core.email_service import email_service
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+# Mensajes por defecto para actualización de estado de cotizaciones
+STATUS_DEFAULT_MESSAGES = {
+    "pending": "Tu solicitud está en revisión. Nuestro equipo te confirmará los próximos pasos muy pronto.",
+    "contacted": "Ya tomamos contacto contigo para avanzar con tu solicitud. Revisa tu correo o teléfono para más detalles.",
+    "quoted": "Tu cotización personalizada ya está disponible. Revisa la propuesta adjunta y cuéntanos tus comentarios.",
+    "accepted": "¡Excelente noticia! Aceptamos avanzar con tu proyecto. Coordinaremos contigo los próximos pasos.",
+    "rejected": "Hemos revisado tu solicitud y, por ahora, no podremos avanzar. Si deseas, conversemos alternativas.",
+    "cancelled": "La cotización fue cancelada según lo solicitado. Estamos disponibles si quieres retomarla en el futuro.",
+}
+
+def safe_int(value: Optional[Any]) -> Optional[int]:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, float) and pd.isna(value):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+def safe_float(value: Optional[Any]) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, float) and pd.isna(value):
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+def safe_bool(value: Optional[Any]) -> Optional[bool]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        val = value.strip().lower()
+        if val in ("true", "1", "t", "yes", "y"):
+            return True
+        if val in ("false", "0", "f", "no", "n"):
+            return False
+    return None
+
+def safe_str(value: Optional[Any]) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+def safe_datetime(value: Optional[Any]) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if hasattr(value, "to_pydatetime"):
+        try:
+            return value.to_pydatetime()
+        except Exception:
+            pass
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except Exception:
+            return None
+    return None
+
+def build_quote_dict(data: dict) -> Dict[str, Any]:
+    # Primero convertir a int con safe_int, luego forzar con int()
+    id_value = safe_int(data.get('id'))
+    id_final = int(id_value) if id_value is not None else 0
+    
+    num_devices_value = safe_int(data.get('num_devices'))
+    num_devices_final = int(num_devices_value) if num_devices_value is not None else 0
+    
+    payload = {
+        "id": id_final,
+        "user_id": safe_int(data.get('user_id')),
+        "reference_id": safe_str(data.get('reference_id')),
+        "name": safe_str(data.get('name')),
+        "email": safe_str(data.get('email')),
+        "phone": data.get('phone'),
+        "company": data.get('company'),
+        "vineyard_name": data.get('vineyard_name'),
+        "location": data.get('location'),
+        "project_type": data.get('project_type'),
+        "coverage_area": data.get('coverage_area'),
+        "desired_date": data.get('desired_date'),
+        "has_existing_infrastructure": safe_bool(data.get('has_existing_infrastructure')),
+        "requires_installation": safe_bool(data.get('requires_installation')),
+        "requires_training": safe_bool(data.get('requires_training')),
+        "num_devices": num_devices_final,
+        "budget_range": data.get('budget_range'),
+        "status": safe_str(data.get('status')) or "pending",
+        "quoted_price": safe_float(data.get('quoted_price')),
+        "quoted_at": safe_datetime(data.get('quoted_at')),
+        "assigned_to": safe_int(data.get('assigned_to')),
+        "status_message": data.get('status_message'),
+        "ip_address": data.get('ip_address'),
+        "created_at": safe_datetime(data.get('created_at')) or datetime.utcnow(),
+        "updated_at": safe_datetime(data.get('updated_at')),
+        "message": data.get('message')
+    }
+    return payload
+
+def build_quote_response(data: dict) -> QuoteAdminResponse:
+    return QuoteAdminResponse(**build_quote_dict(data))
 
 # Crear router para administración
 router = APIRouter(
@@ -506,64 +617,42 @@ async def get_all_quotes(
         if status:
             conditions["status"] = status
         
-        quotes_df = await db.fetch_records("quotes", conditions=conditions)
-        
-        quotes = []
-        if quotes_df is not None and not quotes_df.empty:
-            all_quotes = quotes_df.to_dict('records')
-            # Filtrar deleted_at
-            for q in all_quotes:
-                if q.get('deleted_at') is None:
-                    quotes.append(q)
-            
-            # Aplicar búsqueda si se proporciona
-            if search:
-                search_lower = search.lower()
-                quotes = [q for q in quotes if (
-                    search_lower in q.get('name', '').lower() or
-                    search_lower in q.get('email', '').lower() or
-                    search_lower in q.get('reference_id', '').lower() or
-                    search_lower in q.get('company', '').lower()
-                )]
-        
-        # Ordenar por fecha de creación descendente
-        quotes.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-        
-        # Convertir a QuoteAdminResponse
-        result = []
-        for q in quotes:
+        rows = await db.fetch_records("quotes", conditions=conditions)
+        if rows is None or rows.empty:
+            return []
+
+        raw_quotes = []
+        for _, row in rows.iterrows():
+            record = row.to_dict()
+            if record.get('deleted_at') is None:
+                raw_quotes.append(record)
+
+        if search:
+            search_lower = search.lower()
+            raw_quotes = [q for q in raw_quotes if (
+                search_lower in str(q.get('name', '')).lower()
+                or search_lower in str(q.get('email', '')).lower()
+                or search_lower in str(q.get('reference_id', '')).lower()
+                or search_lower in str(q.get('company', '')).lower()
+            )]
+
+        raw_quotes.sort(key=lambda x: safe_datetime(x.get('created_at')) or datetime.min, reverse=True)
+
+        normalized_quotes: List[Dict[str, Any]] = []
+        for q in raw_quotes:
             try:
-                result.append(QuoteAdminResponse(
-                    id=int(q.get('id', 0)),
-                    user_id=int(q.get('user_id')) if q.get('user_id') else None,
-                    reference_id=str(q.get('reference_id', '')),
-                    name=str(q.get('name', '')),
-                    email=str(q.get('email', '')),
-                    phone=q.get('phone'),
-                    company=q.get('company'),
-                    vineyard_name=q.get('vineyard_name'),
-                    location=q.get('location'),
-                    project_type=q.get('project_type'),
-                    coverage_area=q.get('coverage_area'),
-                    desired_date=q.get('desired_date'),
-                    has_existing_infrastructure=q.get('has_existing_infrastructure'),
-                    requires_installation=q.get('requires_installation'),
-                    requires_training=q.get('requires_training'),
-                    num_devices=int(q.get('num_devices', 0)),
-                    budget_range=q.get('budget_range'),
-                    status=str(q.get('status', 'pending')),
-                    quoted_price=float(q.get('quoted_price')) if q.get('quoted_price') else None,
-                    quoted_at=q.get('quoted_at'),
-                    assigned_to=int(q.get('assigned_to')) if q.get('assigned_to') else None,
-                    ip_address=q.get('ip_address'),
-                    created_at=q.get('created_at'),
-                    updated_at=q.get('updated_at'),
-                    message=q.get('message')
-                ))
-            except Exception as e:
-                logger.warning(f"Error procesando cotización {q.get('id')}: {str(e)}")
+                normalized_quotes.append(build_quote_dict(q))
+            except Exception as item_error:
+                logger.error(f"Error normalizando cotización {q.get('id')}: {item_error} | data={q}")
+
+        result: List[QuoteAdminResponse] = []
+        for item in normalized_quotes:
+            try:
+                result.append(QuoteAdminResponse(**item))
+            except Exception as serialize_error:
+                logger.error(f"Error serializando cotización {item.get('id')}: {serialize_error} | payload={item}")
                 continue
-        
+
         return result
         
     except Exception as e:
@@ -596,33 +685,7 @@ async def get_quote_by_id(
         
         quote = quote_df.iloc[0].to_dict()
         
-        return QuoteAdminResponse(
-            id=int(quote.get('id', 0)),
-            user_id=int(quote.get('user_id')) if quote.get('user_id') else None,
-            reference_id=str(quote.get('reference_id', '')),
-            name=str(quote.get('name', '')),
-            email=str(quote.get('email', '')),
-            phone=quote.get('phone'),
-            company=quote.get('company'),
-            vineyard_name=quote.get('vineyard_name'),
-            location=quote.get('location'),
-            project_type=quote.get('project_type'),
-            coverage_area=quote.get('coverage_area'),
-            desired_date=quote.get('desired_date'),
-            has_existing_infrastructure=quote.get('has_existing_infrastructure'),
-            requires_installation=quote.get('requires_installation'),
-            requires_training=quote.get('requires_training'),
-            num_devices=int(quote.get('num_devices', 0)),
-            budget_range=quote.get('budget_range'),
-            status=str(quote.get('status', 'pending')),
-            quoted_price=float(quote.get('quoted_price')) if quote.get('quoted_price') else None,
-            quoted_at=quote.get('quoted_at'),
-            assigned_to=int(quote.get('assigned_to')) if quote.get('assigned_to') else None,
-            ip_address=quote.get('ip_address'),
-            created_at=quote.get('created_at'),
-            updated_at=quote.get('updated_at'),
-            message=quote.get('message')
-        )
+        return build_quote_response(quote)
         
     except HTTPException:
         raise
@@ -658,11 +721,32 @@ async def update_quote(
         
         # Preparar datos de actualización
         update_data = quote_update.model_dump(exclude_unset=True)
+        notify_user = bool(update_data.pop('notify_user', False))
+        status_message_input = update_data.get('status_message')
+        if status_message_input is not None:
+            trimmed_message = status_message_input.strip()
+            update_data['status_message'] = trimmed_message if trimmed_message else None
+
+        current_status = str(quote_df.iloc[0].get('status', 'pending'))
+        new_status = update_data.get('status')
+        if new_status:
+            current_status = new_status
         
-        # Si se actualiza el precio, también actualizar quoted_at
-        if 'quoted_price' in update_data and update_data['quoted_price'] is not None:
-            from datetime import datetime
-            update_data['quoted_at'] = datetime.utcnow()
+        # Normalizar precio si se envía
+        if 'quoted_price' in update_data:
+            quoted_price_value = update_data['quoted_price']
+            if quoted_price_value is None or (isinstance(quoted_price_value, str) and not quoted_price_value.strip()):
+                update_data['quoted_price'] = None
+            else:
+                try:
+                    update_data['quoted_price'] = float(quoted_price_value)
+                except (TypeError, ValueError):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="El precio cotizado debe ser un número válido"
+                    )
+                from datetime import datetime
+                update_data['quoted_at'] = datetime.utcnow()
         
         # Validar estado si se proporciona
         if 'status' in update_data and update_data['status']:
@@ -672,15 +756,31 @@ async def update_quote(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Estado inválido. Debe ser uno de: {', '.join(valid_statuses)}"
                 )
+
+        target_status = update_data.get('status', current_status)
         
         update_data['updated_at'] = datetime.utcnow()
+
+        if notify_user and not update_data.get('status_message'):
+            update_data['status_message'] = STATUS_DEFAULT_MESSAGES.get(
+                target_status,
+                STATUS_DEFAULT_MESSAGES['pending']
+            )
         
-        # Actualizar en la base de datos
-        await db.update_records(
-            "quotes",
-            conditions={"id": quote_id},
-            updates=update_data
-        )
+        # Actualizar en la base de datos solo si hay cambios
+        if update_data:
+            set_clause = ", ".join([f"{field} = %s" for field in update_data.keys()])
+            values = list(update_data.values()) + [quote_id]
+            await db.execute_query(
+                f"UPDATE quotes SET {set_clause} WHERE id = %s",
+                values
+            )
+        else:
+            logger.info(
+                "Admin %s intentó actualizar cotización %s sin cambios detectados",
+                current_user['email'],
+                quote_id
+            )
         
         # Obtener la cotización actualizada
         updated_quote_df = await db.fetch_records(
@@ -690,11 +790,48 @@ async def update_quote(
         
         updated_quote = updated_quote_df.iloc[0].to_dict()
         
+        if notify_user:
+            email_status = str(updated_quote.get('status', current_status))
+            message_to_send = updated_quote.get('status_message') or STATUS_DEFAULT_MESSAGES.get(
+                email_status,
+                STATUS_DEFAULT_MESSAGES['pending']
+            )
+            admin_full_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user['email']
+
+            try:
+                success = await email_service.send_quote_status_update(
+                    to_email=updated_quote.get('email'),
+                    user_name=updated_quote.get('name', 'Cliente'),
+                    reference_id=str(updated_quote.get('reference_id', '')),
+                    status=email_status,
+                    admin_message=message_to_send,
+                    admin_name=admin_full_name
+                )
+                if success:
+                    logger.info(
+                        "Correo de estado enviado a %s para cotización %s con estado %s",
+                        updated_quote.get('email'),
+                        updated_quote.get('reference_id'),
+                        email_status
+                    )
+                else:
+                    logger.error(
+                        "Fallo al enviar correo de estado a %s para cotización %s",
+                        updated_quote.get('email'),
+                        updated_quote.get('reference_id')
+                    )
+            except Exception as email_error:
+                logger.error(
+                    "Error enviando correo de actualización de cotización %s: %s",
+                    quote_id,
+                    str(email_error)
+                )
+        
         logger.info(f"Admin {current_user['email']} actualizó cotización {quote_id}")
         
         return QuoteAdminResponse(
             id=int(updated_quote.get('id', 0)),
-            user_id=int(updated_quote.get('user_id')) if updated_quote.get('user_id') else None,
+            user_id=safe_int(updated_quote.get('user_id')),
             reference_id=str(updated_quote.get('reference_id', '')),
             name=str(updated_quote.get('name', '')),
             email=str(updated_quote.get('email', '')),
@@ -708,12 +845,13 @@ async def update_quote(
             has_existing_infrastructure=updated_quote.get('has_existing_infrastructure'),
             requires_installation=updated_quote.get('requires_installation'),
             requires_training=updated_quote.get('requires_training'),
-            num_devices=int(updated_quote.get('num_devices', 0)),
+            num_devices=int(safe_int(updated_quote.get('num_devices')) or 0),  # ← AGREGUÉ int()
             budget_range=updated_quote.get('budget_range'),
             status=str(updated_quote.get('status', 'pending')),
-            quoted_price=float(updated_quote.get('quoted_price')) if updated_quote.get('quoted_price') else None,
+            quoted_price=safe_float(updated_quote.get('quoted_price')),
             quoted_at=updated_quote.get('quoted_at'),
-            assigned_to=int(updated_quote.get('assigned_to')) if updated_quote.get('assigned_to') else None,
+            assigned_to=safe_int(updated_quote.get('assigned_to')),
+            status_message=updated_quote.get('status_message'),
             ip_address=updated_quote.get('ip_address'),
             created_at=updated_quote.get('created_at'),
             updated_at=updated_quote.get('updated_at'),

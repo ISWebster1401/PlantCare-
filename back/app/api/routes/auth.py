@@ -4,7 +4,7 @@ from app.api.core.auth_user import AuthService, get_current_user, get_current_ac
 from app.api.core.database import get_db
 from app.api.schemas.user import (
     UserCreate, UserLogin, UserResponse, Token, 
-    UserUpdate, PasswordChange
+    UserUpdate, PasswordChange, GoogleAuthRequest
 )
 from app.db.queries import (
     get_user_by_email, update_user_password, update_user, deactivate_user,
@@ -234,6 +234,47 @@ async def login_user(
         raise
     except Exception as e:
         logger.error(f"Error en login de usuario: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.post("/google", response_model=Token)
+async def login_with_google(
+    payload: GoogleAuthRequest,
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Autentica un usuario utilizando Google Identity Services.
+    """
+    try:
+        user = await AuthService.authenticate_google_user(payload.credential, db)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No se pudo autenticar con Google"
+            )
+
+        token_data = {
+            "sub": user["email"],
+            "user_id": user["id"]
+        }
+
+        access_token = AuthService.create_access_token(token_data)
+        refresh_token = AuthService.create_refresh_token(token_data)
+
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=30 * 60,
+            refresh_token=refresh_token,
+            user=UserResponse.model_validate(user)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en autenticación con Google: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"

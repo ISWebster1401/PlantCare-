@@ -7,7 +7,9 @@ from pgdbtoolkit import AsyncPgDbToolkit
 from app.api.schemas.humedad import HumedadData, DatoHumedad, MensajeRespuesta
 from app.api.core.ai_service import ai_service
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from app.db.queries import update_device_last_seen
+from app.api.core.config import settings
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -17,13 +19,20 @@ router = APIRouter(
     tags=["humedad"]
 )
 
+LOCAL_TIMEZONE = ZoneInfo(settings.APP_TIMEZONE)
+
 class HumedadData(BaseModel):
-    humedad: float
+    humedad: float = Field(..., ge=0, le=100, description="Humedad del suelo en porcentaje")
+    temperatura: Optional[float] = Field(None, description="Temperatura ambiente (°C)")
+    presion: Optional[float] = Field(None, description="Presión atmosférica (hPa)")
+    altitud: Optional[float] = Field(None, description="Altitud estimada (m)")
 
 class MultiSensorData(BaseModel):
     """Datos de múltiples sensores del Wemos D1 Mini"""
     humedad: float = Field(..., description="Humedad del suelo (0-100%)")
     temperatura: Optional[float] = Field(None, description="Temperatura ambiente (°C)")
+    presion: Optional[float] = Field(None, description="Presión atmosférica (hPa)")
+    altitud: Optional[float] = Field(None, description="Altitud estimada (m)")
     humedad_aire: Optional[float] = Field(None, description="Humedad del aire (%)")
     luz: Optional[float] = Field(None, description="Nivel de luz (0-100%)")
     bateria: Optional[float] = Field(None, description="Nivel de batería (%)")
@@ -63,7 +72,10 @@ async def save_humedad(
             "sensor_humedad_suelo",
             [{
                 "device_id": device_id,
-                "valor": data.humedad
+                "valor": data.humedad,
+                "temperatura": data.temperatura,
+                "presion": data.presion,
+                "altitud": data.altitud
             }]
         )
         
@@ -111,11 +123,16 @@ async def save_multi_sensor_data(
                 "device_id": device_id,
                 "valor": data.humedad,
                 "temperatura": data.temperatura,
+                "presion": data.presion,
+                "altitud": data.altitud,
                 "humedad_aire": data.humedad_aire,
                 "luz": data.luz,
                 "bateria": data.bateria,
                 "senal": data.senal,
-                "timestamp_sensor": datetime.fromtimestamp(data.timestamp) if data.timestamp else None
+                "timestamp_sensor": (
+                    datetime.fromtimestamp(data.timestamp, tz=ZoneInfo("UTC")).astimezone(LOCAL_TIMEZONE)
+                    if data.timestamp else None
+                )
             }]
         )
         
@@ -156,7 +173,7 @@ async def get_humedad(
     try:
         result = await db.fetch_records(
             "sensor_humedad_suelo",
-            columns=["id", "valor", "fecha", "device_id"],
+            columns=["id", "valor", "fecha", "device_id", "temperatura", "presion", "altitud"],
             conditions={"device_id": device_id},
             order_by=[("fecha", "DESC")],
             limit=limit
@@ -166,15 +183,26 @@ async def get_humedad(
             return []
             
         # Convertir los datos a un formato más amigable
-        return [
-            {
+        formatted_rows = []
+        for _, row in result.iterrows():
+            raw_fecha = row["fecha"]
+            if hasattr(raw_fecha, "to_pydatetime"):
+                raw_fecha = raw_fecha.to_pydatetime()
+            if raw_fecha and raw_fecha.tzinfo is None:
+                raw_fecha = raw_fecha.replace(tzinfo=LOCAL_TIMEZONE)
+            fecha_local = raw_fecha.astimezone(LOCAL_TIMEZONE) if raw_fecha else None
+
+            formatted_rows.append({
                 "id": int(row["id"]),
                 "device_id": int(row["device_id"]),
                 "valor": float(row["valor"]),
-                "fecha": row["fecha"].strftime("%Y-%m-%d %H:%M:%S")
-            }
-            for _, row in result.iterrows()
-        ]
+                "fecha": fecha_local.isoformat() if fecha_local else None,
+                "temperatura": float(row["temperatura"]) if "temperatura" in row and row["temperatura"] is not None else None,
+                "presion": float(row["presion"]) if "presion" in row and row["presion"] is not None else None,
+                "altitud": float(row["altitud"]) if "altitud" in row and row["altitud"] is not None else None
+            })
+
+        return formatted_rows
     except Exception as e:
         logger.error(f"Error leyendo datos: {str(e)}")
         raise HTTPException(status_code=500, detail="Error al leer los datos") 

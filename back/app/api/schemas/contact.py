@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional
 from enum import Enum
 from datetime import datetime
@@ -64,6 +64,25 @@ class ContactForm(BaseModel):
 
 class QuoteRequest(BaseModel):
     """Esquema para solicitud de cotización"""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "name": "Juan Pérez",
+            "email": "juan@example.com",
+            "phone": "+56912345678",
+            "company": "Viña Los Andes",
+            "position": "Administrador de Campo",
+            "project_type": "agricultural",
+            "sensor_quantity": 5,
+            "coverage_area": "25 hectáreas",
+            "location": "Valle de Casablanca, Chile",
+            "budget_range": "range_5000_10000",
+            "desired_date": "2025-01-15",
+            "description": "Requerimos monitoreo de humedad y clima para 25 hectáreas de viñedos, con alertas tempranas y reportes semanales.",
+            "has_existing_infrastructure": True,
+            "requires_installation": True,
+            "requires_training": True
+        }
+    })
     # Información de contacto
     name: str = Field(..., min_length=2, max_length=100, description="Nombre completo")
     email: EmailStr = Field(..., description="Email de contacto")
@@ -78,7 +97,7 @@ class QuoteRequest(BaseModel):
     location: Optional[str] = Field(None, max_length=200, description="Ubicación del proyecto")
     budget_range: BudgetRange = Field(..., description="Rango de presupuesto estimado")
     desired_date: Optional[str] = Field(None, max_length=50, description="Fecha deseada de implementación")
-    description: str = Field(..., min_length=20, max_length=2000, description="Descripción detallada del proyecto")
+    description: str = Field(..., min_length=5, max_length=2000, description="Descripción detallada del proyecto")
     
     # Información adicional
     has_existing_infrastructure: Optional[bool] = Field(None, description="¿Tiene infraestructura existente?")
@@ -102,8 +121,8 @@ class QuoteRequest(BaseModel):
     def validate_description(cls, v):
         if not v.strip():
             raise ValueError('La descripción del proyecto es obligatoria')
-        if len(v.strip()) < 20:
-            raise ValueError('La descripción debe tener al menos 20 caracteres')
+        if len(v.strip()) < 5:
+            raise ValueError('La descripción debe tener al menos 5 caracteres')
         return v.strip()
 
 class ContactResponse(BaseModel):

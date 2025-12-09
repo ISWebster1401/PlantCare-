@@ -56,7 +56,7 @@ const EmailCodeVerification: React.FC<Props> = ({ email, onVerified }) => {
   return (
     <div className="verification-container">
       <div className="verification-box">
-        <div className="verification-icon loading" style={{ marginBottom: 20 }}>
+        <div className="verification-icon loading" >
           <div className="spinner"></div>
         </div>
         <h2>Verifica tu correo</h2>

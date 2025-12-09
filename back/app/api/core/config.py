@@ -93,8 +93,16 @@ class Settings(BaseSettings):
 
     # Configuración de IA
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "True").lower() == "true"
+
+    # Autenticación con Google
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    GOOGLE_ALLOWED_DOMAINS: str = os.getenv("GOOGLE_ALLOWED_DOMAINS", "")
+
+    # Configuración de zona horaria
+    APP_TIMEZONE: str = os.getenv("APP_TIMEZONE", "America/Santiago")
 
     # Configuración de SendGrid
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")

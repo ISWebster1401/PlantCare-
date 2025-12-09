@@ -6,10 +6,13 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .config import settings
 from ..schemas.user import TokenData, UserInDB
-from app.db.queries import get_user_by_email, create_user, update_user_last_login
+from app.db.queries import get_user_by_email, create_user, update_user_last_login, update_user
 from app.api.core.database import get_db
 import logging
 from pgdbtoolkit import AsyncPgDbToolkit
+import secrets
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -229,6 +232,124 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error interno del servidor: {str(e)}"
+            )
+
+    @staticmethod
+    async def authenticate_google_user(credential: str, db: AsyncPgDbToolkit) -> UserInDB:
+        """
+        Autentica o registra un usuario usando Google ID token.
+        """
+        try:
+            if not settings.GOOGLE_CLIENT_ID:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="La autenticación con Google no está configurada"
+                )
+
+            request = google_requests.Request()
+            try:
+                id_info = google_id_token.verify_oauth2_token(
+                    credential,
+                    request,
+                    settings.GOOGLE_CLIENT_ID
+                )
+            except Exception as e:
+                logger.error(f"Error verificando token de Google: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token de Google inválido"
+                )
+
+            email = id_info.get("email")
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No se pudo obtener el email de Google"
+                )
+
+            if not id_info.get("email_verified", False):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Tu cuenta de Google aún no está verificada"
+                )
+
+            allowed_domains = [
+                domain.strip().lower()
+                for domain in settings.GOOGLE_ALLOWED_DOMAINS.split(",")
+                if domain.strip()
+            ]
+            if allowed_domains:
+                domain = email.split("@")[-1].lower()
+                if domain not in allowed_domains:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="El dominio de tu email no está autorizado"
+                    )
+
+            first_name = id_info.get("given_name")
+            last_name = id_info.get("family_name")
+            full_name = id_info.get("name", "")
+
+            if not first_name and full_name:
+                parts = full_name.split()
+                first_name = parts[0]
+                last_name = " ".join(parts[1:]) if len(parts) > 1 else "PlantCare"
+
+            if not first_name:
+                first_name = "Usuario"
+            if not last_name:
+                last_name = "PlantCare"
+
+            avatar_url = id_info.get("picture")
+
+            user = await get_user_by_email(db, email)
+
+            if user:
+                if not user["active"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Usuario inactivo, contacta al administrador"
+                    )
+
+                updates = {
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "avatar_url": avatar_url,
+                    "is_verified": True,
+                }
+                await update_user(db, user["id"], updates)
+                user = await get_user_by_email(db, email)
+            else:
+                random_secret = secrets.token_urlsafe(32)
+                password_hash = AuthService.get_password_hash(random_secret)
+                user_payload = {
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "email": email,
+                    "phone": None,
+                    "region": None,
+                    "vineyard_name": None,
+                    "hectares": None,
+                    "grape_type": None,
+                    "avatar_url": avatar_url,
+                    "password_hash": password_hash,
+                    "is_verified": True,
+                    "role_id": 1,
+                }
+                user = await create_user(db, user_payload)
+                await update_user(db, user["id"], {"is_verified": True, "avatar_url": avatar_url})
+                user = await get_user_by_email(db, email)
+
+            await update_user_last_login(db, user["id"])
+            return user
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error autenticando usuario con Google: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error interno del servidor"
             )
 
 # Función para obtener el usuario actual desde el token

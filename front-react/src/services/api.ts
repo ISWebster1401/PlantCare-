@@ -55,6 +55,12 @@ export const authAPI = {
     return response.data;
   },
 
+  // Login con Google
+  loginWithGoogle: async (credential: string): Promise<AuthResponse> => {
+    const response = await api.post('/auth/google', { credential });
+    return response.data;
+  },
+
   // Obtener información del usuario actual
   getCurrentUser: async (): Promise<UserResponse> => {
     const response = await api.get('/auth/me');
@@ -107,7 +113,7 @@ export const deviceAPI = {
 
   // Desconectar dispositivo
   disconnectDevice: async (deviceId: number) => {
-    const response = await api.delete(`/devices/${deviceId}/disconnect`);
+    const response = await api.delete(`/devices/${deviceId}`);
     return response.data;
   },
 };

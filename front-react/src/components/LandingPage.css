@@ -56,7 +56,6 @@ header {
     transition: all 0.3s ease;
 }
 
-
 .logo {
     font-size: 28px;
     font-weight: bold;
@@ -151,7 +150,7 @@ nav a:hover {
     display: inline-block;
     padding: 18px 40px;
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-    color: #111111; /* texto negro para mejor contraste en todos los temas */
+    color: #111111;
     text-decoration: none;
     border-radius: 50px;
     font-weight: bold;
@@ -482,8 +481,8 @@ nav a:hover {
     letter-spacing: 0.5px;
 }
 
-.register-form-container .form-group input,
-.register-form-container .form-group select {
+.form-group input,
+.form-group select {
     width: 100%;
     padding: 15px 20px;
     background: var(--input-bg);
@@ -495,47 +494,43 @@ nav a:hover {
     backdrop-filter: blur(10px);
 }
 
-/* Asegurar color de texto correcto según tema */
-.register-form-container .form-group input[type="text"],
-.register-form-container .form-group input[type="email"],
-.register-form-container .form-group input[type="tel"],
-.register-form-container .form-group input[type="password"],
-.register-form-container .form-group input[type="number"] {
-    color: var(--text-primary);
-}
-
-/* Fix autofill en modo oscuro */
-.register-form-container .form-group input:-webkit-autofill,
-.register-form-container .form-group input:-webkit-autofill:hover,
-.register-form-container .form-group input:-webkit-autofill:focus,
-.register-form-container .form-group input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 30px rgba(255, 255, 255, 0.05) inset !important;
-    -webkit-text-fill-color: #ffffff !important;
-    color: #ffffff !important;
-}
-
-.register-form-container .form-group select option {
+.form-group select option {
     background: var(--bg-secondary);
     color: var(--text-primary);
     padding: 10px;
 }
 
-.register-form-container .form-group input:focus,
-.register-form-container .form-group select:focus {
+.form-group input:focus,
+.form-group select:focus {
     outline: none;
     border-color: var(--accent-primary);
     background: var(--input-bg-focus);
     box-shadow: 0 0 20px rgba(74, 222, 128, 0.2);
 }
 
-.register-form-container .form-group input::placeholder {
+.form-group input::placeholder {
     color: var(--placeholder-color);
 }
 
+.password-help {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* 🎯 CLAVE: Form Row para 2 columnas */
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
+    margin-bottom: 25px;
+}
+
+/* Quitar el margin-bottom de form-group dentro de form-row */
+.form-row .form-group {
+    margin-bottom: 0;
 }
 
 .register-button {
@@ -562,6 +557,11 @@ nav a:hover {
     transform: translateY(0);
 }
 
+.register-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .form-footer {
     text-align: center;
     margin-top: 25px;
@@ -581,13 +581,24 @@ nav a:hover {
 
 /* Success Message */
 .success-message {
-    display: none;
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
     color: var(--bg-primary);
     padding: 20px;
     border-radius: 12px;
     text-align: center;
     font-weight: bold;
+    margin-bottom: 20px;
+    animation: slideIn 0.5s ease;
+}
+
+/* Error Message */
+.error-message {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: 600;
     margin-bottom: 20px;
     animation: slideIn 0.5s ease;
 }
@@ -628,7 +639,6 @@ footer {
     line-height: 1.6;
 }
 
-
 /* Responsive */
 @media (max-width: 768px) {
     header {
@@ -662,11 +672,11 @@ footer {
         padding: 30px 25px;
     }
 
+    /* 📱 En móvil, volver a 1 columna */
     .form-row {
         grid-template-columns: 1fr;
         gap: 15px;
     }
-
 }
 
 /* Custom scrollbar */

@@ -11,3 +11,39 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* ========================================
+   🎨 FIX GLOBAL: Visibilidad de inputs
+   ======================================== */
+
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+select option {
+  background: #1a1a1a !important;
+  color: #ffffff !important;
+}
+
+/* Fix para cuando el campo tiene valor */
+input:not(:placeholder-shown),
+textarea:not(:placeholder-shown),
+select:not([value=""]) {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Fix para labels */
+label {
+  color: rgba(255, 255, 255, 0.9) !important;
+}

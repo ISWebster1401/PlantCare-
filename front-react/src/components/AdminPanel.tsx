@@ -60,6 +60,22 @@ interface DeviceCodeBatch {
   prefix?: string;
 }
 
+interface QuoteUpdatePayload {
+  status?: string;
+  quoted_price?: number;
+  status_message?: string;
+  notify_user?: boolean;
+}
+
+const QUOTE_STATUS_DEFAULT_MESSAGES: Record<string, string> = {
+  pending: 'Tu solicitud está en revisión. Te avisaremos cuando tengamos novedades.',
+  contacted: 'Ya tomamos contacto contigo para coordinar los próximos pasos.',
+  quoted: 'Tu cotización está lista. Revísala y cuéntanos si necesitas ajustes.',
+  accepted: 'Excelente, seguimos adelante. Pronto coordinaremos la implementación.',
+  rejected: 'Gracias por tu interés. Por ahora no avanzaremos, pero seguimos disponibles.',
+  cancelled: 'La solicitud fue cancelada según lo indicado. Avísanos si deseas retomarla.',
+};
+
 const AdminPanel: React.FC = () => {
   const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'devices' | 'codes' | 'quotes'>('dashboard');
@@ -115,6 +131,7 @@ const AdminPanel: React.FC = () => {
     created_at: string;
     message?: string;
     ip_address?: string;
+    status_message?: string;
   }
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -123,6 +140,11 @@ const AdminPanel: React.FC = () => {
     search: ''
   });
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
+  const [quoteStatusValue, setQuoteStatusValue] = useState<string>('pending');
+  const [quotePriceValue, setQuotePriceValue] = useState<string>('');
+  const [statusMessageValue, setStatusMessageValue] = useState<string>('');
+  const [notifyQuoteUser, setNotifyQuoteUser] = useState<boolean>(false);
+  const [statusMessageEdited, setStatusMessageEdited] = useState<boolean>(false);
 
   // ✅ HOOK MOVIDO AQUÍ - ANTES DEL RETURN CONDICIONAL
   useEffect(() => {
@@ -137,6 +159,20 @@ const AdminPanel: React.FC = () => {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (editingQuote) {
+      setQuoteStatusValue(editingQuote.status);
+      setQuotePriceValue(
+        typeof editingQuote.quoted_price === 'number' ? String(editingQuote.quoted_price) : ''
+      );
+      setStatusMessageValue(
+        editingQuote.status_message || QUOTE_STATUS_DEFAULT_MESSAGES[editingQuote.status] || ''
+      );
+      setNotifyQuoteUser(false);
+      setStatusMessageEdited(false);
+    }
+  }, [editingQuote]);
+
   // ✅ AHORA SÍ LA VERIFICACIÓN DE ADMIN
   if (!user || user.role_id !== 2) {
     return (
@@ -149,7 +185,7 @@ const AdminPanel: React.FC = () => {
     );
   }
 
-  const apiCall = async (url: string, options: RequestInit = {}) => {
+  const apiCall = async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -158,13 +194,27 @@ const AdminPanel: React.FC = () => {
         ...options.headers
       }
     });
-
+  
+    const text = await response.text();
+  
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Error desconocido' }));
-      throw new Error(errorData.detail || `Error ${response.status}`);
+      try {
+        const errorData = text ? JSON.parse(text) : { detail: 'Error desconocido' };
+        throw new Error(errorData.detail || `Error ${response.status}`);
+      } catch (parseError) {
+        throw new Error(`Error ${response.status}. Respuesta del servidor: ${text || 'sin contenido'}`);
+      }
     }
-
-    return response.json();
+  
+    if (!text) {
+      return null as T;
+    }
+  
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      return text as unknown as T;
+    }
   };
 
   const loadStats = async () => {
@@ -229,7 +279,7 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const updateQuote = async (quoteId: number, updates: Partial<Quote>) => {
+  const updateQuote = async (quoteId: number, updates: QuoteUpdatePayload) => {
     try {
       await apiCall(`/api/admin/quotes/${quoteId}`, {
         method: 'PUT',
@@ -649,18 +699,33 @@ const AdminPanel: React.FC = () => {
               <div className="modal-overlay" onClick={() => setEditingQuote(null)}>
                 <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                   <h3>Editar Cotización {editingQuote.reference_id}</h3>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target as HTMLFormElement);
-                    updateQuote(editingQuote.id, {
-                      status: formData.get('status') as string,
-                      quoted_price: formData.get('quoted_price') ? parseFloat(formData.get('quoted_price') as string) : undefined,
-                      message: formData.get('message') as string || undefined
-                    });
-                  }}>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!editingQuote) return;
+                      const payload: QuoteUpdatePayload = {
+                        status: quoteStatusValue,
+                        notify_user: notifyQuoteUser,
+                        status_message: statusMessageValue,
+                      };
+                      if (quotePriceValue.trim() !== '') {
+                        payload.quoted_price = Number(quotePriceValue);
+                      }
+                      updateQuote(editingQuote.id, payload);
+                    }}
+                  >
                     <div className="form-group">
                       <label>Estado:</label>
-                      <select name="status" defaultValue={editingQuote.status}>
+                      <select
+                        value={quoteStatusValue}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          setQuoteStatusValue(newStatus);
+                          if (!statusMessageEdited) {
+                            setStatusMessageValue(QUOTE_STATUS_DEFAULT_MESSAGES[newStatus] || '');
+                          }
+                        }}
+                      >
                         <option value="pending">Pendiente</option>
                         <option value="contacted">Contactado</option>
                         <option value="quoted">Cotizado</option>
@@ -671,21 +736,52 @@ const AdminPanel: React.FC = () => {
                     </div>
                     <div className="form-group">
                       <label>Precio Cotizado (CLP):</label>
-                      <input 
-                        type="number" 
-                        name="quoted_price" 
-                        defaultValue={editingQuote.quoted_price || ''}
+                      <input
+                        type="number"
+                        value={quotePriceValue}
                         min="0"
                         step="0.01"
+                        onChange={(e) => setQuotePriceValue(e.target.value)}
                       />
                     </div>
                     <div className="form-group">
-                      <label>Mensaje/Notas:</label>
-                      <textarea 
-                        name="message" 
-                        rows={4}
-                        defaultValue={editingQuote.message || ''}
+                      <label>Mensaje del cliente:</label>
+                      <textarea
+                        readOnly
+                        rows={3}
+                        value={editingQuote.message || 'Sin mensaje proporcionado.'}
                       />
+                    </div>
+                    <div className="form-group">
+                      <label>Mensaje para el cliente:</label>
+                      <textarea
+                        rows={4}
+                        value={statusMessageValue}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setStatusMessageValue(value);
+                          const defaultMessage = QUOTE_STATUS_DEFAULT_MESSAGES[quoteStatusValue] || '';
+                          const normalizedDefault = defaultMessage.replace(/\s+/g, ' ').trim();
+                          const normalizedValue = value.replace(/\s+/g, ' ').trim();
+                          setStatusMessageEdited(normalizedValue !== normalizedDefault);
+                        }}
+                      />
+                      <small>
+                        Este mensaje se guardará y, si seleccionas notificar, se enviará por correo al cliente.
+                      </small>
+                    </div>
+                    <div className="form-group checkbox-inline">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={notifyQuoteUser}
+                          onChange={(e) => setNotifyQuoteUser(e.target.checked)}
+                        />
+                        {' '}Enviar correo de estado al cliente
+                      </label>
+                      <small>
+                        El correo incluirá el mensaje anterior y un resumen del nuevo estado.
+                      </small>
                     </div>
                     <div className="form-actions">
                       <button type="submit" className="btn-primary">Guardar</button>

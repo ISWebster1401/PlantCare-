@@ -94,6 +94,43 @@ const RegisterFormEmbedded: React.FC = () => {
 
   return (
     <div className="register-form-container">
+      {/* 🎯 CSS INLINE GARANTIZADO - NO DEPENDE DE CACHÉ */}
+      <style>{`
+        .form-row-inline {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          gap: 20px !important;
+          margin-bottom: 25px !important;
+        }
+        
+        .form-row-inline .form-group {
+          margin-bottom: 0 !important;
+        }
+        
+        /* 🎨 FIX: Mejorar visibilidad de los select */
+        .form-group select {
+          color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* Placeholder del select (primera opción) */
+        .form-group select option[value=""] {
+          color: rgba(255, 255, 255, 0.5) !important;
+        }
+        
+        /* Opciones normales del select */
+        .form-group select option:not([value=""]) {
+          color: #ffffff !important;
+          background: #1a1a1a !important;
+        }
+        
+        @media (max-width: 768px) {
+          .form-row-inline {
+            grid-template-columns: 1fr !important;
+            gap: 15px !important;
+          }
+        }
+      `}</style>
+
       <form className="register-form" onSubmit={handleSubmit}>
         <h3>Registra tu Viña</h3>
         <p className="form-subtitle">Completa la información para comenzar</p>
@@ -108,7 +145,8 @@ const RegisterFormEmbedded: React.FC = () => {
           {success}
         </div>
 
-        <div className="form-row">
+        {/* ✅ NOMBRE Y APELLIDO EN 2 COLUMNAS */}
+        <div className="form-row-inline">
           <div className="form-group">
             <label htmlFor="first_name">Nombre</label>
             <input
@@ -137,6 +175,7 @@ const RegisterFormEmbedded: React.FC = () => {
           </div>
         </div>
 
+        {/* ✅ EMAIL SOLO (OCUPA TODO EL ANCHO) */}
         <div className="form-group">
           <label htmlFor="email">Correo Electrónico</label>
           <input
@@ -151,7 +190,8 @@ const RegisterFormEmbedded: React.FC = () => {
           />
         </div>
 
-        <div className="form-row">
+        {/* ✅ TELÉFONO Y REGIÓN EN 2 COLUMNAS */}
+        <div className="form-row-inline">
           <div className="form-group">
             <label htmlFor="phone">Teléfono</label>
             <input
@@ -188,6 +228,7 @@ const RegisterFormEmbedded: React.FC = () => {
           </div>
         </div>
 
+        {/* ✅ NOMBRE DE VIÑA SOLO (OCUPA TODO EL ANCHO) */}
         <div className="form-group">
           <label htmlFor="vineyard_name">Nombre de la Viña</label>
           <input
@@ -202,7 +243,8 @@ const RegisterFormEmbedded: React.FC = () => {
           />
         </div>
 
-        <div className="form-row">
+        {/* ✅ HECTÁREAS Y TIPO DE UVA EN 2 COLUMNAS */}
+        <div className="form-row-inline">
           <div className="form-group">
             <label htmlFor="hectares">Hectáreas</label>
             <input
@@ -240,7 +282,8 @@ const RegisterFormEmbedded: React.FC = () => {
           </div>
         </div>
 
-        <div className="form-row">
+        {/* ✅ CONTRASEÑA Y CONFIRMAR EN 2 COLUMNAS */}
+        <div className="form-row-inline">
           <div className="form-group">
             <label htmlFor="password">Contraseña</label>
             <input

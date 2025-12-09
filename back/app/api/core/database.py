@@ -180,9 +180,21 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "humedad_aire": "DOUBLE PRECISION CHECK (humedad_aire >= 0 AND humedad_aire <= 100)",
                 "fecha": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
                 "bateria": "DOUBLE PRECISION CHECK (bateria >= 0 AND bateria <= 100)",
-                "senal": "INTEGER CHECK (senal >= -100 AND senal <= 0)"
+                "senal": "INTEGER CHECK (senal >= -100 AND senal <= 0)",
+                "presion": "DOUBLE PRECISION",
+                "altitud": "DOUBLE PRECISION",
+                "timestamp_sensor": "TIMESTAMP"
             })
             logger.info("✅ Tabla sensor_humedad_suelo creada exitosamente")
+        else:
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS luz DOUBLE PRECISION")
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS temperatura DOUBLE PRECISION")
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS humedad_aire DOUBLE PRECISION")
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS bateria DOUBLE PRECISION")
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS senal INTEGER")
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS presion DOUBLE PRECISION")
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS altitud DOUBLE PRECISION")
+            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS timestamp_sensor TIMESTAMP")
         
         # Tabla de alertas
         if "alerts" not in tables:
@@ -251,6 +263,7 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "assigned_to": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
                 "quoted_price": "DECIMAL(12,2)",
                 "quoted_at": "TIMESTAMP",
+                "status_message": "TEXT",
                 "ip_address": "VARCHAR(45)",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
@@ -271,6 +284,7 @@ async def _create_tables(db: AsyncPgDbToolkit):
             await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS budget_range VARCHAR(50)")
             await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)")
             await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS status_message TEXT")
             
     except Exception as e:
         log_error_with_context(e, "create_tables")

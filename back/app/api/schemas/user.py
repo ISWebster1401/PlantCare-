@@ -64,6 +64,10 @@ class UserLogin(BaseModel):
     email: EmailStr = Field(..., description="Email del usuario")
     password: str = Field(..., description="Contraseña del usuario")
 
+class GoogleAuthRequest(BaseModel):
+    """Payload para autenticación con Google"""
+    credential: str = Field(..., description="ID token devuelto por Google Identity Services")
+
 class UserUpdate(BaseModel):
     """Esquema para actualizar usuario"""
     first_name: Optional[str] = Field(None, min_length=2, max_length=100)

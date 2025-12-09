@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { deviceAPI, humedadAPI } from '../services/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,6 +13,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
+import type { ChartOptions } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { DeviceCardIcon, ChartIcon, HumidityIcon, AlertIcon, BellIcon, RefreshIcon, LineChartIcon } from './Icons';
 import './DashboardCharts.css';
@@ -29,16 +31,66 @@ ChartJS.register(
   Filler
 );
 
+interface Device {
+  id: number;
+  device_code: string;
+  name: string;
+  location?: string;
+  plant_type?: string;
+  device_type: string;
+  connected: boolean;
+  last_seen?: string;
+  created_at: string;
+}
+
+interface DeviceListResponse {
+  devices: Device[];
+  total: number;
+  connected: number;
+  active: number;
+  offline: number;
+}
+
+interface HumedadReading {
+  id: number;
+  valor: number;
+  fecha: string;
+  temperatura?: number | null;
+  presion?: number | null;
+  altitud?: number | null;
+  device_id: number;
+}
+
+interface DashboardAlert {
+  id: string;
+  device_id: number;
+  device_name: string;
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+  action?: string;
+}
+
+interface ChartEntry {
+  bucket: string;
+  device_id: number;
+  humidity: number | null;
+  temperature: number | null;
+  pressure: number | null;
+  altitude: number | null;
+}
+
 interface DashboardData {
-  devices: any[];
+  devices: Device[];
   summary: {
     total_devices: number;
     active_devices: number;
-    total_readings_today: number;
-    avg_humidity_all: number;
+    connected_devices: number;
+    offline_devices: number;
+    total_readings: number;
+    averages: Record<MetricKey, number>;
   };
-  chart_data: any[];
-  alerts: any[];
+  chart_data: ChartEntry[];
+  alerts: DashboardAlert[];
   ai_insights: string;
   generated_at: string;
 }
@@ -67,6 +119,66 @@ interface DeviceReport {
 
 type ViewMode = 'line' | 'gauge';
 
+type MetricKey = 'humidity' | 'temperature' | 'pressure' | 'altitude';
+type Timeframe = 'minute' | 'hour' | 'day';
+
+const METRIC_INFO: Record<
+  MetricKey,
+  { label: string; unit: string; min: number; max: number; decimals: number; icon: string }
+> = {
+  humidity: {
+    label: 'Humedad',
+    unit: '%',
+    min: 0,
+    max: 100,
+    decimals: 0,
+    icon: '💧',
+  },
+  temperature: {
+    label: 'Temperatura',
+    unit: '°C',
+    min: -10,
+    max: 50,
+    decimals: 1,
+    icon: '🌡️',
+  },
+  pressure: {
+    label: 'Presión',
+    unit: 'hPa',
+    min: 900,
+    max: 1100,
+    decimals: 1,
+    icon: '🌬️',
+  },
+  altitude: {
+    label: 'Altitud',
+    unit: 'm',
+    min: 0,
+    max: 3000,
+    decimals: 0,
+    icon: '🏔️',
+  },
+};
+
+const METRIC_ORDER: MetricKey[] = ['humidity', 'temperature', 'pressure', 'altitude'];
+const TIMEFRAME_OPTIONS: { key: Timeframe; label: string }[] = [
+  { key: 'minute', label: 'Minuto' },
+  { key: 'hour', label: 'Hora' },
+  { key: 'day', label: 'Día' },
+];
+
+const TIMEFRAME_STEP_MS: Record<Timeframe, number> = {
+  minute: 60 * 1000,
+  hour: 60 * 60 * 1000,
+  day: 24 * 60 * 60 * 1000,
+};
+
+const timeframeFriendlyLabel: Record<Timeframe, string> = {
+  minute: 'por minuto',
+  hour: 'por hora',
+  day: 'por día',
+};
+
 const DashboardCharts: React.FC = () => {
   const { token } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -75,73 +187,241 @@ const DashboardCharts: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('line');
+  const [selectedMetric, setSelectedMetric] = useState<MetricKey>('humidity');
+  const [timeframe, setTimeframe] = useState<Timeframe>('hour');
+
+  const truncateDateToTimeframe = useCallback((date: Date, frame: Timeframe): Date | null => {
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    const step = TIMEFRAME_STEP_MS[frame];
+    const truncated = new Date(Math.floor(date.getTime() / step) * step);
+    return truncated;
+  }, []);
+
+  const formatBucketLabel = useCallback((isoString: string, frame: Timeframe): string => {
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) {
+      return isoString;
+    }
+
+    if (frame === 'day') {
+      return date.toLocaleDateString('es-ES', {
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+
+    if (frame === 'hour') {
+      const dayPart = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+      const hourPart = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      return `${dayPart} ${hourPart}`;
+    }
+
+    return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  }, []);
 
   const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // Datos falsos por defecto para mostrar gráficos inmediatamente
-      const fakeData: DashboardData = {
-        devices: [
-          { id: 1, name: 'Sensor Viña Norte', plant_type: 'Uva Carmenere', location: 'Campo A1' },
-          { id: 2, name: 'Sensor Viña Sur', plant_type: 'Uva Cabernet', location: 'Campo B2' },
-          { id: 3, name: 'Sensor Viña Central', plant_type: 'Uva Merlot', location: 'Campo C3' }
-        ],
-        summary: {
-          total_devices: 3,
-          active_devices: 3,
-          total_readings_today: 156,
-          avg_humidity_all: 68.5
-        },
-        chart_data: [
-          { day: '2024-03-15', avg_humidity: 65, device_id: 1 },
-          { day: '2024-03-16', avg_humidity: 67, device_id: 1 },
-          { day: '2024-03-17', avg_humidity: 69, device_id: 1 },
-          { day: '2024-03-18', avg_humidity: 71, device_id: 1 },
-          { day: '2024-03-19', avg_humidity: 70, device_id: 1 },
-          { day: '2024-03-20', avg_humidity: 68, device_id: 1 },
-          { day: '2024-03-15', avg_humidity: 62, device_id: 2 },
-          { day: '2024-03-16', avg_humidity: 64, device_id: 2 },
-          { day: '2024-03-17', avg_humidity: 66, device_id: 2 },
-          { day: '2024-03-18', avg_humidity: 67, device_id: 2 },
-          { day: '2024-03-19', avg_humidity: 65, device_id: 2 },
-          { day: '2024-03-20', avg_humidity: 63, device_id: 2 },
-          { day: '2024-03-15', avg_humidity: 70, device_id: 3 },
-          { day: '2024-03-16', avg_humidity: 71, device_id: 3 },
-          { day: '2024-03-17', avg_humidity: 69, device_id: 3 },
-          { day: '2024-03-18', avg_humidity: 68, device_id: 3 },
-          { day: '2024-03-19', avg_humidity: 67, device_id: 3 },
-          { day: '2024-03-20', avg_humidity: 66, device_id: 3 }
-        ],
-        alerts: [
-          { id: 1, type: 'warning', urgency: 'medium', device_name: 'Sensor Viña Norte', message: 'Humedad por encima del rango óptimo', action: 'Revisar riego en la zona A1' },
-          { id: 2, type: 'info', urgency: 'low', device_name: 'Sensor Viña Sur', message: 'Condiciones estables', action: 'Continuar monitoreo' }
-        ],
-        ai_insights: 'Los sensores muestran una tendencia estable de humedad. Recomendamos monitorear la temperatura durante las próximas 48 horas.',
-        generated_at: new Date().toISOString()
-      };
-      
-      setDashboardData(fakeData);
       setError('');
-      
-      // Intentar cargar datos reales en segundo plano
-      try {
-        const realData = await apiCall('/api/reports/user/dashboard-data');
-        const hasDevices = Array.isArray((realData as any).devices) && (realData as any).devices.length > 0;
-        const hasChart = Array.isArray((realData as any).chart_data) && (realData as any).chart_data.length > 0;
-        if (hasDevices && hasChart) {
-          setDashboardData(realData);
-        }
-      } catch (err) {
-        // Si falla, mantener los datos falsos
-        console.log('Usando datos de demostración');
+
+      const deviceResponse: DeviceListResponse = await deviceAPI.getMyDevices();
+      const devices = deviceResponse.devices || [];
+
+      if (devices.length === 0) {
+        setDashboardData({
+          devices: [],
+          summary: {
+            total_devices: 0,
+            active_devices: 0,
+            connected_devices: 0,
+            offline_devices: 0,
+            total_readings: 0,
+            averages: {
+              humidity: 0,
+              temperature: 0,
+              pressure: 0,
+              altitude: 0,
+            },
+          },
+          chart_data: [],
+          alerts: [],
+          ai_insights: 'Conecta tu primer sensor para comenzar a recibir métricas y recomendaciones.',
+          generated_at: new Date().toISOString(),
+        });
+        return;
       }
+
+      const readingsByDevice = await Promise.all(
+        devices.map(async (device) => {
+          try {
+            const readings: HumedadReading[] = await humedadAPI.getHumedadData(device.device_code, 200);
+            return { device, readings };
+          } catch (err) {
+            console.error(`Error cargando lecturas para ${device.device_code}`, err);
+            return { device, readings: [] as HumedadReading[] };
+          }
+        })
+      );
+
+      const chartEntries: ChartEntry[] = [];
+      const totals: Record<MetricKey, { sum: number; count: number }> = {
+        humidity: { sum: 0, count: 0 },
+        temperature: { sum: 0, count: 0 },
+        pressure: { sum: 0, count: 0 },
+        altitude: { sum: 0, count: 0 },
+      };
+      let totalReadings = 0;
+      const alerts: DashboardAlert[] = [];
+
+      const calculateAverage = (values: number[], decimals = 2): number | null => {
+        if (!values.length) {
+          return null;
+        }
+        const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+        return Number(average.toFixed(decimals));
+      };
+
+      readingsByDevice.forEach(({ device, readings }) => {
+        if (!Array.isArray(readings) || readings.length === 0) {
+          return;
+        }
+
+        const grouped = readings.reduce<
+          Record<string, { humidity: number[]; temperature: number[]; pressure: number[]; altitude: number[] }>
+        >((acc, reading) => {
+          const date = new Date(reading.fecha);
+          const bucketDate = truncateDateToTimeframe(date, timeframe);
+          if (!bucketDate) {
+            return acc;
+          }
+
+          const bucketKey = bucketDate.toISOString();
+          if (!acc[bucketKey]) {
+            acc[bucketKey] = {
+              humidity: [],
+              temperature: [],
+              pressure: [],
+              altitude: [],
+            };
+          }
+
+          acc[bucketKey].humidity.push(Number(reading.valor));
+
+          if (reading.temperatura !== null && reading.temperatura !== undefined) {
+            acc[bucketKey].temperature.push(Number(reading.temperatura));
+          }
+          if (reading.presion !== null && reading.presion !== undefined) {
+            acc[bucketKey].pressure.push(Number(reading.presion));
+          }
+          if (reading.altitud !== null && reading.altitud !== undefined) {
+            acc[bucketKey].altitude.push(Number(reading.altitud));
+          }
+          return acc;
+        }, {});
+
+        readings.forEach((reading) => {
+          totalReadings += 1;
+          const humidityValue = Number(reading.valor);
+          totals.humidity.sum += humidityValue;
+          totals.humidity.count += 1;
+
+          if (reading.temperatura !== null && reading.temperatura !== undefined) {
+            const tempValue = Number(reading.temperatura);
+            totals.temperature.sum += tempValue;
+            totals.temperature.count += 1;
+          }
+          if (reading.presion !== null && reading.presion !== undefined) {
+            const pressureValue = Number(reading.presion);
+            totals.pressure.sum += pressureValue;
+            totals.pressure.count += 1;
+          }
+          if (reading.altitud !== null && reading.altitud !== undefined) {
+            const altitudeValue = Number(reading.altitud);
+            totals.altitude.sum += altitudeValue;
+            totals.altitude.count += 1;
+          }
+        });
+
+        Object.entries(grouped).forEach(([bucket, values]) => {
+          chartEntries.push({
+            bucket,
+            device_id: device.id,
+            humidity: calculateAverage(values.humidity, 2),
+            temperature: calculateAverage(values.temperature, METRIC_INFO.temperature.decimals),
+            pressure: calculateAverage(values.pressure, METRIC_INFO.pressure.decimals),
+            altitude: calculateAverage(values.altitude, METRIC_INFO.altitude.decimals),
+          });
+        });
+
+        const latest = readings[0];
+        if (latest) {
+          if (latest.valor <= 30 || latest.valor >= 75) {
+            alerts.push({
+              id: `${device.id}-${latest.id}`,
+              device_id: device.id,
+              device_name: device.name || device.device_code,
+              severity: latest.valor <= 30 ? 'low' : 'medium',
+              message:
+                latest.valor <= 30
+                  ? `Humedad baja detectada (${latest.valor.toFixed(1)}%).`
+                  : `Humedad alta detectada (${latest.valor.toFixed(1)}%).`,
+              action:
+                latest.valor <= 30
+                  ? 'Considera aumentar el riego o revisar el sistema de irrigación.'
+                  : 'Verifica el riego y drenaje para evitar exceso de humedad.',
+            });
+          }
+        }
+      });
+
+      chartEntries.sort((a, b) => new Date(a.bucket).getTime() - new Date(b.bucket).getTime());
+
+      const summary = {
+        total_devices: deviceResponse.total ?? devices.length,
+        active_devices: deviceResponse.active ?? deviceResponse.connected ?? devices.filter((d) => d.connected).length,
+        connected_devices: deviceResponse.connected ?? devices.filter((d) => d.connected).length,
+        offline_devices: deviceResponse.offline ?? devices.filter((d) => !d.connected).length,
+        total_readings: totalReadings,
+        averages: {
+          humidity:
+            totals.humidity.count > 0
+              ? Number((totals.humidity.sum / totals.humidity.count).toFixed(METRIC_INFO.humidity.decimals))
+              : 0,
+          temperature:
+            totals.temperature.count > 0
+              ? Number((totals.temperature.sum / totals.temperature.count).toFixed(METRIC_INFO.temperature.decimals))
+              : 0,
+          pressure:
+            totals.pressure.count > 0
+              ? Number((totals.pressure.sum / totals.pressure.count).toFixed(METRIC_INFO.pressure.decimals))
+              : 0,
+          altitude:
+            totals.altitude.count > 0
+              ? Number((totals.altitude.sum / totals.altitude.count).toFixed(METRIC_INFO.altitude.decimals))
+              : 0,
+        } as Record<MetricKey, number>,
+      };
+
+      setDashboardData({
+        devices,
+        summary,
+        chart_data: chartEntries,
+        alerts,
+        ai_insights:
+          totalReadings > 0
+            ? 'Tus métricas se están generando en base a datos reales de tus sensores conectados.'
+            : 'Tus dispositivos están conectados. Aguardamos lecturas para mostrar tendencias.',
+        generated_at: new Date().toISOString(),
+      });
     } catch (err: any) {
-      setError(err.message);
+      console.error('Error cargando el dashboard', err);
+      setError(err.response?.data?.detail || err.message || 'Error al cargar el dashboard');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [timeframe, truncateDateToTimeframe]);
 
   useEffect(() => {
     loadDashboardData();
@@ -216,31 +496,71 @@ const DashboardCharts: React.FC = () => {
     );
   }
 
-  // Preparar datos para el gráfico de líneas (humedad por día)
-  const chartData = {
-    labels: Array.from(new Set((dashboardData.chart_data || []).map(d => new Date((d as any).day || (d as any).date).toLocaleDateString()))),
-    datasets: (dashboardData.devices || []).map((device, index) => {
-      const deviceData = (dashboardData.chart_data || []).filter(d => (d as any).device_id === device.id);
-      const colors = [
-        'rgba(74, 222, 128, 0.8)',
-        'rgba(59, 130, 246, 0.8)',
-        'rgba(245, 158, 11, 0.8)',
-        'rgba(239, 68, 68, 0.8)',
-        'rgba(139, 92, 246, 0.8)'
-      ];
-      
-      return {
-        label: device.name || `Dispositivo ${device.id}`,
-        data: deviceData.map(d => (d as any).avg_humidity ?? (d as any).humidity ?? 0),
-        borderColor: colors[index % colors.length],
-        backgroundColor: colors[index % colors.length].replace('0.8', '0.2'),
-        fill: false,
-        tension: 0.4
-      };
-    })
+  // Preparar datos para el gráfico de líneas
+  const chartLabelsIso = Array.from(
+    new Set((dashboardData.chart_data || []).map((d) => d.bucket))
+  ).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  const chartLabels = chartLabelsIso.map((iso) => formatBucketLabel(iso, timeframe));
+
+  const colorPalette = [
+    'rgba(74, 222, 128, 0.8)',
+    'rgba(59, 130, 246, 0.8)',
+    'rgba(245, 158, 11, 0.8)',
+    'rgba(239, 68, 68, 0.8)',
+    'rgba(139, 92, 246, 0.8)',
+  ];
+
+  const metricInfo = METRIC_INFO[selectedMetric];
+  const chartUnitSuffix =
+    metricInfo.unit ? (metricInfo.unit === '%' ? metricInfo.unit : ` ${metricInfo.unit}`) : '';
+
+  const formatMetricValue = (
+    value: number | null | undefined,
+    metric: MetricKey,
+    options: { withUnit?: boolean; decimals?: number } = {}
+  ): string => {
+    const { withUnit = true, decimals } = options;
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '--';
+    }
+    const info = METRIC_INFO[metric];
+    const precision = decimals ?? info.decimals;
+    const formatted = Number(value).toFixed(precision);
+    if (!withUnit || !info.unit) {
+      return formatted;
+    }
+    const suffix = info.unit === '%' ? info.unit : ` ${info.unit}`;
+    return `${formatted}${suffix}`;
   };
 
-  const chartOptions = {
+  const chartData = {
+    labels: chartLabels,
+    datasets: (dashboardData.devices || []).map((device, index) => {
+      const deviceData = (dashboardData.chart_data || []).filter(
+        (entry) => entry.device_id === device.id
+      );
+      const valuesByDay = deviceData.reduce<Record<string, number | null>>((acc, entry) => {
+        const value = entry[selectedMetric];
+        acc[entry.bucket] = value !== null && value !== undefined ? Number(value) : null;
+        return acc;
+      }, {});
+
+      return {
+        label: device.name || `Dispositivo ${device.id}`,
+        data: chartLabelsIso.map((day) =>
+          valuesByDay[day] !== undefined ? valuesByDay[day] : null
+        ),
+        borderColor: colorPalette[index % colorPalette.length],
+        backgroundColor: colorPalette[index % colorPalette.length].replace('0.8', '0.2'),
+        spanGaps: true,
+        fill: false,
+        tension: 0.4,
+      };
+    }),
+  };
+
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     plugins: {
       legend: {
@@ -248,35 +568,67 @@ const DashboardCharts: React.FC = () => {
       },
       title: {
         display: true,
-        text: 'Humedad del Suelo - Últimos 7 Días'
+        text: `Tendencia de ${metricInfo.label} (${timeframeFriendlyLabel[timeframe]})`,
       },
     },
     scales: {
       y: {
-        beginAtZero: true,
-        max: 100,
+        min: metricInfo.min,
+        max: metricInfo.max,
         title: {
           display: true,
-          text: 'Humedad (%)'
-        }
-      }
+          text: `${metricInfo.label}${chartUnitSuffix}`,
+        },
+        ticks: {
+          callback: (value: string | number) =>
+            `${value}${metricInfo.unit ? (metricInfo.unit === '%' ? metricInfo.unit : ` ${metricInfo.unit}`) : ''}`,
+        },
+      },
     },
   };
 
-  // Valor para gauge: promedio de la última fecha disponible
-  const lastDate = (dashboardData?.chart_data || []).reduce<string | null>((acc, d: any) => {
-    const day = d.day || d.date;
+  const selectedAverageValue =
+    dashboardData.summary?.averages?.[selectedMetric] ?? null;
+  const selectedAverageDisplay = formatMetricValue(selectedAverageValue, selectedMetric);
+  const connectedDevices = dashboardData.summary?.connected_devices ?? 0;
+  const totalDevices = dashboardData.summary?.total_devices ?? 0;
+  const totalReadings = dashboardData.summary?.total_readings ?? 0;
+  const alertsCount = (dashboardData.alerts || []).length;
+
+  // Valor para gauge: promedio de la última fecha disponible del metric seleccionado
+  const lastDate = (dashboardData?.chart_data || []).reduce<string | null>((acc, entry) => {
+    const day = entry.bucket;
     if (!day) return acc;
     if (!acc) return day;
     return new Date(day) > new Date(acc) ? day : acc;
   }, null);
-  const gaugeValue = (() => {
-    if (!lastDate) return Math.round(dashboardData?.summary?.avg_humidity_all ?? 0);
-    const items = (dashboardData?.chart_data || []).filter((d: any) => (d.day || d.date) === lastDate);
-    if (items.length === 0) return Math.round(dashboardData?.summary?.avg_humidity_all ?? 0);
-    const avg = items.reduce((s: number, d: any) => s + (d.avg_humidity ?? d.humidity ?? 0), 0) / items.length;
-    return Math.round(avg);
+
+  const gaugeDisplayValue = (() => {
+    if (!lastDate) {
+      return selectedAverageValue;
+    }
+    const items = (dashboardData?.chart_data || []).filter((entry) => entry.bucket === lastDate);
+    const values = items
+      .map((entry) => entry[selectedMetric])
+      .filter((value): value is number => value !== null && value !== undefined && !Number.isNaN(value));
+
+    if (values.length === 0) {
+      return selectedAverageValue;
+    }
+
+    const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return Number(avg.toFixed(metricInfo.decimals));
   })();
+
+  const metricRange = Math.max(metricInfo.max - metricInfo.min, 1);
+  const gaugeRatio =
+    gaugeDisplayValue !== null && gaugeDisplayValue !== undefined
+      ? (gaugeDisplayValue - metricInfo.min) / metricRange
+      : 0;
+  const gaugeClamped = Math.max(0, Math.min(1, gaugeRatio));
+  const gaugeValuePercent = gaugeClamped * 100;
+  const gaugeDisplayText = formatMetricValue(gaugeDisplayValue, selectedMetric);
+  const gaugeTicks = [0, 0.25, 0.5, 0.75, 1];
 
   return (
     <div className="dashboard-charts">
@@ -287,8 +639,11 @@ const DashboardCharts: React.FC = () => {
             <DeviceCardIcon />
           </div>
           <div className="stat-content">
-            <h3>{dashboardData.summary?.total_devices ?? 0}</h3>
+            <h3>{connectedDevices}</h3>
             <p>Dispositivos Conectados</p>
+            {totalDevices > 0 && (
+              <small className="stat-subtext">de {totalDevices} totales</small>
+            )}
           </div>
         </div>
         
@@ -297,8 +652,8 @@ const DashboardCharts: React.FC = () => {
             <ChartIcon />
           </div>
           <div className="stat-content">
-            <h3>{dashboardData.summary?.total_readings_today ?? 0}</h3>
-            <p>Lecturas Hoy</p>
+            <h3>{totalReadings}</h3>
+            <p>Lecturas Registradas</p>
           </div>
         </div>
         
@@ -307,8 +662,9 @@ const DashboardCharts: React.FC = () => {
             <HumidityIcon />
           </div>
           <div className="stat-content">
-            <h3>{dashboardData.summary?.avg_humidity_all ?? 0}%</h3>
-            <p>Humedad Promedio</p>
+            <h3>{selectedAverageDisplay}</h3>
+            <p>Promedio {metricInfo.label}</p>
+            <small className="stat-subtext">Métrica seleccionada</small>
           </div>
         </div>
         
@@ -317,7 +673,7 @@ const DashboardCharts: React.FC = () => {
             <AlertIcon />
           </div>
           <div className="stat-content">
-            <h3>{(dashboardData.alerts || []).length}</h3>
+            <h3>{alertsCount}</h3>
             <p>Alertas Activas</p>
           </div>
         </div>
@@ -333,27 +689,64 @@ const DashboardCharts: React.FC = () => {
             Alertas Importantes
           </h3>
           <div className="alerts-grid">
-            {(dashboardData.alerts || []).map((alert, index) => (
-              <div key={index} className={`alert-card ${alert.urgency}`}>
+            {(dashboardData.alerts || []).map((alert) => (
+              <div key={alert.id} className={`alert-card ${alert.severity}`}>
                 <div className="alert-header">
                   <span className="alert-type">
-                    {alert.type === 'critical' ? '🔴' : 
-                     alert.type === 'warning' ? '🟡' : '🔵'}
+                    {alert.severity === 'high' ? '🔴' :
+                     alert.severity === 'medium' ? '🟡' : '🔵'}
                   </span>
                   <span className="device-name">{alert.device_name}</span>
                 </div>
                 <p className="alert-message">{alert.message}</p>
-                <p className="alert-action"><strong>Acción:</strong> {alert.action}</p>
+                {alert.action && (
+                  <p className="alert-action">
+                    <strong>Acción:</strong> {alert.action}
+                  </p>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* Selector de métricas */}
+      <div className="metric-tabs">
+        {METRIC_ORDER.map((metric) => {
+          const info = METRIC_INFO[metric];
+          return (
+            <button
+              key={metric}
+              className={`metric-tab ${selectedMetric === metric ? 'active' : ''}`}
+              onClick={() => setSelectedMetric(metric)}
+            >
+              <span className="metric-icon">{info.icon}</span>
+              {info.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="timeframe-tabs">
+        {TIMEFRAME_OPTIONS.map((option) => (
+          <button
+            key={option.key}
+            className={`timeframe-tab ${timeframe === option.key ? 'active' : ''}`}
+            onClick={() => setTimeframe(option.key)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
       {/* Gráfico principal */}
       <div className="chart-section">
-        <h3 className="chart-title">{viewMode === 'line' ? 'Gráfico 1' : 'Gráfico 2'}</h3>
-        {viewMode==='line' ? (
+        <h3 className="chart-title">
+          {viewMode === 'line'
+            ? `Tendencia de ${metricInfo.label} (${timeframeFriendlyLabel[timeframe]})`
+            : `Indicador de ${metricInfo.label}`}
+        </h3>
+        {viewMode === 'line' ? (
           <div className="chart-container">
             <Line data={chartData} options={chartOptions} />
           </div>
@@ -384,13 +777,16 @@ const DashboardCharts: React.FC = () => {
                 filter="url(#glow)"
               />
               {/* Marcas de escala */}
-              {[0, 25, 50, 75, 100].map((val, i) => {
-                const angle = (-180 + (val/100)*180) * Math.PI/180;
+              {gaugeTicks.map((ratio, i) => {
+                const angle = (-180 + ratio * 180) * Math.PI / 180;
                 const cx = 110, cy = 120, r = 85;
                 const x1 = cx + (r-10)*Math.cos(angle);
                 const y1 = cy + (r-10)*Math.sin(angle);
                 const x2 = cx + r*Math.cos(angle);
                 const y2 = cy + r*Math.sin(angle);
+                const tickValue =
+                  metricInfo.min + ratio * (metricInfo.max - metricInfo.min);
+                const tickLabel = formatMetricValue(tickValue, selectedMetric);
                 return (
                   <g key={i}>
                     <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#94a3b8" strokeWidth="2"/>
@@ -402,14 +798,14 @@ const DashboardCharts: React.FC = () => {
                       fontSize="11"
                       fontWeight="500"
                     >
-                      {val}%
+                      {tickLabel}
                     </text>
                   </g>
                 );
               })}
               {/* Aguja */}
               {(() => {
-                const angle = (-180 + (gaugeValue/100)*180) * Math.PI/180;
+                const angle = (-180 + (gaugeValuePercent / 100) * 180) * Math.PI / 180;
                 const cx = 110, cy = 120, r = 80;
                 const x = cx + r*Math.cos(angle);
                 const y = cy + r*Math.sin(angle);
@@ -436,11 +832,11 @@ const DashboardCharts: React.FC = () => {
                 y="90" 
                 textAnchor="middle" 
                 fill="#ffffff" 
-                fontSize="36" 
+                fontSize="32" 
                 fontWeight="700"
                 filter="url(#glow)"
               >
-                {gaugeValue}%
+                {gaugeDisplayText}
               </text>
               <text 
                 x="110" 
@@ -450,7 +846,7 @@ const DashboardCharts: React.FC = () => {
                 fontSize="14"
                 fontWeight="500"
               >
-                Humedad Promedio
+                {metricInfo.label}
               </text>
             </svg>
           </div>
@@ -463,12 +859,12 @@ const DashboardCharts: React.FC = () => {
           {viewMode==='line' ? (
             <>
               <RefreshIcon className="nav-icon" />
-              Cambiar a Gráfico 2
+              Cambiar a Indicador
             </>
           ) : (
             <>
               <LineChartIcon className="nav-icon" />
-              Cambiar a Gráfico 1
+              Cambiar a Tendencia
             </>
           )}
         </button>

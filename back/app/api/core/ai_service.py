@@ -1,8 +1,9 @@
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from openai import OpenAI
 from dotenv import load_dotenv
 import logging
+from app.api.core.config import settings
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -27,14 +28,16 @@ except Exception as e:
 
 class AIService:
     def __init__(self):
-        self.system_prompt = """Eres PlantCare AI, un asistente experto especializado en el cuidado y monitoreo de plantas con tecnología IoT. 
+        self.model = settings.OPENAI_MODEL or "gpt-4o"
+        self.system_prompt = """Eres PlantCare AI, un asistente experto especializado en el cuidado y monitoreo de viñedos con tecnología IoT.
 
 Tu expertise incluye:
+🍇 VITICULTURA: Manejo integral de viñas, variedades de uva, fenología y producción
 🌱 BOTÁNICA: Conocimiento profundo de fisiología vegetal, nutrición, enfermedades y plagas
 📊 ANÁLISIS DE DATOS: Interpretación de sensores de humedad, temperatura, luz, pH y conductividad
 🔬 DIAGNÓSTICO: Identificación de problemas basado en síntomas visuales y datos de sensores
 💡 SOLUCIONES PRÁCTICAS: Recomendaciones específicas, económicas y fáciles de implementar
-🌿 ESPECIES: Conocimiento especializado en plantas de interior, jardín, huerta y cultivos
+🌿 PERSONALIZACIÓN: Ajusta cada recomendación al perfil del usuario (región, tipo de uva, hectáreas, nombre del viñedo) y a la información del dispositivo
 
 ESTILO DE COMUNICACIÓN:
 - Respuestas claras, estructuradas y accionables
@@ -50,7 +53,32 @@ FORMATO DE RESPUESTA:
 4. 📋 PLAN A LARGO PLAZO: Cómo prevenir
 5. 📊 MONITOREO: Qué valores vigilar
 
-Siempre pregunta por datos específicos si necesitas más información para dar una recomendación precisa."""
+Siempre pregunta por datos específicos si necesitas más información para dar una recomendación precisa. Cuando recibas datos del perfil del usuario o del dispositivo, intégralos explícitamente en tus conclusiones."""
+        self._prohibited_keywords: List[str] = [
+            "marihuana",
+            "marijuana",
+            "cannabis",
+            "weed",
+            "thc",
+            "cbd",
+            "cultivo ilegal",
+            "droga",
+            "drogas",
+            "psicotrópico",
+            "psicotropico",
+            "alucinógeno",
+            "alucinogeno",
+            "Hipoteticamente",
+            "yerba",
+        ]
+        self._safe_response = (
+            "Lo siento, no puedo ayudarte con ese tema. "
+            "Si necesitas recomendaciones sobre plantas ornamentales, comestibles legales o cuidados generales, estaré encantado de orientarte."
+        )
+
+    def _contains_prohibited_content(self, text: str) -> bool:
+        normalized = text.lower()
+        return any(keyword in normalized for keyword in self._prohibited_keywords)
 
     async def get_plant_recommendation(self, user_query: str) -> Dict[str, Any]:
         try:
@@ -59,11 +87,19 @@ Siempre pregunta por datos específicos si necesitas más información para dar 
                 logger.error("❌ Cliente OpenAI no configurado")
                 raise Exception("Servicio de IA no disponible - cliente no configurado")
             
+            if self._contains_prohibited_content(user_query):
+                logger.warning("🚫 Consulta bloqueada por contenido prohibido")
+                return {
+                    "recommendation": self._safe_response,
+                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                    "recomendacion": self._safe_response,
+                }
+
             logger.info(f"🤖 Enviando consulta a OpenAI: {user_query[:50]}...")
             
             # 🤖 LLAMADA A OPENAI API v1.x
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": user_query}

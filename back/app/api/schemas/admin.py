@@ -33,6 +33,7 @@ class QuoteAdminResponse(BaseModel):
     quoted_price: Optional[float] = None
     quoted_at: Optional[datetime] = None
     assigned_to: Optional[int] = None
+    status_message: Optional[str] = None
     ip_address: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -44,6 +45,8 @@ class QuoteAdminUpdate(BaseModel):
     quoted_price: Optional[float] = Field(None, ge=0, description="Precio cotizado")
     assigned_to: Optional[int] = Field(None, description="ID del usuario asignado")
     message: Optional[str] = Field(None, max_length=2000, description="Mensaje adicional")
+    status_message: Optional[str] = Field(None, max_length=2000, description="Mensaje visible para el cliente sobre el estado")
+    notify_user: bool = Field(False, description="Si es true se envía un correo al cliente con el estado actualizado")
 
 class UserAdminResponse(BaseModel):
     """Esquema de respuesta para usuarios en panel admin"""

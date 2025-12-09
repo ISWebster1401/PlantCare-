@@ -61,11 +61,19 @@ async def ask_general_question(
         # El usuario ya está validado aquí - current_user contiene sus datos
         logger.info(f"Usuario {current_user['email']} consulta IA: {query.question[:50]}...")
         
-        # Contextualiza la pregunta con datos del usuario
+        profile_context = f"""
+PERFIL DEL PRODUCTOR:
+- Nombre: {current_user.get('first_name')} {current_user.get('last_name')}
+- Región: {current_user.get('region') or 'Sin especificar'}
+- Viñedo: {current_user.get('vineyard_name') or 'Sin especificar'}
+- Hectáreas: {current_user.get('hectares') or 'No informadas'}
+- Variedad de uva principal: {current_user.get('grape_type') or 'No informada'}
+"""
+
         enhanced_query = f"""
-PREGUNTA: {query.question}
-USUARIO: {current_user.get('first_name')} de {current_user.get('region', 'Chile')}
-Responde de forma personalizada y útil.
+{profile_context}
+PREGUNTA DEL USUARIO: {query.question}
+Enfoca tu respuesta en viticultura personalizada para este perfil.
 """
         
         ai_response = await ai_service.get_plant_recommendation(enhanced_query)
@@ -161,9 +169,19 @@ async def analyze_device_data(
         }
         
         # Construir consulta contextualizada
+        profile_context = f"""
+PERFIL DEL PRODUCTOR:
+- Nombre: {current_user.get('first_name')} {current_user.get('last_name')}
+- Región: {current_user.get('region') or 'Sin especificar'}
+- Viñedo: {current_user.get('vineyard_name') or 'Sin especificar'}
+- Hectáreas: {current_user.get('hectares') or 'No informadas'}
+- Variedad de uva principal: {current_user.get('grape_type') or 'No informada'}
+"""
+
         if query.question:
             # Pregunta específica sobre el dispositivo
             enhanced_query = f"""
+{profile_context}
 DISPOSITIVO: {device_info['name']} ({device_info['device_code']})
 UBICACIÓN: {device_info.get('location', 'No especificada')}
 TIPO DE PLANTA: {device_info.get('plant_type', 'No especificada')}
@@ -184,6 +202,7 @@ Analiza estos datos y responde la pregunta específica del usuario.
         else:
             # Análisis general del dispositivo
             enhanced_query = f"""
+{profile_context}
 ANÁLISIS COMPLETO DEL DISPOSITIVO: {device_info['name']}
 
 INFORMACIÓN:

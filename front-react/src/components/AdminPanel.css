@@ -245,19 +245,20 @@
   flex-wrap: wrap;
 }
 
+/* 🎨 FIX: Inputs y selects con mejor visibilidad */
 .filters input,
 .filters select {
   padding: 10px 15px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  color: white;
+  color: rgba(255, 255, 255, 0.95) !important;
   font-size: 14px;
   min-width: 150px;
 }
 
 .filters input::placeholder {
-  color: #94a3b8;
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .filters input:focus,
@@ -265,6 +266,12 @@
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.filters select option {
+  background: #1e293b !important;
+  color: white !important;
 }
 
 /* Tables */
@@ -453,13 +460,14 @@
   font-weight: 500;
 }
 
+/* 🎨 FIX: Form inputs con mejor visibilidad */
 .form-group input,
 .form-group select {
   padding: 10px 15px;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  color: #ffffff !important;
+  color: rgba(255, 255, 255, 0.95) !important;
   font-size: 14px;
   min-width: 150px;
 }
@@ -469,8 +477,12 @@
 .form-group input[type="tel"],
 .form-group input[type="number"],
 .form-group input[type="password"] {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .form-group input:focus,
@@ -479,7 +491,7 @@
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   background: rgba(255, 255, 255, 0.15);
-  color: #ffffff !important;
+  color: rgba(255, 255, 255, 0.95) !important;
 }
 
 .form-group input:-webkit-autofill,
@@ -487,7 +499,12 @@
 .form-group input:-webkit-autofill:focus,
 .form-group input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 30px rgba(255, 255, 255, 0.1) inset !important;
-  -webkit-text-fill-color: #ffffff !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.form-group select option {
+  background: #1e293b !important;
+  color: white !important;
 }
 
 .generated-codes {
@@ -623,9 +640,13 @@
   border: 1px solid rgba(74, 222, 128, 0.3);
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.8);
-  color: white;
+  color: rgba(255, 255, 255, 0.95) !important;
   font-size: 14px;
   min-width: 200px;
+}
+
+.quotes-section .filters input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .quotes-section .filters input:focus,
@@ -633,6 +654,7 @@
   outline: none;
   border-color: #4ade80;
   box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+  color: rgba(255, 255, 255, 0.95) !important;
 }
 
 .quotes-section .filters input {
@@ -795,6 +817,7 @@
   font-weight: 500;
 }
 
+/* 🎨 FIX: Modal inputs con mejor visibilidad */
 .modal-content .form-group select,
 .modal-content .form-group input,
 .modal-content .form-group textarea {
@@ -803,7 +826,7 @@
   border: 1px solid rgba(74, 222, 128, 0.3);
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.8);
-  color: white;
+  color: rgba(255, 255, 255, 0.95) !important;
   font-size: 14px;
   font-family: inherit;
 }
@@ -814,6 +837,35 @@
   outline: none;
   border-color: #4ade80;
   box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.modal-content .form-group textarea[readonly] {
+  background: rgba(15, 23, 42, 0.6);
+  color: rgba(226, 232, 240, 0.7);
+  cursor: not-allowed;
+}
+
+.modal-content .form-group small {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.modal-content .checkbox-inline {
+  gap: 4px;
+}
+
+.modal-content .checkbox-inline label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.modal-content .checkbox-inline input[type="checkbox"] {
+  width: auto;
+  accent-color: #22c55e;
 }
 
 .modal-content .form-actions {

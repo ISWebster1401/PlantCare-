@@ -1,4 +1,4 @@
-import React, { useState, useEffect, CSSProperties } from 'react';
+import React, { useState, useEffect, CSSProperties, useRef } from 'react';
 import { humedadAPI, deviceAPI, aiAPI } from '../services/api';
 import './HumedadView.css';
 
@@ -8,6 +8,9 @@ interface HumedadData {
   fecha: string;
   device_id: number;
   device_name?: string;
+  temperatura?: number | null;
+  presion?: number | null;
+  altitud?: number | null;
 }
 
 interface Device {
@@ -32,20 +35,12 @@ const HumedadView: React.FC = () => {
   const [aiRecommendation, setAiRecommendation] = useState<AIResponse | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [aiQuestion, setAiQuestion] = useState('');
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadDevices();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!selectedDevice) return;
-    const deviceInfo = devices.find((device) => device.id === selectedDevice);
-    if (deviceInfo) {
-      loadHumedadData(deviceInfo);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDevice, devices]);
 
   const loadDevices = async () => {
     try {
@@ -53,7 +48,7 @@ const HumedadView: React.FC = () => {
       const response = await deviceAPI.getMyDevices();
       setDevices(response.devices);
       if (response.devices.length > 0) {
-        const alreadySelected = response.devices.some(device => device.id === selectedDevice);
+        const alreadySelected = response.devices.some((device: Device) => device.id === selectedDevice);
         if (!alreadySelected) {
           setSelectedDevice(response.devices[0].id);
         }
@@ -70,6 +65,7 @@ const HumedadView: React.FC = () => {
   const loadHumedadData = async (device: Device) => {
     try {
       setLoadingData(true);
+      setError(null);
       const data = await humedadAPI.getHumedadData(device.device_code, 50);
       const formatted = Array.isArray(data)
         ? data.map((item: any, index: number) => {
@@ -81,6 +77,15 @@ const HumedadView: React.FC = () => {
               valor: Number(item.valor ?? 0),
               fecha: isoDate,
               device_id: Number(item.device_id ?? device.id),
+              temperatura: item.temperatura !== undefined && item.temperatura !== null
+                ? Number(item.temperatura)
+                : null,
+              presion: item.presion !== undefined && item.presion !== null
+                ? Number(item.presion)
+                : null,
+              altitud: item.altitud !== undefined && item.altitud !== null
+                ? Number(item.altitud)
+                : null,
             } as HumedadData;
           })
         : [];
@@ -91,6 +96,40 @@ const HumedadView: React.FC = () => {
       setLoadingData(false);
     }
   };
+
+  useEffect(() => {
+    const deviceInfo = selectedDevice
+      ? devices.find((device) => device.id === selectedDevice)
+      : null;
+
+    if (!deviceInfo) {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      return;
+    }
+
+    const fetchData = () => {
+      loadHumedadData(deviceInfo);
+    };
+
+    fetchData();
+
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+
+    pollTimerRef.current = setInterval(fetchData, 15000);
+
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDevice, devices]);
 
   const getAIRecommendation = async () => {
     if (!selectedDevice) return;
@@ -146,6 +185,36 @@ const HumedadView: React.FC = () => {
     return { level: 'high', text: 'Alta', color: '#22c55e' };
   };
 
+  const getTemperatureStatus = (valor: number | null) => {
+    if (valor === null) return { text: 'Sin datos', color: '#9ca3af' };
+    if (valor < 10) return { text: 'Muy fría', color: '#38bdf8' };
+    if (valor < 18) return { text: 'Fresca', color: '#60a5fa' };
+    if (valor < 25) return { text: 'Óptima', color: '#22c55e' };
+    if (valor < 32) return { text: 'Cálida', color: '#f59e0b' };
+    return { text: 'Caliente', color: '#ef4444' };
+  };
+
+  const getPressureStatus = (valor: number | null) => {
+    if (valor === null) return { text: 'Sin datos', color: '#9ca3af' };
+    if (valor < 1000) return { text: 'Baja', color: '#f97316' };
+    if (valor <= 1022) return { text: 'Normal', color: '#22c55e' };
+    return { text: 'Alta', color: '#60a5fa' };
+  };
+
+  const getAltitudeStatus = (valor: number | null) => {
+    if (valor === null) return { text: 'Sin datos', color: '#9ca3af' };
+    if (valor < 200) return { text: 'Baja', color: '#22c55e' };
+    if (valor < 1000) return { text: 'Media', color: '#f59e0b' };
+    return { text: 'Alta', color: '#6366f1' };
+  };
+
+  const formatMetric = (valor: number | null | undefined, decimals: number, suffix: string) => {
+    if (valor === null || valor === undefined || Number.isNaN(valor)) {
+      return '--';
+    }
+    return `${Number(valor).toFixed(decimals)} ${suffix}`;
+  };
+
   const getLatestReading = () => {
     if (humedadData.length === 0) return null;
     return humedadData[0];
@@ -190,6 +259,37 @@ const HumedadView: React.FC = () => {
   const humidityProgress = latestReading
     ? Math.max(0, Math.min(100, latestReading.valor)) / 100
     : 0;
+  const latestTemperature = latestReading?.temperatura ?? null;
+  const latestPressure = latestReading?.presion ?? null;
+  const latestAltitude = latestReading?.altitud ?? null;
+
+  const temperatureStatus = getTemperatureStatus(latestTemperature);
+  const pressureStatus = getPressureStatus(latestPressure);
+  const altitudeStatus = getAltitudeStatus(latestAltitude);
+
+  const environmentMetrics = [
+    {
+      label: 'Temperatura',
+      icon: '🌡️',
+      value: formatMetric(latestTemperature, 1, '°C'),
+      status: temperatureStatus.text,
+      color: temperatureStatus.color,
+    },
+    {
+      label: 'Presión',
+      icon: '🌬️',
+      value: formatMetric(latestPressure, 1, 'hPa'),
+      status: pressureStatus.text,
+      color: pressureStatus.color,
+    },
+    {
+      label: 'Altitud',
+      icon: '🏔️',
+      value: formatMetric(latestAltitude, 1, 'm'),
+      status: altitudeStatus.text,
+      color: altitudeStatus.color,
+    },
+  ];
 
   return (
     <div className="humedad-view">
@@ -287,6 +387,22 @@ const HumedadView: React.FC = () => {
         </div>
       </div>
 
+      {/* Variables ambientales */}
+      <div className="environment-cards">
+        {environmentMetrics.map((metric) => (
+          <div key={metric.label} className="env-card">
+            <div className="env-icon">{metric.icon}</div>
+            <div className="env-content">
+              <div className="env-label">{metric.label}</div>
+              <div className="env-value">{metric.value}</div>
+              <div className="env-status" style={{ color: metric.color }}>
+                {metric.status}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Gráfico visual simple */}
       <div className="chart-section">
         <h2>Historial de Humedad</h2>
@@ -335,7 +451,9 @@ const HumedadView: React.FC = () => {
             <div className="table-header">
               <div className="table-cell">Fecha y Hora</div>
               <div className="table-cell">Humedad</div>
-              <div className="table-cell">Estado</div>
+              <div className="table-cell">Temperatura</div>
+              <div className="table-cell">Presión</div>
+              <div className="table-cell">Altitud</div>
             </div>
             {humedadData.map((item) => {
               const level = getHumidityLevel(item.valor);
@@ -352,14 +470,27 @@ const HumedadView: React.FC = () => {
                   </div>
                   <div className="table-cell">
                     <span className="humidity-value">{item.valor}%</span>
-                  </div>
-                  <div className="table-cell">
-                    <span 
+                    <span
                       className="humidity-status"
                       style={{ color: level.color }}
                     >
                       {level.text}
                     </span>
+                  </div>
+                  <div className="table-cell">
+                    {item.temperatura !== null && item.temperatura !== undefined
+                      ? `${Number(item.temperatura).toFixed(1)} °C`
+                      : '--'}
+                  </div>
+                  <div className="table-cell">
+                    {item.presion !== null && item.presion !== undefined
+                      ? `${Number(item.presion).toFixed(1)} hPa`
+                      : '--'}
+                  </div>
+                  <div className="table-cell">
+                    {item.altitud !== null && item.altitud !== undefined
+                      ? `${Number(item.altitud).toFixed(1)} m`
+                      : '--'}
                   </div>
                 </div>
               );
