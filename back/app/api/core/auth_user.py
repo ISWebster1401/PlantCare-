@@ -166,7 +166,9 @@ class AuthService:
             if not user:
                 return None
             
-            if not AuthService.verify_password(password, user["password_hash"]):
+            # Compatibilidad con ambos esquemas
+            password_field = user.get("hashed_password") or user.get("password_hash")
+            if not password_field or not AuthService.verify_password(password, password_field):
                 return None
             
             # Actualizar último login
@@ -209,11 +211,14 @@ class AuthService:
             # Hash de la contraseña
             password_hash = AuthService.get_password_hash(user_data["password"])
             
-            # Crear usuario
-            user_dict = user_data.copy()
-            user_dict.pop("password", None)
-            user_dict.pop("confirm_password", None)
-            user_dict["password_hash"] = password_hash
+            # Crear usuario (ESQUEMA V2 CON role_id)
+            user_dict = {
+                "email": user_data["email"],
+                "full_name": user_data.get("full_name", ""),
+                "hashed_password": password_hash,
+                "role_id": 1,  # 1 = user, 2 = admin
+                "is_active": True
+            }
             
             logger.info("AuthService: Creando usuario en base de datos")
             # ✅ CORRECTO: Pasar db a create_user también
@@ -273,49 +278,43 @@ class AuthService:
                     detail="Tu cuenta de Google aún no está verificada"
                 )
 
-            allowed_domains = [
-                domain.strip().lower()
-                for domain in settings.GOOGLE_ALLOWED_DOMAINS.split(",")
-                if domain.strip()
-            ]
-            if allowed_domains:
-                domain = email.split("@")[-1].lower()
-                if domain not in allowed_domains:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="El dominio de tu email no está autorizado"
-                    )
+            # Solo validar dominio si GOOGLE_ALLOWED_DOMAINS está configurado y no está vacío
+            if settings.GOOGLE_ALLOWED_DOMAINS and settings.GOOGLE_ALLOWED_DOMAINS.strip():
+                allowed_domains = [
+                    domain.strip().lower()
+                    for domain in settings.GOOGLE_ALLOWED_DOMAINS.split(",")
+                    if domain.strip()
+                ]
+                if allowed_domains:
+                    domain = email.split("@")[-1].lower()
+                    if domain not in allowed_domains:
+                        logger.warning(f"Intento de login con dominio no autorizado: {domain}")
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="El dominio de tu email no está autorizado"
+                        )
+            else:
+                logger.info("GOOGLE_ALLOWED_DOMAINS no configurado, permitiendo cualquier dominio")
 
-            first_name = id_info.get("given_name")
-            last_name = id_info.get("family_name")
             full_name = id_info.get("name", "")
-
-            if not first_name and full_name:
-                parts = full_name.split()
-                first_name = parts[0]
-                last_name = " ".join(parts[1:]) if len(parts) > 1 else "PlantCare"
-
-            if not first_name:
-                first_name = "Usuario"
-            if not last_name:
-                last_name = "PlantCare"
-
-            avatar_url = id_info.get("picture")
+            if not full_name:
+                first_name = id_info.get("given_name", "Usuario")
+                last_name = id_info.get("family_name", "PlantCare")
+                full_name = f"{first_name} {last_name}"
 
             user = await get_user_by_email(db, email)
 
             if user:
-                if not user["active"]:
+                # Compatibilidad con ambos esquemas
+                is_active = user.get("is_active") or user.get("active", True)
+                if not is_active:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Usuario inactivo, contacta al administrador"
                     )
 
                 updates = {
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "avatar_url": avatar_url,
-                    "is_verified": True,
+                    "full_name": full_name,
                 }
                 await update_user(db, user["id"], updates)
                 user = await get_user_by_email(db, email)
@@ -323,24 +322,14 @@ class AuthService:
                 random_secret = secrets.token_urlsafe(32)
                 password_hash = AuthService.get_password_hash(random_secret)
                 user_payload = {
-                    "first_name": first_name,
-                    "last_name": last_name,
                     "email": email,
-                    "phone": None,
-                    "region": None,
-                    "vineyard_name": None,
-                    "hectares": None,
-                    "grape_type": None,
-                    "avatar_url": avatar_url,
-                    "password_hash": password_hash,
-                    "is_verified": True,
-                    "role_id": 1,
+                    "full_name": full_name,
+                    "hashed_password": password_hash,
+                    "role": "user",
+                    "is_active": True,
                 }
                 user = await create_user(db, user_payload)
-                await update_user(db, user["id"], {"is_verified": True, "avatar_url": avatar_url})
                 user = await get_user_by_email(db, email)
-
-            await update_user_last_login(db, user["id"])
             return user
 
         except HTTPException:
@@ -402,7 +391,9 @@ async def get_current_active_user(current_user: UserInDB = Depends(get_current_u
     Verifica que el usuario esté activo después de validar el token
     Se usa como Dependency en endpoints como /api/ai/ask, /api/devices/connect
     """
-    if not current_user["active"]:
+    # ← SOLO 4 ESPACIOS (el nivel de la función)
+    is_active = current_user.get("is_active") or current_user.get("active", True)
+    if not is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Usuario inactivo"

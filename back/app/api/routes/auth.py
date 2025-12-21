@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
+from datetime import datetime
 from app.api.core.auth_user import AuthService, get_current_user, get_current_active_user
-from app.api.core.database import get_db
+from app.api.core.database import get_db, get_role_by_id
 from app.api.schemas.user import (
     UserCreate, UserLogin, UserResponse, Token, 
     UserUpdate, PasswordChange, GoogleAuthRequest
@@ -17,6 +18,32 @@ import logging
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+async def build_user_response(user: dict) -> UserResponse:
+    """
+    Construye un UserResponse desde un dict de usuario de la DB.
+    Obtiene el nombre del rol desde la tabla roles usando role_id.
+    """
+    role_id = user.get("role_id", 1)
+    role_name = "user"  # Default
+    
+    try:
+        role_data = await get_role_by_id(role_id)
+        if role_data:
+            role_name = role_data.get("name", "user")
+    except Exception as e:
+        logger.warning(f"No se pudo obtener nombre del rol para role_id={role_id}: {e}")
+    
+    return UserResponse(
+        id=user["id"],
+        full_name=user.get("full_name", ""),
+        email=user["email"],
+        role_id=role_id,
+        role=role_name,
+        is_active=user.get("is_active", True),
+        created_at=user.get("created_at", datetime.now()),
+        updated_at=user.get("updated_at")
+    )
 # Asegurar que los logs de auth aparezcan en el archivo y consola
 import sys
 from logging.handlers import RotatingFileHandler
@@ -85,8 +112,7 @@ async def register_user(
     """
     logger.info("=== INICIO PROCESO DE REGISTRO ===")
     logger.info(f"Datos recibidos - Email: {user_data.email}")
-    logger.info(f"Datos recibidos - Nombre: {user_data.first_name} {user_data.last_name}")
-    logger.info(f"Datos recibidos - Viñedo: {user_data.vineyard_name}")
+    logger.info(f"Datos recibidos - Nombre: {user_data.full_name}")
     
     try:
         logger.info("Paso 1: Convirtiendo modelo Pydantic a diccionario")
@@ -100,25 +126,9 @@ async def register_user(
         logger.info(f"AuthService completado. Usuario ID: {user.get('id', 'N/A')}, Email: {user.get('email', 'N/A')}")
         
         logger.info("Paso 3: Construyendo UserResponse")
-        # Convertir el resultado a UserResponse (excluyendo password_hash)
+        # Convertir el resultado a UserResponse (ESQUEMA V2 CON role_id)
         try:
-            user_response = UserResponse(
-                id=user["id"],
-                first_name=user["first_name"],
-                last_name=user["last_name"],
-                email=user["email"],
-                phone=user["phone"],
-                region=user["region"],
-                vineyard_name=user["vineyard_name"],
-                hectares=user["hectares"],
-                grape_type=user["grape_type"],
-                role_id=user.get("role_id", 1),
-                avatar_url=user.get("avatar_url"),
-                is_verified=bool(user.get("is_verified", False)),
-                created_at=user["created_at"],
-                last_login=user["last_login"],
-                active=user["active"]
-            )
+            user_response = await build_user_response(user)
             logger.info("UserResponse construido exitosamente")
         except Exception as response_error:
             logger.error(f"Error construyendo UserResponse: {str(response_error)}")
@@ -129,18 +139,21 @@ async def register_user(
         try:
             logger.info(f"📧 Preparando email de verificación (código) para: {user['email']}")
             code_data = await create_email_verification_code(db, user["id"], minutes_valid=15)
-            await email_service.send_verification_code(
+            email_sent = await email_service.send_verification_code(
                 to_email=user["email"],
-                user_name=f"{user['first_name']} {user['last_name']}",
+                user_name=user.get("full_name", "Usuario"),
                 code=code_data["code"],
                 minutes_valid=15
             )
-            logger.info(f"✅ Email de verificación (código) enviado a {user['email']}")
+            if email_sent:
+                logger.info(f"✅ Email de verificación (código) enviado exitosamente a {user['email']}")
+            else:
+                logger.error(f"❌ No se pudo enviar email de verificación a {user['email']}. Verifica SENDGRID_API_KEY en .env")
         except Exception as mail_e:
-            logger.warning(f"⚠️ No se pudo enviar email de verificación por código: {mail_e}")
-            logger.warning(f"   Detalles del error: {repr(mail_e)}")
+            logger.error(f"❌ Error enviando email de verificación: {mail_e}")
+            logger.error(f"   Detalles del error: {repr(mail_e)}")
             import traceback
-            logger.warning(f"   Traceback: {traceback.format_exc()}")
+            logger.error(f"   Traceback: {traceback.format_exc()}")
 
         logger.info(f"Usuario registrado exitosamente: {user['email']}")
         logger.info("=== FIN PROCESO DE REGISTRO EXITOSO ===")
@@ -198,16 +211,12 @@ async def login_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        if not user["active"]:
+        # Compatibilidad con ambos esquemas
+        is_active = user.get("is_active") or user.get("active", True)
+        if not is_active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Usuario inactivo"
-            )
-
-        if not bool(user.get("is_verified", False)):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Verifica tu correo para iniciar sesión"
             )
         
         # Crear tokens
@@ -216,18 +225,28 @@ async def login_user(
             "user_id": user["id"]
         }
         
-        access_token = AuthService.create_access_token(token_data)
+        # Si remember_me está activado, crear token de 1 mes, sino 1 hora
+        if user_credentials.remember_me:
+            from datetime import timedelta
+            expires_delta = timedelta(days=30)  # 1 mes
+            access_token = AuthService.create_access_token(token_data, expires_delta=expires_delta)
+            expires_in_seconds = 30 * 24 * 60 * 60  # 30 días en segundos
+            logger.info(f"Usuario autenticado con 'Recordarme' activado: {user['email']} (token válido por 1 mes)")
+        else:
+            access_token = AuthService.create_access_token(token_data)  # Usa el default de 1 hora
+            expires_in_seconds = 60 * 60  # 1 hora en segundos
+            logger.info(f"Usuario autenticado: {user['email']} (token válido por 1 hora)")
+        
         refresh_token = AuthService.create_refresh_token(token_data)
         
-        logger.info(f"Usuario autenticado exitosamente: {user['email']}")
+        user_response = await build_user_response(user)
         
         return Token(
             access_token=access_token,
             token_type="bearer",
-            expires_in=30 * 60,  # 30 minutos en segundos
+            expires_in=expires_in_seconds,
             refresh_token=refresh_token,
-            user=UserResponse.model_validate(user)
-        
+            user=user_response
         )
         
     except HTTPException:
@@ -263,12 +282,14 @@ async def login_with_google(
         access_token = AuthService.create_access_token(token_data)
         refresh_token = AuthService.create_refresh_token(token_data)
 
+        user_response = await build_user_response(user)
+        
         return Token(
             access_token=access_token,
             token_type="bearer",
-            expires_in=30 * 60,
+            expires_in=60 * 60,  # 1 hora en segundos
             refresh_token=refresh_token,
-            user=UserResponse.model_validate(user)
+            user=user_response
         )
 
     except HTTPException:
@@ -313,7 +334,7 @@ async def resend_verification(user_credentials: UserLogin, db: AsyncPgDbToolkit 
         code_data = await create_email_verification_code(db, user["id"], minutes_valid=15)  # reemplaza anteriores
         await email_service.send_verification_code(
             to_email=user["email"],
-            user_name=f"{user['first_name']} {user['last_name']}",
+            user_name=user.get("full_name", "Usuario"),
             code=code_data["code"],
             minutes_valid=15
         )
@@ -372,12 +393,14 @@ async def refresh_token(
         
         logger.info(f"Token refrescado para usuario: {user['email']}")
         
+        user_response = await build_user_response(user)
+        
         return Token(
             access_token=new_access_token,
             token_type="bearer",
             expires_in=30 * 60,  # 30 minutos en segundos
             refresh_token=new_refresh_token,
-            user=UserResponse.model_validate(user)
+            user=user_response
         )
         
     except HTTPException:
@@ -404,7 +427,7 @@ async def get_current_user_info(
     """
     try:
         # Convertir el usuario a UserResponse
-        user_response = UserResponse.model_validate(current_user)
+        user_response = await build_user_response(current_user)
         
         return user_response
         
@@ -446,7 +469,7 @@ async def update_current_user(
             )
         
         # Convertir a UserResponse
-        user_response = UserResponse.model_validate(updated_user)
+        user_response = await build_user_response(updated_user)
         
         logger.info(f"Usuario actualizado: {updated_user['email']}")
         return user_response
@@ -478,10 +501,11 @@ async def change_password(
         dict: Mensaje de confirmación
     """
     try:
-        # Verificar la contraseña actual
-        if not AuthService.verify_password(
+        # Verificar la contraseña actual (compatibilidad con ambos esquemas)
+        password_field = current_user.get("hashed_password") or current_user.get("password_hash")
+        if not password_field or not AuthService.verify_password(
             password_data.current_password, 
-            current_user["password_hash"]
+            password_field
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

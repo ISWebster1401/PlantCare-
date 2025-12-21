@@ -19,7 +19,9 @@ if sys.platform == "win32":
 from app.api.core.config import settings
 from app.api.core.log import logger, log_startup, log_shutdown, log_error_with_context
 from app.api.core.database import init_db, close_db, health_check, get_database_stats
-from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo, uploads, quotes
+from app.api.core.supabase_storage import init_supabase
+from app.api.core.redis_cache import init_redis
+from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo, uploads, plants, sensors, notifications
 
 # Crear aplicación FastAPI
 app = FastAPI(
@@ -57,6 +59,20 @@ async def startup_event():
         log_startup()
         await init_db()
         logger.info(f"📊 Base de datos conectada en {settings.DB_HOST}:{settings.DB_PORT}")
+        
+        # Inicializar Supabase Storage
+        init_supabase()
+        
+        # Inicializar Redis Cache
+        redis_client = init_redis()
+        if redis_client:
+            # Probar conexión
+            try:
+                await redis_client.ping()
+                logger.info("✅ Redis Cache conectado y funcionando")
+            except Exception as e:
+                logger.warning(f"⚠️ Redis Cache no responde: {str(e)}")
+        
         logger.info(f"🌐 Servidor ejecutándose en http://{settings.SERVER_HOST}:{settings.SERVER_PORT}")
         logger.info("✅ Aplicación iniciada correctamente")
     except Exception as e:
@@ -108,21 +124,20 @@ async def log_requests(request: Request, call_next):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Log detallado para errores de validación (422)."""
-    try:
-        body_bytes = await request.body()
-        body_text = body_bytes.decode("utf-8") if body_bytes else ""
-    except Exception:
-        body_text = "<no-body>"
-
-    logger.error(
-        "❌ Error de validación en solicitud",
-        path=request.url.path,
-        errors=exc.errors(),
-        body=body_text
+    errors = []
+    for error in exc.errors():
+        error_dict = {
+            "type": error.get("type"),
+            "loc": error.get("loc"),
+            "msg": error.get("msg"),
+            "input": str(error.get("input")) if error.get("input") is not None else None
+        }
+        errors.append(error_dict)
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors}
     )
-
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 # Incluir routers
 app.include_router(humedad.router, prefix="/api")
@@ -134,7 +149,12 @@ app.include_router(admin.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(demo.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
-app.include_router(quotes.router, prefix="/api")
+# Quotes router eliminado - ya no se usa
+
+# Nuevos routers v2.0
+app.include_router(plants.router, prefix="/api")
+app.include_router(sensors.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 # Ruta raíz
 @app.get("/", response_class=HTMLResponse)

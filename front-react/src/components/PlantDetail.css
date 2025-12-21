@@ -1,0 +1,164 @@
+.plant-detail {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.btn-back {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 2rem;
+  font-size: 0.875rem;
+}
+
+.btn-back:hover {
+  background: #4b5563;
+}
+
+.character-hero {
+  text-align: center;
+  margin-bottom: 2rem;
+  background: #f0fdf4;
+  padding: 2rem;
+  border-radius: 16px;
+}
+
+.character-hero img {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  margin-bottom: 1rem;
+}
+
+.character-hero h1 {
+  color: #10b981;
+  margin: 0.5rem 0;
+}
+
+.plant-type {
+  color: #6b7280;
+  font-size: 1.125rem;
+  margin: 0.5rem 0;
+}
+
+.scientific-name {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 0.875rem;
+}
+
+.plant-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.stat label {
+  display: block;
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat span {
+  display: block;
+  color: #1f2937;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-healthy {
+  color: #4ade80;
+}
+
+.status-warning {
+  color: #fbbf24;
+}
+
+.status-critical {
+  color: #ef4444;
+}
+
+.action-section {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.btn-water {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-water:hover {
+  background: #059669;
+}
+
+.care-tips,
+.sensor-info {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.care-tips h2,
+.sensor-info h2 {
+  color: #10b981;
+  margin-bottom: 1rem;
+}
+
+.care-tips p {
+  color: #374151;
+  line-height: 1.6;
+}
+
+.loading {
+  text-align: center;
+  padding: 4rem;
+  font-size: 1.5rem;
+  color: #10b981;
+}
+
+.error-message {
+  padding: 1rem;
+  background: #fef2f2;
+  color: #dc2626;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .plant-detail {
+    padding: 1rem;
+  }
+
+  .character-hero img {
+    width: 150px;
+    height: 150px;
+  }
+
+  .plant-stats {
+    grid-template-columns: 1fr;
+  }
+}

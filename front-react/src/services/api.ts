@@ -8,7 +8,7 @@ import { UserRegistration, AuthResponse, LoginCredentials, UserResponse } from '
  */
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:5000/api',
+  baseURL: 'http://127.0.0.1:8000/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -198,6 +198,124 @@ export const healthAPI = {
   // Health check
   healthCheck: async () => {
     const response = await api.get('/health');
+    return response.data;
+  },
+};
+
+export const plantsAPI = {
+  // Identificar planta con imagen
+  identifyPlant: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/plants/identify', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Generar personaje
+  generateCharacter: async (plantType: string, plantName: string, mood: string = 'happy') => {
+    const response = await api.post('/plants/generate-character', {
+      plant_type: plantType,
+      plant_name: plantName,
+      mood
+    });
+    return response.data;
+  },
+
+  // Crear planta completa
+  createPlant: async (file: File, plantName: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('plant_name', plantName);
+    const response = await api.post('/plants/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Listar plantas del usuario
+  getMyPlants: async () => {
+    const response = await api.get('/plants/');
+    return response.data;
+  },
+
+  // Obtener detalle de planta
+  getPlant: async (plantId: number) => {
+    const response = await api.get(`/plants/${plantId}`);
+    return response.data;
+  },
+
+  // Actualizar salud de planta
+  updatePlantHealth: async (plantId: number) => {
+    const response = await api.put(`/plants/${plantId}/health`);
+    return response.data;
+  },
+
+  // Actualizar planta
+  updatePlant: async (plantId: number, data: { plant_name?: string; last_watered?: string }) => {
+    const response = await api.put(`/plants/${plantId}`, data);
+    return response.data;
+  },
+};
+
+export const sensorsAPI = {
+  // Registrar nuevo sensor
+  registerSensor: async (deviceKey: string, deviceType: string = 'esp8266') => {
+    const response = await api.post('/sensors/register', {
+      device_key: deviceKey,
+      device_type: deviceType
+    });
+    return response.data;
+  },
+
+  // Asignar sensor a planta
+  assignSensor: async (sensorId: number, plantId: number) => {
+    const response = await api.post(`/sensors/${sensorId}/assign`, {
+      plant_id: plantId
+    });
+    return response.data;
+  },
+
+  // Listar sensores del usuario
+  getMySensors: async () => {
+    const response = await api.get('/sensors/');
+    return response.data;
+  },
+
+  // Activar/Desactivar sensor
+  toggleSensor: async (sensorId: number, isActive: boolean) => {
+    const response = await api.put(`/sensors/${sensorId}/toggle?is_active=${isActive}`);
+    return response.data;
+  },
+
+  // Obtener lecturas de un sensor
+  getSensorReadings: async (sensorId: number, limit: number = 100) => {
+    const response = await api.get(`/sensors/${sensorId}/readings`, {
+      params: { limit }
+    });
+    return response.data;
+  },
+};
+
+export const notificationsAPI = {
+  // Listar notificaciones
+  getNotifications: async (unreadOnly: boolean = false) => {
+    const response = await api.get('/notifications/', {
+      params: { unread_only: unreadOnly }
+    });
+    return response.data;
+  },
+
+  // Marcar notificación como leída
+  markAsRead: async (notificationId: number) => {
+    const response = await api.put(`/notifications/${notificationId}/read`);
+    return response.data;
+  },
+
+  // Marcar todas como leídas
+  markAllAsRead: async () => {
+    const response = await api.put('/notifications/read-all');
     return response.data;
   },
 };

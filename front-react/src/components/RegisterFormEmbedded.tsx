@@ -1,18 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRegistration } from '../types/User';
+import './RegisterFormEmbedded.css';
 
 const RegisterFormEmbedded: React.FC = () => {
   const { register } = useAuth();
   const [formData, setFormData] = useState<UserRegistration>({
-    first_name: '',
-    last_name: '',
+    full_name: '',
     email: '',
-    phone: '',
-    region: '',
-    vineyard_name: '',
-    hectares: 0,
-    grape_type: '',
     password: '',
     confirm_password: '',
   });
@@ -21,19 +16,16 @@ const RegisterFormEmbedded: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'hectares' ? parseFloat(value) || 0 : value
+      [name]: value
     }));
   };
 
   const validateForm = (): boolean => {
-    if (!formData.first_name || !formData.last_name || !formData.email || 
-        !formData.phone || !formData.region || !formData.vineyard_name || 
-        !formData.hectares || !formData.grape_type || !formData.password || 
-        !formData.confirm_password) {
+    if (!formData.full_name || !formData.email || !formData.password || !formData.confirm_password) {
       setError('Todos los campos son obligatorios');
       return false;
     }
@@ -70,23 +62,17 @@ const RegisterFormEmbedded: React.FC = () => {
 
     try {
       await register(formData);
-      setSuccess('¡Registro exitoso! Te contactaremos pronto para la instalación.');
+      setSuccess('¡Registro exitoso! Verifica tu correo para activar tu cuenta. 🌱');
       
       // Limpiar formulario
       setFormData({
-        first_name: '',
-        last_name: '',
+        full_name: '',
         email: '',
-        phone: '',
-        region: '',
-        vineyard_name: '',
-        hectares: 0,
-        grape_type: '',
         password: '',
         confirm_password: '',
       });
     } catch (error: any) {
-      setError(error.message);
+      setError(error.message || 'Error al registrar. Intenta nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -94,88 +80,37 @@ const RegisterFormEmbedded: React.FC = () => {
 
   return (
     <div className="register-form-container">
-      {/* 🎯 CSS INLINE GARANTIZADO - NO DEPENDE DE CACHÉ */}
-      <style>{`
-        .form-row-inline {
-          display: grid !important;
-          grid-template-columns: 1fr 1fr !important;
-          gap: 20px !important;
-          margin-bottom: 25px !important;
-        }
-        
-        .form-row-inline .form-group {
-          margin-bottom: 0 !important;
-        }
-        
-        /* 🎨 FIX: Mejorar visibilidad de los select */
-        .form-group select {
-          color: rgba(255, 255, 255, 0.9) !important;
-        }
-        
-        /* Placeholder del select (primera opción) */
-        .form-group select option[value=""] {
-          color: rgba(255, 255, 255, 0.5) !important;
-        }
-        
-        /* Opciones normales del select */
-        .form-group select option:not([value=""]) {
-          color: #ffffff !important;
-          background: #1a1a1a !important;
-        }
-        
-        @media (max-width: 768px) {
-          .form-row-inline {
-            grid-template-columns: 1fr !important;
-            gap: 15px !important;
-          }
-        }
-      `}</style>
+      <h2 className="register-form-title">
+        Crea tu Cuenta <span className="plant-icon">🌱</span>
+      </h2>
 
-      <form className="register-form" onSubmit={handleSubmit}>
-        <h3>Registra tu Viña</h3>
-        <p className="form-subtitle">Completa la información para comenzar</p>
+      {error && (
+        <div className="error-message">
+          {error}
+        </div>
+      )}
 
-        {error && (
-          <div className="error-message">
-            {error}
-          </div>
-        )}
-
-        <div className="success-message" style={{ display: success ? 'block' : 'none' }}>
+      {success && (
+        <div className="success-message">
           {success}
         </div>
+      )}
 
-        {/* ✅ NOMBRE Y APELLIDO EN 2 COLUMNAS */}
-        <div className="form-row-inline">
-          <div className="form-group">
-            <label htmlFor="first_name">Nombre</label>
-            <input
-              type="text"
-              id="first_name"
-              name="first_name"
-              value={formData.first_name}
-              onChange={handleInputChange}
-              placeholder="Tu nombre"
-              autoComplete="given-name"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="last_name">Apellido</label>
-            <input
-              type="text"
-              id="last_name"
-              name="last_name"
-              value={formData.last_name}
-              onChange={handleInputChange}
-              placeholder="Tu apellido"
-              autoComplete="family-name"
-              required
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="register-form">
+        <div className="form-group">
+          <label htmlFor="full_name">Nombre Completo</label>
+          <input
+            type="text"
+            id="full_name"
+            name="full_name"
+            value={formData.full_name}
+            onChange={handleInputChange}
+            placeholder="Tu nombre completo"
+            autoComplete="name"
+            required
+          />
         </div>
 
-        {/* ✅ EMAIL SOLO (OCUPA TODO EL ANCHO) */}
         <div className="form-group">
           <label htmlFor="email">Correo Electrónico</label>
           <input
@@ -190,100 +125,7 @@ const RegisterFormEmbedded: React.FC = () => {
           />
         </div>
 
-        {/* ✅ TELÉFONO Y REGIÓN EN 2 COLUMNAS */}
-        <div className="form-row-inline">
-          <div className="form-group">
-            <label htmlFor="phone">Teléfono</label>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              value={formData.phone}
-              onChange={handleInputChange}
-              placeholder="+56 9 1234 5678"
-              autoComplete="tel"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="region">Región</label>
-            <select
-              id="region"
-              name="region"
-              value={formData.region}
-              onChange={handleInputChange}
-              autoComplete="country"
-              required
-            >
-              <option value="">Selecciona tu región</option>
-              <option value="Región Metropolitana">Región Metropolitana</option>
-              <option value="Valparaíso">Valparaíso</option>
-              <option value="O'Higgins">O'Higgins</option>
-              <option value="Maule">Maule</option>
-              <option value="Biobío">Biobío</option>
-              <option value="Araucanía">Araucanía</option>
-              <option value="Coquimbo">Coquimbo</option>
-              <option value="Atacama">Atacama</option>
-            </select>
-          </div>
-        </div>
-
-        {/* ✅ NOMBRE DE VIÑA SOLO (OCUPA TODO EL ANCHO) */}
-        <div className="form-group">
-          <label htmlFor="vineyard_name">Nombre de la Viña</label>
-          <input
-            type="text"
-            id="vineyard_name"
-            name="vineyard_name"
-            value={formData.vineyard_name}
-            onChange={handleInputChange}
-            placeholder="Viña Los Robles"
-            autoComplete="organization"
-            required
-          />
-        </div>
-
-        {/* ✅ HECTÁREAS Y TIPO DE UVA EN 2 COLUMNAS */}
-        <div className="form-row-inline">
-          <div className="form-group">
-            <label htmlFor="hectares">Hectáreas</label>
-            <input
-              type="number"
-              id="hectares"
-              name="hectares"
-              value={formData.hectares || ''}
-              onChange={handleInputChange}
-              placeholder="50"
-              min="1"
-              step="0.1"
-              autoComplete="off"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="grape_type">Tipo de Uva</label>
-            <select
-              id="grape_type"
-              name="grape_type"
-              value={formData.grape_type}
-              onChange={handleInputChange}
-              required
-            >
-              <option value="">Selecciona el tipo</option>
-              <option value="Cabernet Sauvignon">Cabernet Sauvignon</option>
-              <option value="Merlot">Merlot</option>
-              <option value="Carmenère">Carmenère</option>
-              <option value="Chardonnay">Chardonnay</option>
-              <option value="Sauvignon Blanc">Sauvignon Blanc</option>
-              <option value="Pinot Noir">Pinot Noir</option>
-              <option value="Syrah">Syrah</option>
-              <option value="Cultivo Mixto">Cultivo Mixto</option>
-            </select>
-          </div>
-        </div>
-
-        {/* ✅ CONTRASEÑA Y CONFIRMAR EN 2 COLUMNAS */}
-        <div className="form-row-inline">
+        <div className="form-row">
           <div className="form-group">
             <label htmlFor="password">Contraseña</label>
             <input
@@ -297,11 +139,11 @@ const RegisterFormEmbedded: React.FC = () => {
               required
             />
             <small className="password-help">
-              Debe contener mayúscula, minúscula, número y carácter especial
+              Mayúscula, minúscula, número y carácter especial
             </small>
           </div>
           <div className="form-group">
-            <label htmlFor="confirm_password">Confirmar Contraseña</label>
+            <label htmlFor="confirm_password">Confirmar</label>
             <input
               type="password"
               id="confirm_password"
@@ -317,19 +159,11 @@ const RegisterFormEmbedded: React.FC = () => {
 
         <button 
           type="submit" 
-          className="register-button"
+          className="submit-btn"
           disabled={isLoading}
         >
-          {isLoading ? 'Procesando...' : 'Registrar Viña'}
+          {isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
         </button>
-
-        <div className="form-footer">
-          ¿Ya tienes cuenta? <a href="#login" onClick={(e) => {
-            e.preventDefault();
-            // Scroll to top and show login
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}>Iniciar sesión</a>
-        </div>
       </form>
     </div>
   );

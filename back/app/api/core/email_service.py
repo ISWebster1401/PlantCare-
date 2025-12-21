@@ -118,29 +118,86 @@ class EmailService:
         """
         try:
             if not self.api_key:
-                print("[EmailService] SENDGRID_API_KEY no configurada")
+                logger.error("[EmailService] SENDGRID_API_KEY no configurada. No se puede enviar email.")
+                print("⚠️ [EmailService] SENDGRID_API_KEY no configurada. Verifica tu archivo .env")
                 return False
 
-            subject = "Tu código de verificación - PlantCare"
+            subject = "🌱 Tu código de verificación - PlantCare"
             html_content = f"""
-                <div style='font-family: Arial, sans-serif; color:#0f172a'>
-                    <h2>Hola {user_name.split()[0]},</h2>
-                    <p>Usa este código para verificar tu correo en PlantCare:</p>
-                    <div style='font-size:32px; font-weight:bold; letter-spacing:6px; padding:16px 24px; display:inline-block; background:#0f172a; color:#fff; border-radius:12px;'>
-                        {code}
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 40px 20px; margin: 0;">
+                <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h1 style="color: #16a34a; margin: 0; font-size: 2rem;">🌱 PlantCare</h1>
                     </div>
-                    <p style='margin-top:16px; color:#334155'>Vence en {minutes_valid} minutos.</p>
-                    <p style='margin-top:24px'>Si no solicitaste este código, ignora este mensaje.</p>
+                    
+                    <h2 style="color: #0f172a; margin-bottom: 20px;">Hola {user_name.split()[0] if user_name else 'Usuario'},</h2>
+                    
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
+                        Usa este código para verificar tu correo en PlantCare:
+                    </p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; padding: 20px 30px; display: inline-block; background: linear-gradient(135deg, #16a34a, #22c55e); color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(22, 163, 74, 0.3);">
+                            {code}
+                        </div>
+                    </div>
+                    
+                    <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
+                        ⏰ Este código vence en <strong>{minutes_valid} minutos</strong>.
+                    </p>
+                    
+                    <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #e5e7eb;">
+                        <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
+                            Si no solicitaste este código, puedes ignorar este mensaje de forma segura.
+                        </p>
+                    </div>
                 </div>
+            </body>
+            </html>
             """
+            
+            plain_text = f"""
+🌱 PlantCare - Código de Verificación
 
-            return await self.send_email(
+Hola {user_name.split()[0] if user_name else 'Usuario'},
+
+Usa este código para verificar tu correo:
+
+{code}
+
+Este código vence en {minutes_valid} minutos.
+
+Si no solicitaste este código, ignora este mensaje.
+
+---
+Equipo PlantCare
+            """.strip()
+
+            result = await self.send_email(
                 to_email=to_email,
                 subject=subject,
-                html_content=html_content
+                html_content=html_content,
+                plain_text_content=plain_text
             )
+            
+            if result:
+                logger.info(f"✅ Email de verificación enviado exitosamente a {to_email}")
+            else:
+                logger.error(f"❌ Error enviando email de verificación a {to_email}")
+            
+            return result
+            
         except Exception as e:
-            print(f"[EmailService] Error enviando código: {e}")
+            logger.error(f"[EmailService] Error enviando código a {to_email}: {e}")
+            import traceback
+            logger.error(f"[EmailService] Traceback: {traceback.format_exc()}")
+            print(f"❌ [EmailService] Error enviando código: {e}")
             return False
 
     async def send_contact_form_notification(self, form_data: Dict[str, Any]) -> bool:

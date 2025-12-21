@@ -87,14 +87,37 @@ class Settings(BaseSettings):
     # Configuración de JWT y Seguridad
     SECRET_KEY: str = os.getenv("SECRET_KEY", "tu_clave_secreta_muy_larga_y_segura_aqui_cambiala_en_produccion")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))  # 1 hora por defecto
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
-
     # Configuración de IA
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "").strip()
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "").strip()
+    GEMINI_IMAGE_MODEL: str = os.getenv("GEMINI_IMAGE_MODEL", "imagen-3.0-generate-001").strip()
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "True").lower() == "true"
+
+    # ============================================
+    # Configuración de Supabase Storage (reemplaza Cloudinary)
+    # ============================================
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "").strip()
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "").strip()  # service_role key
+    SUPABASE_STORAGE_BUCKET: str = os.getenv("SUPABASE_STORAGE_BUCKET", "plantcare").strip()
+    
+    # ============================================
+    # Configuración de Redis Cache
+    # ============================================
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379").strip()
+    REDIS_CACHE_TTL_LATEST: int = int(os.getenv("REDIS_CACHE_TTL_LATEST", "900"))  # 15 minutos
+    REDIS_CACHE_TTL_DAILY: int = int(os.getenv("REDIS_CACHE_TTL_DAILY", "86400"))  # 24 horas
+    REDIS_CACHE_TTL_WEEKLY: int = int(os.getenv("REDIS_CACHE_TTL_WEEKLY", "604800"))  # 7 días
+    
+    # ============================================
+    # Configuración de Cloudinary (DEPRECATED - usar Supabase)
+    # ============================================
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
 
     # Autenticación con Google
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -115,7 +138,6 @@ class Settings(BaseSettings):
     LOG_FILE: str = os.getenv("LOG_FILE", "plantcare.log")
     LOG_FORMAT: str = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-
     # Configuración específica de PlantCare
     MAX_SENSORS_PER_USER: int = int(os.getenv("MAX_SENSORS_PER_USER", "10"))
     DATA_RETENTION_DAYS: int = int(os.getenv("DATA_RETENTION_DAYS", "365"))
@@ -127,15 +149,51 @@ class Settings(BaseSettings):
         """Genera la URL de conexión a la base de datos"""
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
 
-
     class Config:
         env_file = ".env"
         case_sensitive = False
 
 # Crear instancia de configuración con manejo de errores
+import logging
+logger = logging.getLogger(__name__)
+
 try:
     settings = Settings()
+    
+    # Validar OpenAI API key
+    if settings.OPENAI_API_KEY:
+        if len(settings.OPENAI_API_KEY) < 20:
+            logger.warning("⚠️ OPENAI_API_KEY parece ser inválida (muy corta). Verifica tu archivo .env")
+        else:
+            logger.info(f"✅ OPENAI_API_KEY configurada (longitud: {len(settings.OPENAI_API_KEY)} caracteres)")
+    else:
+        logger.warning("⚠️ OPENAI_API_KEY no está configurada. Las funciones de IA no funcionarán.")
+        logger.warning("💡 Verifica que el archivo .env esté en la carpeta 'back/' y contenga OPENAI_API_KEY=...")
+    
+    # Validar Supabase Storage
+    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+        logger.info(f"✅ Supabase Storage configurado: {settings.SUPABASE_URL}")
+        logger.info(f"   Bucket: {settings.SUPABASE_STORAGE_BUCKET}")
+    else:
+        logger.warning("⚠️ Supabase Storage no está completamente configurado. Las funciones de imágenes no funcionarán.")
+        logger.warning("💡 Verifica que el archivo .env contenga SUPABASE_URL y SUPABASE_KEY")
+    
+    # Validar Redis Cache
+    if settings.REDIS_URL:
+        logger.info(f"✅ Redis Cache configurado: {settings.REDIS_URL}")
+        logger.info(f"   TTL Latest: {settings.REDIS_CACHE_TTL_LATEST}s ({settings.REDIS_CACHE_TTL_LATEST // 60} min)")
+        logger.info(f"   TTL Daily: {settings.REDIS_CACHE_TTL_DAILY}s ({settings.REDIS_CACHE_TTL_DAILY // 3600} horas)")
+        logger.info(f"   TTL Weekly: {settings.REDIS_CACHE_TTL_WEEKLY}s ({settings.REDIS_CACHE_TTL_WEEKLY // 86400} días)")
+    else:
+        logger.warning("⚠️ REDIS_URL no está configurado. El cache no estará disponible.")
+        logger.warning("💡 Verifica que el archivo .env contenga REDIS_URL")
+    
+    # Validar Cloudinary (DEPRECATED - mantener por compatibilidad temporal)
+    if settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET:
+        logger.warning("⚠️ Cloudinary está configurado pero está DEPRECATED. Usa Supabase Storage.")
+        
 except Exception as e:
-    print(f"Error cargando configuración: {e}")
-    # Configuración por defecto si falla la carga
+    logger.error(f"Error cargando configuración: {e}")
+    # Configuración por defecto si
+    #  falla la carga
     settings = Settings()

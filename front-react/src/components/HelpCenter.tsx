@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import ContactForm from './ContactForm';
-import QuoteRequest from './QuoteRequest';
+// QuoteRequest eliminado - ya no se usa
 import './HelpCenter.css';
 import api from '../services/api';
 import {
   HelpIcon,
   ChatIcon,
-  QuoteIcon,
+  // QuoteIcon eliminado - ya no se usa
   StatusIcon,
   PhoneIcon,
   MailIcon,
@@ -35,7 +35,7 @@ interface HelpCategory {
 
 interface HelpCenterProps {
   onClose?: () => void;
-  onRequestQuote?: () => void;
+  // onRequestQuote eliminado - ya no se usa
 }
 
 const DEFAULT_FAQ_ITEMS: FAQItem[] = [
@@ -149,15 +149,15 @@ const categoryIcons: Record<string, React.ReactNode> = {
   '💳': <MailIcon />,
 };
 
-const HelpCenter: React.FC<HelpCenterProps> = ({ onClose, onRequestQuote }) => {
-  const [activeTab, setActiveTab] = useState<'faq' | 'contact' | 'quote' | 'status'>('faq');
+const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
+  const [activeTab, setActiveTab] = useState<'faq' | 'contact' | 'status'>('faq');
   const [faqItems, setFaqItems] = useState<FAQItem[]>([]);
   const [categories, setCategories] = useState<HelpCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
   const [showContactForm, setShowContactForm] = useState(false);
-  const [showQuoteForm, setShowQuoteForm] = useState(false);
+  // showQuoteForm eliminado - ya no se usa
   const [systemStatus, setSystemStatus] = useState<any>(null);
 
   useEffect(() => {
@@ -210,20 +210,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose, onRequestQuote }) => {
     return <ContactForm onClose={() => setShowContactForm(false)} />;
   }
 
-  if (showQuoteForm) {
-    return <QuoteRequest onClose={() => setShowQuoteForm(false)} />;
-  }
-
-  const handleQuoteRedirect = () => {
-    if (onRequestQuote) {
-      if (onClose) {
-        onClose();
-      }
-      onRequestQuote();
-    } else {
-      setShowQuoteForm(true);
-    }
-  };
+  // handleQuoteRedirect y showQuoteForm eliminados - ya no se usan
 
   return (
     <div className="help-center-container">
@@ -253,12 +240,6 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose, onRequestQuote }) => {
             onClick={() => setActiveTab('contact')}
           >
             <ChatIcon className="tab-icon" /> Contacto
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'quote' ? 'active' : ''}`}
-            onClick={() => setActiveTab('quote')}
-          >
-            <QuoteIcon className="tab-icon" /> Cotizaciones
           </button>
           <button 
             className={`tab-btn ${activeTab === 'status' ? 'active' : ''}`}
@@ -411,59 +392,6 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose, onRequestQuote }) => {
             </div>
           )}
 
-          {activeTab === 'quote' && (
-            <div className="quote-section">
-              <div className="quote-intro">
-                <h3>
-                  <QuoteIcon className="section-icon" /> Solicita una Cotización Personalizada
-                </h3>
-                <p>¿Interesado en implementar PlantCare en tu empresa o proyecto? Obtén una cotización personalizada.</p>
-              </div>
-
-              <div className="quote-benefits">
-                <div className="benefit-item">
-                  <span className="benefit-icon"><AnalyticsIcon /></span>
-                  <div>
-                    <h4>Análisis Personalizado</h4>
-                    <p>Evaluamos tus necesidades específicas</p>
-                  </div>
-                </div>
-                <div className="benefit-item">
-                  <span className="benefit-icon"><IdeaIcon /></span>
-                  <div>
-                    <h4>Solución a Medida</h4>
-                    <p>Diseñamos la mejor solución para tu caso</p>
-                  </div>
-                </div>
-                <div className="benefit-item">
-                  <span className="benefit-icon"><TargetIcon /></span>
-                  <div>
-                    <h4>Precios Competitivos</h4>
-                    <p>Ofertas especiales para proyectos grandes</p>
-                  </div>
-                </div>
-                <div className="benefit-item">
-                  <span className="benefit-icon"><RocketIcon /></span>
-                  <div>
-                    <h4>Implementación Rápida</h4>
-                    <p>Te ayudamos con la instalación y configuración</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="quote-cta">
-                <button 
-                  className="btn-primary large"
-                  onClick={handleQuoteRedirect}
-                >
-                  <QuoteIcon className="cta-icon" /> Ir a Cotizaciones
-                </button>
-                <p className="cta-note">
-                  Sin compromiso • Respuesta en 12 horas • Consulta gratuita
-                </p>
-              </div>
-            </div>
-          )}
 
           {activeTab === 'status' && (
             <div className="status-section">
@@ -548,9 +476,9 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ onClose, onRequestQuote }) => {
             </button>
             <button 
               className="btn-primary"
-              onClick={handleQuoteRedirect}
+              onClick={() => setShowContactForm(true)}
             >
-              <QuoteIcon className="footer-icon" /> Solicitar Cotización
+              <ChatIcon className="footer-icon" /> Contáctanos
             </button>
           </div>
         </div>

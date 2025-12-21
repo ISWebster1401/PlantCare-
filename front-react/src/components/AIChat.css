@@ -1,8 +1,13 @@
-/* AI Chat Container */
+/* AI Chat Container (adaptado a panel lateral) */
 .ai-chat {
-  padding: 40px 0;
-  max-width: 960px;
-  margin: 0 auto;
+  height: 100%;
+  padding: 16px 18px 12px;
+  max-width: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: transparent;
 }
 
 /* Chat Header */
@@ -10,7 +15,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 
 .header-main {
@@ -23,7 +28,7 @@
 
 .chat-header h2 {
   color: #4ade80;
-  font-size: 2.1rem;
+  font-size: 1.4rem;
   margin: 0;
 }
 
@@ -89,20 +94,21 @@
 /* Layout */
 .chat-layout {
   display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .chat-sidebar {
-  flex: 0 0 260px;
-  background: linear-gradient(145deg, rgba(10, 17, 31, 0.85), rgba(15, 23, 42, 0.85));
-  border: 1px solid rgba(71, 85, 105, 0.4);
-  border-radius: 18px;
-  padding: 20px;
+  flex: 0 0 190px;
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.95));
+  border: 1px solid rgba(30, 64, 175, 0.5);
+  border-radius: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-height: 600px;
+  gap: 10px;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -192,26 +198,26 @@
   color: rgba(252, 165, 165, 0.95);
 }
 
-.chat-main {
+ .chat-main {
   flex: 1;
-  min-width: 280px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-}
+  gap: 10px;
+ }
 
 /* Chat Messages */
 .chat-messages {
-  background: linear-gradient(135deg, rgba(26, 26, 26, 0.65), rgba(42, 42, 42, 0.65));
-  border: 1px solid rgba(74, 222, 128, 0.2);
-  border-radius: 20px;
-  padding: 30px;
-  min-height: 400px;
-  max-height: 600px;
+  background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
+  border: 1px solid rgba(30, 64, 175, 0.65);
+  border-radius: 18px;
+  padding: 18px 16px 70px;
+  min-height: 0;
+  max-height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .message {
@@ -321,6 +327,7 @@
   display: flex;
   gap: 15px;
   align-items: center;
+  margin-top: 8px;
 }
 
 .chat-input input {

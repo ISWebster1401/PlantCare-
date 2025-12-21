@@ -60,9 +60,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(false);
   }, []);
 
-  const persistSession = (response: AuthResponse) => {
+  const persistSession = (response: AuthResponse, rememberMe: boolean = false) => {
+    // Si remember_me está activado, cookies duran 30 días, sino 7 días
+    const cookieExpires = rememberMe ? 30 : 7;
+    
     const cookieOptions = {
-      expires: 7,
+      expires: cookieExpires,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict' as const,
     };
@@ -78,7 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (credentials: LoginCredentials) => {
     try {
       const response = await authAPI.login(credentials);
-      persistSession(response);
+      persistSession(response, credentials.remember_me || false);
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Error al iniciar sesión');
     }

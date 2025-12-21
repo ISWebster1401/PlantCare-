@@ -4,20 +4,12 @@ import './AdminPanel.css';
 
 interface User {
   id: number;
-  first_name: string;
-  last_name: string;
+  full_name: string;
   email: string;
-  phone?: string;
-  region?: string;
-  vineyard_name?: string;
-  hectares?: number;
-  grape_type?: string;
-  role_id: number;
-  role_name?: string;
+  role: string;
+  is_active: boolean;
   created_at: string;
-  last_login?: string;
-  active: boolean;
-  device_count: number;
+  updated_at?: string;
 }
 
 interface Device {
@@ -60,25 +52,9 @@ interface DeviceCodeBatch {
   prefix?: string;
 }
 
-interface QuoteUpdatePayload {
-  status?: string;
-  quoted_price?: number;
-  status_message?: string;
-  notify_user?: boolean;
-}
-
-const QUOTE_STATUS_DEFAULT_MESSAGES: Record<string, string> = {
-  pending: 'Tu solicitud está en revisión. Te avisaremos cuando tengamos novedades.',
-  contacted: 'Ya tomamos contacto contigo para coordinar los próximos pasos.',
-  quoted: 'Tu cotización está lista. Revísala y cuéntanos si necesitas ajustes.',
-  accepted: 'Excelente, seguimos adelante. Pronto coordinaremos la implementación.',
-  rejected: 'Gracias por tu interés. Por ahora no avanzaremos, pero seguimos disponibles.',
-  cancelled: 'La solicitud fue cancelada según lo indicado. Avísanos si deseas retomarla.',
-};
-
 const AdminPanel: React.FC = () => {
   const { user, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'devices' | 'codes' | 'quotes'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'devices' | 'codes'>('dashboard');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -88,7 +64,7 @@ const AdminPanel: React.FC = () => {
   // Estados para filtros
   const [userFilters, setUserFilters] = useState({
     search: '',
-    role_id: '',
+    role: '',
     active: '',
     region: ''
   });
@@ -108,83 +84,7 @@ const AdminPanel: React.FC = () => {
 
   const [generatedCodes, setGeneratedCodes] = useState<any[]>([]);
 
-  // Estados para cotizaciones
-  interface Quote {
-    id: number;
-    reference_id: string;
-    name: string;
-    email: string;
-    phone?: string;
-    company?: string;
-    location?: string;
-    project_type?: string;
-    coverage_area?: string;
-    desired_date?: string;
-    has_existing_infrastructure?: boolean | null;
-    requires_installation?: boolean | null;
-    requires_training?: boolean | null;
-    num_devices: number;
-    budget_range?: string;
-    status: string;
-    quoted_price?: number;
-    quoted_at?: string;
-    created_at: string;
-    message?: string;
-    ip_address?: string;
-    status_message?: string;
-  }
-
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [quoteFilters, setQuoteFilters] = useState({
-    status: '',
-    search: ''
-  });
-  const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
-  const [quoteStatusValue, setQuoteStatusValue] = useState<string>('pending');
-  const [quotePriceValue, setQuotePriceValue] = useState<string>('');
-  const [statusMessageValue, setStatusMessageValue] = useState<string>('');
-  const [notifyQuoteUser, setNotifyQuoteUser] = useState<boolean>(false);
-  const [statusMessageEdited, setStatusMessageEdited] = useState<boolean>(false);
-
-  // ✅ HOOK MOVIDO AQUÍ - ANTES DEL RETURN CONDICIONAL
-  useEffect(() => {
-    if (activeTab === 'dashboard') {
-      loadStats();
-    } else if (activeTab === 'users') {
-      loadUsers();
-    } else if (activeTab === 'devices') {
-      loadDevices();
-    } else if (activeTab === 'quotes') {
-      loadQuotes();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (editingQuote) {
-      setQuoteStatusValue(editingQuote.status);
-      setQuotePriceValue(
-        typeof editingQuote.quoted_price === 'number' ? String(editingQuote.quoted_price) : ''
-      );
-      setStatusMessageValue(
-        editingQuote.status_message || QUOTE_STATUS_DEFAULT_MESSAGES[editingQuote.status] || ''
-      );
-      setNotifyQuoteUser(false);
-      setStatusMessageEdited(false);
-    }
-  }, [editingQuote]);
-
-  // ✅ AHORA SÍ LA VERIFICACIÓN DE ADMIN
-  if (!user || user.role_id !== 2) {
-    return (
-      <div className="admin-panel">
-        <div className="access-denied">
-          <h2>🚫 Acceso Denegado</h2>
-          <p>No tienes permisos para acceder al panel de administración.</p>
-        </div>
-      </div>
-    );
-  }
-
+  // ✅ FUNCIÓN apiCall DEFINIDA AQUÍ (antes del useEffect)
   const apiCall = async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
     const response = await fetch(url, {
       ...options,
@@ -220,7 +120,7 @@ const AdminPanel: React.FC = () => {
   const loadStats = async () => {
     try {
       setLoading(true);
-      const data = await apiCall('/api/admin/stats');
+      const data = await apiCall<AdminStats>('/api/admin/stats');
       setStats(data);
     } catch (err: any) {
       setError(err.message);
@@ -237,7 +137,7 @@ const AdminPanel: React.FC = () => {
         if (value) params.append(key, value);
       });
       
-      const data = await apiCall(`/api/admin/users?${params}`);
+      const data = await apiCall<User[]>(`/api/admin/users?${params}`);
       setUsers(data);
     } catch (err: any) {
       setError(err.message);
@@ -254,41 +154,12 @@ const AdminPanel: React.FC = () => {
         if (value) params.append(key, value);
       });
       
-      const data = await apiCall(`/api/admin/devices?${params}`);
+      const data = await apiCall<Device[]>(`/api/admin/devices?${params}`);
       setDevices(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadQuotes = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (quoteFilters.status) params.append('status', quoteFilters.status);
-      if (quoteFilters.search) params.append('search', quoteFilters.search);
-      
-      const data = await apiCall(`/api/admin/quotes?${params}`);
-      setQuotes(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateQuote = async (quoteId: number, updates: QuoteUpdatePayload) => {
-    try {
-      await apiCall(`/api/admin/quotes/${quoteId}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates)
-      });
-      loadQuotes();
-      setEditingQuote(null);
-    } catch (err: any) {
-      setError(err.message);
     }
   };
 
@@ -320,7 +191,6 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  // ✅ CONFIRM CORREGIDO CON WINDOW.CONFIRM
   const deleteUser = async (userId: number) => {
     if (!window.confirm('¿Estás seguro de que quieres eliminar este usuario?')) return;
     
@@ -333,6 +203,34 @@ const AdminPanel: React.FC = () => {
       setError(err.message);
     }
   };
+
+  // ✅ USEEFFECT ANTES DEL RETURN CONDICIONAL
+  useEffect(() => {
+    // Solo ejecutar si el usuario es admin
+    if (!user || user.role !== 'admin') {
+      return;
+    }
+
+    if (activeTab === 'dashboard') {
+      loadStats();
+    } else if (activeTab === 'users') {
+      loadUsers();
+    } else if (activeTab === 'devices') {
+      loadDevices();
+    }
+  }, [activeTab, user]);
+
+  // ✅ RETURN CONDICIONAL AL FINAL (después del useEffect)
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="admin-panel">
+        <div className="access-denied">
+          <h2>🚫 Acceso Denegado</h2>
+          <p>No tienes permisos para acceder al panel de administración.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-panel">
@@ -358,19 +256,13 @@ const AdminPanel: React.FC = () => {
           className={`tab-btn ${activeTab === 'devices' ? 'active' : ''}`}
           onClick={() => setActiveTab('devices')}
         >
-          📱 Dispositivos
+          📡 Sensores
         </button>
         <button 
           className={`tab-btn ${activeTab === 'codes' ? 'active' : ''}`}
           onClick={() => setActiveTab('codes')}
         >
           🏷️ Generar Códigos
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'quotes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('quotes')}
-        >
-          💰 Cotizaciones
         </button>
       </div>
 
@@ -407,7 +299,7 @@ const AdminPanel: React.FC = () => {
               <div className="stat-card devices">
                 <div className="stat-icon">📱</div>
                 <div className="stat-info">
-                  <h3>Dispositivos</h3>
+                  <h3>Sensores</h3>
                   <div className="stat-number">{stats.total_devices}</div>
                   <div className="stat-details">
                     <span className="connected">{stats.connected_devices} conectados</span>
@@ -454,12 +346,12 @@ const AdminPanel: React.FC = () => {
                   onChange={(e) => setUserFilters({...userFilters, search: e.target.value})}
                 />
                 <select
-                  value={userFilters.role_id}
-                  onChange={(e) => setUserFilters({...userFilters, role_id: e.target.value})}
+                  value={userFilters.role}
+                  onChange={(e) => setUserFilters({...userFilters, role: e.target.value})}
                 >
                   <option value="">Todos los roles</option>
-                  <option value="1">Usuario</option>
-                  <option value="2">Administrador</option>
+                  <option value="user">Usuario</option>
+                  <option value="admin">Administrador</option>
                 </select>
                 <select
                   value={userFilters.active}
@@ -482,42 +374,42 @@ const AdminPanel: React.FC = () => {
                     <th>ID</th>
                     <th>Nombre</th>
                     <th>Email</th>
-                    <th>Viñedo</th>
+                    <th>Registrado</th>
                     <th>Rol</th>
-                    <th>Dispositivos</th>
+                    <th>Plantas</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map(user => (
-                    <tr key={user.id}>
-                      <td>{user.id}</td>
-                      <td>{user.first_name} {user.last_name}</td>
-                      <td>{user.email}</td>
-                      <td>{user.vineyard_name || '-'}</td>
+                  {users.map(userItem => (
+                    <tr key={userItem.id}>
+                      <td>{userItem.id}</td>
+                      <td>{userItem.full_name}</td>
+                      <td>{userItem.email}</td>
+                      <td>{userItem.created_at ? new Date(userItem.created_at).toLocaleDateString() : '-'}</td>
                       <td>
-                        <span className={`role-badge ${user.role_id === 2 ? 'admin' : 'user'}`}>
-                          {user.role_name || (user.role_id === 2 ? 'Admin' : 'Usuario')}
+                        <span className={`role-badge ${userItem.role === 'admin' ? 'admin' : 'user'}`}>
+                          {userItem.role === 'admin' ? 'Admin' : 'Usuario'}
                         </span>
                       </td>
-                      <td>{user.device_count}</td>
+                      <td>-</td>
                       <td>
-                        <span className={`status-badge ${user.active ? 'active' : 'inactive'}`}>
-                          {user.active ? 'Activo' : 'Inactivo'}
+                        <span className={`status-badge ${userItem.is_active ? 'active' : 'inactive'}`}>
+                          {userItem.is_active ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
                       <td>
                         <div className="action-buttons">
                           <button
-                            onClick={() => toggleUserStatus(user.id, user.active)}
-                            className={`btn-sm ${user.active ? 'btn-warning' : 'btn-success'}`}
+                            onClick={() => toggleUserStatus(userItem.id, userItem.is_active)}
+                            className={`btn-sm ${userItem.is_active ? 'btn-warning' : 'btn-success'}`}
                           >
-                            {user.active ? '⏸️' : '▶️'}
+                            {userItem.is_active ? '⏸️' : '▶️'}
                           </button>
-                          {user.role_id !== 2 && (
+                          {userItem.role !== 'admin' && (
                             <button
-                              onClick={() => deleteUser(user.id)}
+                              onClick={() => deleteUser(userItem.id)}
                               className="btn-sm btn-danger"
                             >
                               🗑️
@@ -536,7 +428,7 @@ const AdminPanel: React.FC = () => {
         {activeTab === 'devices' && (
           <div className="devices-section">
             <div className="section-header">
-              <h2>Gestión de Dispositivos</h2>
+              <h2>Gestión de Sensores</h2>
               <div className="filters">
                 <input
                   type="text"
@@ -607,197 +499,10 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'quotes' && (
-          <div className="quotes-section">
-            <div className="section-header">
-              <h2>Gestión de Cotizaciones</h2>
-              <div className="filters">
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre, email o referencia..."
-                  value={quoteFilters.search}
-                  onChange={(e) => {
-                    setQuoteFilters({ ...quoteFilters, search: e.target.value });
-                    setTimeout(() => loadQuotes(), 500);
-                  }}
-                />
-                <select
-                  value={quoteFilters.status}
-                  onChange={(e) => {
-                    setQuoteFilters({ ...quoteFilters, status: e.target.value });
-                    loadQuotes();
-                  }}
-                >
-                  <option value="">Todos los estados</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="contacted">Contactado</option>
-                  <option value="quoted">Cotizado</option>
-                  <option value="accepted">Aceptada</option>
-                  <option value="rejected">Rechazada</option>
-                  <option value="cancelled">Cancelada</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="quotes-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Ref.</th>
-                    <th>Cliente</th>
-                    <th>Email</th>
-                    <th>Empresa</th>
-                    <th>Ubicación</th>
-                    <th>Sensores</th>
-                    <th>Estado</th>
-                    <th>Precio</th>
-                    <th>Fecha</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quotes.map(quote => (
-                    <tr key={quote.id}>
-                      <td><code>{quote.reference_id}</code></td>
-                      <td>{quote.name}</td>
-                      <td>{quote.email}</td>
-                      <td>{quote.company || '-'}</td>
-                      <td>{quote.location || '-'}</td>
-                      <td>{quote.num_devices}</td>
-                      <td>
-                        <span className={`status-badge status-${quote.status}`}>
-                          {quote.status === 'pending' ? 'Pendiente' :
-                           quote.status === 'contacted' ? 'Contactado' :
-                           quote.status === 'quoted' ? 'Cotizado' :
-                           quote.status === 'accepted' ? 'Aceptada' :
-                           quote.status === 'rejected' ? 'Rechazada' :
-                           'Cancelada'}
-                        </span>
-                      </td>
-                      <td>
-                        {quote.quoted_price ? 
-                          new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(quote.quoted_price) :
-                          '-'
-                        }
-                      </td>
-                      <td>{new Date(quote.created_at).toLocaleDateString('es-ES')}</td>
-                      <td>
-                        <button 
-                          className="btn-edit"
-                          onClick={() => setEditingQuote(quote)}
-                        >
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {editingQuote && (
-              <div className="modal-overlay" onClick={() => setEditingQuote(null)}>
-                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                  <h3>Editar Cotización {editingQuote.reference_id}</h3>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!editingQuote) return;
-                      const payload: QuoteUpdatePayload = {
-                        status: quoteStatusValue,
-                        notify_user: notifyQuoteUser,
-                        status_message: statusMessageValue,
-                      };
-                      if (quotePriceValue.trim() !== '') {
-                        payload.quoted_price = Number(quotePriceValue);
-                      }
-                      updateQuote(editingQuote.id, payload);
-                    }}
-                  >
-                    <div className="form-group">
-                      <label>Estado:</label>
-                      <select
-                        value={quoteStatusValue}
-                        onChange={(e) => {
-                          const newStatus = e.target.value;
-                          setQuoteStatusValue(newStatus);
-                          if (!statusMessageEdited) {
-                            setStatusMessageValue(QUOTE_STATUS_DEFAULT_MESSAGES[newStatus] || '');
-                          }
-                        }}
-                      >
-                        <option value="pending">Pendiente</option>
-                        <option value="contacted">Contactado</option>
-                        <option value="quoted">Cotizado</option>
-                        <option value="accepted">Aceptada</option>
-                        <option value="rejected">Rechazada</option>
-                        <option value="cancelled">Cancelada</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Precio Cotizado (CLP):</label>
-                      <input
-                        type="number"
-                        value={quotePriceValue}
-                        min="0"
-                        step="0.01"
-                        onChange={(e) => setQuotePriceValue(e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Mensaje del cliente:</label>
-                      <textarea
-                        readOnly
-                        rows={3}
-                        value={editingQuote.message || 'Sin mensaje proporcionado.'}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Mensaje para el cliente:</label>
-                      <textarea
-                        rows={4}
-                        value={statusMessageValue}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setStatusMessageValue(value);
-                          const defaultMessage = QUOTE_STATUS_DEFAULT_MESSAGES[quoteStatusValue] || '';
-                          const normalizedDefault = defaultMessage.replace(/\s+/g, ' ').trim();
-                          const normalizedValue = value.replace(/\s+/g, ' ').trim();
-                          setStatusMessageEdited(normalizedValue !== normalizedDefault);
-                        }}
-                      />
-                      <small>
-                        Este mensaje se guardará y, si seleccionas notificar, se enviará por correo al cliente.
-                      </small>
-                    </div>
-                    <div className="form-group checkbox-inline">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={notifyQuoteUser}
-                          onChange={(e) => setNotifyQuoteUser(e.target.checked)}
-                        />
-                        {' '}Enviar correo de estado al cliente
-                      </label>
-                      <small>
-                        El correo incluirá el mensaje anterior y un resumen del nuevo estado.
-                      </small>
-                    </div>
-                    <div className="form-actions">
-                      <button type="submit" className="btn-primary">Guardar</button>
-                      <button type="button" className="btn-secondary" onClick={() => setEditingQuote(null)}>Cancelar</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'codes' && (
           <div className="codes-section">
             <div className="section-header">
-              <h2>Generar Códigos de Dispositivos</h2>
+              <h2>Generar Códigos de Sensores</h2>
             </div>
 
             <div className="code-generation">

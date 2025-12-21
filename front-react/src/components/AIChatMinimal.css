@@ -1,0 +1,218 @@
+/* Chat minimalista para panel lateral */
+.ai-chat-minimal {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  padding: 0;
+}
+
+/* Selector de dispositivo minimalista */
+.ai-minimal-device-selector {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.ai-minimal-device-selector select {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: #e5e7eb;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.ai-minimal-device-selector select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Área de mensajes */
+.ai-minimal-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-minimal-message {
+  display: flex;
+  gap: 8px;
+  max-width: 85%;
+}
+
+.ai-minimal-message-ai {
+  align-self: flex-start;
+}
+
+.ai-minimal-message-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.ai-minimal-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 20%, #22c55e, #15803d);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.ai-minimal-bubble {
+  padding: 10px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-minimal-message-ai .ai-minimal-bubble {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 16px 18px 18px 4px;
+  color: #e5e7eb;
+}
+
+.ai-minimal-message-user .ai-minimal-bubble {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-radius: 18px 16px 4px 18px;
+  color: #e5e7eb;
+}
+
+.ai-minimal-text {
+  color: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.ai-minimal-time {
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.6;
+  text-align: right;
+}
+
+.ai-minimal-typing {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.ai-minimal-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #a7f3d0;
+  animation: ai-typing-pulse 1.4s ease-in-out infinite;
+}
+
+.ai-minimal-typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.ai-minimal-typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes ai-typing-pulse {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* Input bar fijo abajo */
+.ai-minimal-input-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.98));
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-minimal-input-bar input {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 999px;
+  padding: 10px 14px;
+  color: #e5e7eb;
+  font-size: 13px;
+  outline: none;
+}
+
+.ai-minimal-input-bar input::placeholder {
+  color: #6b7280;
+}
+
+.ai-minimal-input-bar input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.ai-minimal-input-bar input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ai-minimal-send {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #022c22;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.ai-minimal-send:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+}
+
+.ai-minimal-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Scrollbar personalizado */
+.ai-minimal-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.ai-minimal-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-minimal-messages::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 2px;
+}
+
+.ai-minimal-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}

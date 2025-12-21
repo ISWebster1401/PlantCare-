@@ -27,8 +27,30 @@ python-dotenv==1.0.1
 # IA y OpenAI
 openai>=1.35.3
 
+# Google Vertex AI para generación de imágenes (Imagen)
+google-cloud-aiplatform>=1.38.0
+
 # Email service
 sendgrid==6.11.0
 
 # Google Auth
 google-auth==2.36.0
+requests>=2.31.0
+
+# Supabase Storage para almacenamiento de imágenes (reemplaza Cloudinary)
+supabase>=2.0.0
+
+# Cloudinary (DEPRECATED - mantener temporalmente por compatibilidad)
+# cloudinary
+
+# Pillow para procesamiento de imágenes
+Pillow
+
+# Dateutil para parsing de fechas
+python-dateutil
+
+# Redis para cache
+redis[hiredis]>=5.0.0
+
+# Polars para agregaciones rápidas (10x más rápido que pandas)
+polars>=0.19.0

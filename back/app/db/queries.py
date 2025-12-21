@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import logging
 import secrets
 import string
+from dateutil import parser as date_parser
 
 # Intentar usar el logger de la app, sino usar el estándar
 try:
@@ -166,34 +167,55 @@ async def verify_email_with_code(db, email: str, code: str) -> bool:
     try:
         user = await get_user_by_email(db, email)
         if not user:
+            logger.warning(f"Usuario no encontrado para email: {email}")
             return False
 
-        df = await db.execute_query(
-            """
-            SELECT * FROM email_verification_tokens
-            WHERE user_id = %s AND token = %s AND used_at IS NULL AND expires_at > NOW()
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            (user["id"], code)
+        # Buscar token/código activo usando fetch_records
+        tokens = await db.fetch_records(
+            "email_verification_tokens",
+            conditions={"user_id": user["id"], "token": code, "used_at": None},
+            order_by="created_at DESC",
+            limit=1
         )
-        if df is None or df.empty:
+        
+        if tokens is None or tokens.empty:
+            logger.warning(f"No se encontró token activo para usuario {user['id']} con código {code}")
             return False
 
-        token_row = df.iloc[0].to_dict()
+        token_row = tokens.iloc[0].to_dict()
+        
+        # Verificar expiración
+        if token_row.get("expires_at"):
+            expires_at = token_row["expires_at"]
+            # Convertir a datetime si es necesario
+            if isinstance(expires_at, str):
+                try:
+                    expires_at = date_parser.parse(expires_at)
+                except Exception as e:
+                    logger.error(f"Error parseando fecha de expiración: {e}")
+                    return False
+            # Si es un objeto datetime de pandas, convertir a datetime de Python
+            if hasattr(expires_at, 'to_pydatetime'):
+                expires_at = expires_at.to_pydatetime()
+            
+            now = datetime.utcnow()
+            if expires_at < now:
+                logger.warning(f"Token expirado. Expira: {expires_at}, Ahora: {now}")
+                return False
 
-        # Marcar usuario como verificado y token como usado
-        await db.execute_raw_sql(
-            "UPDATE users SET is_verified = true WHERE id = %s",
-            (user["id"],)
+        # Marcar usuario como verificado y token como usado usando execute_query
+        await db.execute_query(
+            "UPDATE users SET is_verified = %s WHERE id = %s",
+            (True, user["id"])
         )
-        await db.execute_raw_sql(
-            "UPDATE email_verification_tokens SET used_at = NOW() WHERE id = %s",
-            (token_row["id"],)
+        await db.execute_query(
+            "UPDATE email_verification_tokens SET used_at = %s WHERE id = %s",
+            (datetime.utcnow(), token_row["id"])
         )
+        logger.info(f"Email verificado exitosamente para usuario {user['id']} ({email})")
         return True
     except Exception as e:
-        logger.error(f"Error verificando email con código: {str(e)}")
+        logger.error(f"Error verificando email con código: {str(e)}", exc_info=True)
         return False
 
 async def update_user(db, user_id: int, user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -972,15 +994,15 @@ async def mark_email_verified(db, token_row: Dict[str, Any]) -> bool:
             return False
 
         user_id = token_row["user_id"]
-        # Marcar usuario verificado
+        # Marcar usuario verificado usando execute_query
         await db.execute_query(
-            "UPDATE users SET is_verified = true WHERE id = %s",
-            (user_id,)
+            "UPDATE users SET is_verified = %s WHERE id = %s",
+            (True, user_id)
         )
         # Marcar token usado
         await db.execute_query(
             "UPDATE email_verification_tokens SET used_at = %s WHERE id = %s",
-            (datetime.utcnow(), token_row["id"]) 
+            (datetime.utcnow(), token_row["id"])
         )
         return True
     except Exception as e:
@@ -1002,22 +1024,18 @@ async def create_email_verification_code(db, user_id: int, minutes_valid: int = 
     Invalida códigos/tokens previos no usados para ese usuario.
     """
     try:
-        # Invalidar tokens/códigos previos no usados
+        # Invalidar tokens/códigos previos no usados usando execute_query
         await db.execute_query(
-            """
-            DELETE FROM email_verification_tokens
-            WHERE user_id = %s AND used_at IS NULL
-            """,
-            (user_id,)
+            "UPDATE email_verification_tokens SET used_at = %s WHERE user_id = %s AND used_at IS NULL",
+            (datetime.utcnow(), user_id)
         )
 
         code = _generate_4_digit_code()
         expires_at = datetime.utcnow() + timedelta(minutes=minutes_valid)
-        await db.insert_records("email_verification_tokens", {
-            "user_id": user_id,
-            "token": code,
-            "expires_at": expires_at
-        })
+        await db.execute_query(
+            "INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
+            (user_id, code, expires_at)
+        )
         return {"code": code, "expires_at": expires_at}
     except Exception as e:
         logger.error(f"Error creando código de verificación: {str(e)}")
@@ -1028,11 +1046,17 @@ async def verify_email_with_code(db, email: str, code: str) -> bool:
     Verifica el email buscando por email del usuario y el código (token) activo.
     """
     try:
+        logger.info(f"🔍 Iniciando verificación para email: {email}, código: {code}")
         user = await get_user_by_email(db, email)
         if not user:
+            logger.warning(f"Usuario no encontrado para email: {email}")
             return False
 
-        rows = await db.execute_query(
+        logger.info(f"✅ Usuario encontrado: ID={user['id']}")
+        
+        # Buscar token/código activo usando SQL directo (más confiable)
+        logger.info(f"🔍 Buscando token con user_id={user['id']}, token={code}")
+        tokens_df = await db.execute_query(
             """
             SELECT * FROM email_verification_tokens
             WHERE user_id = %s AND token = %s AND used_at IS NULL
@@ -1042,25 +1066,50 @@ async def verify_email_with_code(db, email: str, code: str) -> bool:
             (user["id"], code)
         )
 
-        if rows is None or rows.empty:
+        if tokens_df is None or tokens_df.empty:
+            logger.warning(f"No se encontró token activo para usuario {user['id']} con código {code}")
             return False
 
-        token_row = rows.iloc[0].to_dict()
-        if token_row.get("expires_at") and token_row["expires_at"] < datetime.utcnow():
-            return False
+        logger.info(f"✅ Token encontrado")
+        token_row = tokens_df.iloc[0].to_dict()
+        logger.info(f"📋 Token row: {token_row}")
+        
+        # Verificar expiración
+        if token_row.get("expires_at"):
+            expires_at = token_row["expires_at"]
+            # Convertir a datetime si es necesario
+            if isinstance(expires_at, str):
+                try:
+                    expires_at = date_parser.parse(expires_at)
+                except Exception as e:
+                    logger.error(f"Error parseando fecha de expiración: {e}")
+                    return False
+            # Si es un objeto datetime de pandas, convertir a datetime de Python
+            if hasattr(expires_at, 'to_pydatetime'):
+                expires_at = expires_at.to_pydatetime()
+            
+            now = datetime.utcnow()
+            if expires_at < now:
+                logger.warning(f"Token expirado. Expira: {expires_at}, Ahora: {now}")
+                return False
 
-        # Marcar verificado
+        # Marcar verificado usando execute_query (AsyncPgDbToolkit no tiene update_records)
+        logger.info(f"🔄 Actualizando usuario {user['id']} a verificado")
         await db.execute_query(
-            "UPDATE users SET is_verified = true WHERE id = %s",
-            (user["id"],)
+            "UPDATE users SET is_verified = %s WHERE id = %s",
+            (True, user["id"])
         )
+        logger.info(f"🔄 Marcando token {token_row['id']} como usado")
         await db.execute_query(
             "UPDATE email_verification_tokens SET used_at = %s WHERE id = %s",
-            (datetime.utcnow(), token_row["id"]) 
+            (datetime.utcnow(), token_row["id"])
         )
+        logger.info(f"✅ Email verificado exitosamente para usuario {user['id']} ({email})")
         return True
     except Exception as e:
-        logger.error(f"Error verificando email con código: {str(e)}")
+        logger.error(f"❌ Error verificando email con código: {str(e)}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback completo: {traceback.format_exc()}")
         return False
 
 async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]]:

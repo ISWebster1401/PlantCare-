@@ -22,7 +22,7 @@ interface Conversation {
 const defaultWelcomeMessage = (): AIMessage => ({
   id: `welcome_${Date.now()}`,
   type: 'ai',
-  content: '🍇 ¡Hola! Soy PlantCare AI, tu asistente experto en viticultura. Puedo analizar tus dispositivos o responder dudas sobre tu viñedo. ¿Con qué te ayudo hoy?',
+  content: '🌱 ¡Hola! Soy PlantCare AI, tu asistente experto en cuidado de plantas. Puedo ayudarte a identificar plantas, dar consejos de cuidado y responder tus preguntas. ¿Con qué te ayudo hoy?',
   timestamp: new Date().toISOString()
 });
 
@@ -379,7 +379,7 @@ const AIChat: React.FC = () => {
               placeholder={
                 selectedDevice
                   ? 'Pregunta sobre tu dispositivo...'
-                  : 'Haz una pregunta sobre tu viñedo...'
+                  : 'Haz una pregunta sobre tus plantas...'
               }
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { deviceAPI, humedadAPI } from '../services/api';
+import { plantsAPI, sensorsAPI } from '../services/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -15,7 +15,7 @@ import {
 } from 'chart.js';
 import type { ChartOptions } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { DeviceCardIcon, ChartIcon, HumidityIcon, AlertIcon, BellIcon, RefreshIcon, LineChartIcon } from './Icons';
+import { ChartIcon, HumidityIcon, AlertIcon, BellIcon, RefreshIcon, LineChartIcon } from './Icons';
 import './DashboardCharts.css';
 
 // Registrar componentes de Chart.js
@@ -31,453 +31,192 @@ ChartJS.register(
   Filler
 );
 
-interface Device {
+interface Plant {
   id: number;
-  device_code: string;
-  name: string;
-  location?: string;
-  plant_type?: string;
-  device_type: string;
-  connected: boolean;
-  last_seen?: string;
-  created_at: string;
+  plant_name: string;
+  plant_type: string;
+  character_image_url: string;
+  character_mood: string;
+  health_status: string;
+  sensor_id: number | null;
+  optimal_humidity_min: number | null;
+  optimal_humidity_max: number | null;
+  optimal_temp_min: number | null;
+  optimal_temp_max: number | null;
 }
 
-interface DeviceListResponse {
-  devices: Device[];
-  total: number;
-  connected: number;
-  active: number;
-  offline: number;
-}
-
-interface HumedadReading {
+interface SensorReading {
   id: number;
-  valor: number;
-  fecha: string;
-  temperatura?: number | null;
-  presion?: number | null;
-  altitud?: number | null;
-  device_id: number;
-}
-
-interface DashboardAlert {
-  id: string;
-  device_id: number;
-  device_name: string;
-  severity: 'low' | 'medium' | 'high';
-  message: string;
-  action?: string;
+  sensor_id: number;
+  humidity: number;
+  temperature: number | null;
+  reading_time: string;
 }
 
 interface ChartEntry {
   bucket: string;
-  device_id: number;
+  plant_id: number;
   humidity: number | null;
   temperature: number | null;
-  pressure: number | null;
-  altitude: number | null;
 }
 
-interface DashboardData {
-  devices: Device[];
-  summary: {
-    total_devices: number;
-    active_devices: number;
-    connected_devices: number;
-    offline_devices: number;
-    total_readings: number;
-    averages: Record<MetricKey, number>;
-  };
-  chart_data: ChartEntry[];
-  alerts: DashboardAlert[];
-  ai_insights: string;
-  generated_at: string;
-}
+type Timeframe = 'hour' | 'day' | 'week';
 
-interface DeviceReport {
-  device_info: {
-    id: number;
-    name: string;
-    plant_type?: string;
-    location?: string;
-  };
-  statistics: {
-    current_humidity: number;
-    avg_humidity_48h: number;
-    min_humidity: number;
-    max_humidity: number;
-    total_readings: number;
-  };
-  trend_analysis: {
-    trend: string;
-    trend_description: string;
-  };
-  ai_report: string;
-  generated_at: string;
-}
-
-type ViewMode = 'line' | 'gauge';
-
-type MetricKey = 'humidity' | 'temperature' | 'pressure' | 'altitude';
-type Timeframe = 'minute' | 'hour' | 'day';
-
-const METRIC_INFO: Record<
-  MetricKey,
-  { label: string; unit: string; min: number; max: number; decimals: number; icon: string }
-> = {
-  humidity: {
-    label: 'Humedad',
-    unit: '%',
-    min: 0,
-    max: 100,
-    decimals: 0,
-    icon: '💧',
-  },
-  temperature: {
-    label: 'Temperatura',
-    unit: '°C',
-    min: -10,
-    max: 50,
-    decimals: 1,
-    icon: '🌡️',
-  },
-  pressure: {
-    label: 'Presión',
-    unit: 'hPa',
-    min: 900,
-    max: 1100,
-    decimals: 1,
-    icon: '🌬️',
-  },
-  altitude: {
-    label: 'Altitud',
-    unit: 'm',
-    min: 0,
-    max: 3000,
-    decimals: 0,
-    icon: '🏔️',
-  },
-};
-
-const METRIC_ORDER: MetricKey[] = ['humidity', 'temperature', 'pressure', 'altitude'];
 const TIMEFRAME_OPTIONS: { key: Timeframe; label: string }[] = [
-  { key: 'minute', label: 'Minuto' },
-  { key: 'hour', label: 'Hora' },
-  { key: 'day', label: 'Día' },
+  { key: 'hour', label: 'Última Hora' },
+  { key: 'day', label: 'Último Día' },
+  { key: 'week', label: 'Última Semana' },
 ];
 
-const TIMEFRAME_STEP_MS: Record<Timeframe, number> = {
-  minute: 60 * 1000,
-  hour: 60 * 60 * 1000,
-  day: 24 * 60 * 60 * 1000,
-};
-
-const timeframeFriendlyLabel: Record<Timeframe, string> = {
-  minute: 'por minuto',
-  hour: 'por hora',
-  day: 'por día',
-};
-
 const DashboardCharts: React.FC = () => {
-  const { token } = useAuth();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [selectedDeviceReport, setSelectedDeviceReport] = useState<DeviceReport | null>(null);
+  const { user } = useAuth();
+  const [plants, setPlants] = useState<Plant[]>([]);
+  const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
+  const [chartData, setChartData] = useState<ChartEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('line');
-  const [selectedMetric, setSelectedMetric] = useState<MetricKey>('humidity');
-  const [timeframe, setTimeframe] = useState<Timeframe>('hour');
+  const [timeframe, setTimeframe] = useState<Timeframe>('day');
+  const [selectedMetric, setSelectedMetric] = useState<'humidity' | 'temperature'>('humidity');
 
-  const truncateDateToTimeframe = useCallback((date: Date, frame: Timeframe): Date | null => {
-    if (Number.isNaN(date.getTime())) {
-      return null;
-    }
-    const step = TIMEFRAME_STEP_MS[frame];
-    const truncated = new Date(Math.floor(date.getTime() / step) * step);
-    return truncated;
+  useEffect(() => {
+    loadPlants();
   }, []);
 
-  const formatBucketLabel = useCallback((isoString: string, frame: Timeframe): string => {
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) {
-      return isoString;
+  useEffect(() => {
+    if (selectedPlant) {
+      loadPlantData();
     }
+  }, [selectedPlant, timeframe]);
 
-    if (frame === 'day') {
-      return date.toLocaleDateString('es-ES', {
-        month: 'short',
-        day: 'numeric',
-      });
-    }
-
-    if (frame === 'hour') {
-      const dayPart = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-      const hourPart = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      return `${dayPart} ${hourPart}`;
-    }
-
-    return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-  }, []);
-
-  const loadDashboardData = useCallback(async () => {
+  const loadPlants = async () => {
     try {
       setLoading(true);
       setError('');
-
-      const deviceResponse: DeviceListResponse = await deviceAPI.getMyDevices();
-      const devices = deviceResponse.devices || [];
-
-      if (devices.length === 0) {
-        setDashboardData({
-          devices: [],
-          summary: {
-            total_devices: 0,
-            active_devices: 0,
-            connected_devices: 0,
-            offline_devices: 0,
-            total_readings: 0,
-            averages: {
-              humidity: 0,
-              temperature: 0,
-              pressure: 0,
-              altitude: 0,
-            },
-          },
-          chart_data: [],
-          alerts: [],
-          ai_insights: 'Conecta tu primer sensor para comenzar a recibir métricas y recomendaciones.',
-          generated_at: new Date().toISOString(),
-        });
-        return;
+      const data = await plantsAPI.getMyPlants();
+      setPlants(data);
+      
+      // Seleccionar primera planta por defecto si hay plantas
+      if (data.length > 0 && !selectedPlant) {
+        setSelectedPlant(data[0]);
       }
-
-      const readingsByDevice = await Promise.all(
-        devices.map(async (device) => {
-          try {
-            const readings: HumedadReading[] = await humedadAPI.getHumedadData(device.device_code, 200);
-            return { device, readings };
-          } catch (err) {
-            console.error(`Error cargando lecturas para ${device.device_code}`, err);
-            return { device, readings: [] as HumedadReading[] };
-          }
-        })
-      );
-
-      const chartEntries: ChartEntry[] = [];
-      const totals: Record<MetricKey, { sum: number; count: number }> = {
-        humidity: { sum: 0, count: 0 },
-        temperature: { sum: 0, count: 0 },
-        pressure: { sum: 0, count: 0 },
-        altitude: { sum: 0, count: 0 },
-      };
-      let totalReadings = 0;
-      const alerts: DashboardAlert[] = [];
-
-      const calculateAverage = (values: number[], decimals = 2): number | null => {
-        if (!values.length) {
-          return null;
-        }
-        const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-        return Number(average.toFixed(decimals));
-      };
-
-      readingsByDevice.forEach(({ device, readings }) => {
-        if (!Array.isArray(readings) || readings.length === 0) {
-          return;
-        }
-
-        const grouped = readings.reduce<
-          Record<string, { humidity: number[]; temperature: number[]; pressure: number[]; altitude: number[] }>
-        >((acc, reading) => {
-          const date = new Date(reading.fecha);
-          const bucketDate = truncateDateToTimeframe(date, timeframe);
-          if (!bucketDate) {
-            return acc;
-          }
-
-          const bucketKey = bucketDate.toISOString();
-          if (!acc[bucketKey]) {
-            acc[bucketKey] = {
-              humidity: [],
-              temperature: [],
-              pressure: [],
-              altitude: [],
-            };
-          }
-
-          acc[bucketKey].humidity.push(Number(reading.valor));
-
-          if (reading.temperatura !== null && reading.temperatura !== undefined) {
-            acc[bucketKey].temperature.push(Number(reading.temperatura));
-          }
-          if (reading.presion !== null && reading.presion !== undefined) {
-            acc[bucketKey].pressure.push(Number(reading.presion));
-          }
-          if (reading.altitud !== null && reading.altitud !== undefined) {
-            acc[bucketKey].altitude.push(Number(reading.altitud));
-          }
-          return acc;
-        }, {});
-
-        readings.forEach((reading) => {
-          totalReadings += 1;
-          const humidityValue = Number(reading.valor);
-          totals.humidity.sum += humidityValue;
-          totals.humidity.count += 1;
-
-          if (reading.temperatura !== null && reading.temperatura !== undefined) {
-            const tempValue = Number(reading.temperatura);
-            totals.temperature.sum += tempValue;
-            totals.temperature.count += 1;
-          }
-          if (reading.presion !== null && reading.presion !== undefined) {
-            const pressureValue = Number(reading.presion);
-            totals.pressure.sum += pressureValue;
-            totals.pressure.count += 1;
-          }
-          if (reading.altitud !== null && reading.altitud !== undefined) {
-            const altitudeValue = Number(reading.altitud);
-            totals.altitude.sum += altitudeValue;
-            totals.altitude.count += 1;
-          }
-        });
-
-        Object.entries(grouped).forEach(([bucket, values]) => {
-          chartEntries.push({
-            bucket,
-            device_id: device.id,
-            humidity: calculateAverage(values.humidity, 2),
-            temperature: calculateAverage(values.temperature, METRIC_INFO.temperature.decimals),
-            pressure: calculateAverage(values.pressure, METRIC_INFO.pressure.decimals),
-            altitude: calculateAverage(values.altitude, METRIC_INFO.altitude.decimals),
-          });
-        });
-
-        const latest = readings[0];
-        if (latest) {
-          if (latest.valor <= 30 || latest.valor >= 75) {
-            alerts.push({
-              id: `${device.id}-${latest.id}`,
-              device_id: device.id,
-              device_name: device.name || device.device_code,
-              severity: latest.valor <= 30 ? 'low' : 'medium',
-              message:
-                latest.valor <= 30
-                  ? `Humedad baja detectada (${latest.valor.toFixed(1)}%).`
-                  : `Humedad alta detectada (${latest.valor.toFixed(1)}%).`,
-              action:
-                latest.valor <= 30
-                  ? 'Considera aumentar el riego o revisar el sistema de irrigación.'
-                  : 'Verifica el riego y drenaje para evitar exceso de humedad.',
-            });
-          }
-        }
-      });
-
-      chartEntries.sort((a, b) => new Date(a.bucket).getTime() - new Date(b.bucket).getTime());
-
-      const summary = {
-        total_devices: deviceResponse.total ?? devices.length,
-        active_devices: deviceResponse.active ?? deviceResponse.connected ?? devices.filter((d) => d.connected).length,
-        connected_devices: deviceResponse.connected ?? devices.filter((d) => d.connected).length,
-        offline_devices: deviceResponse.offline ?? devices.filter((d) => !d.connected).length,
-        total_readings: totalReadings,
-        averages: {
-          humidity:
-            totals.humidity.count > 0
-              ? Number((totals.humidity.sum / totals.humidity.count).toFixed(METRIC_INFO.humidity.decimals))
-              : 0,
-          temperature:
-            totals.temperature.count > 0
-              ? Number((totals.temperature.sum / totals.temperature.count).toFixed(METRIC_INFO.temperature.decimals))
-              : 0,
-          pressure:
-            totals.pressure.count > 0
-              ? Number((totals.pressure.sum / totals.pressure.count).toFixed(METRIC_INFO.pressure.decimals))
-              : 0,
-          altitude:
-            totals.altitude.count > 0
-              ? Number((totals.altitude.sum / totals.altitude.count).toFixed(METRIC_INFO.altitude.decimals))
-              : 0,
-        } as Record<MetricKey, number>,
-      };
-
-      setDashboardData({
-        devices,
-        summary,
-        chart_data: chartEntries,
-        alerts,
-        ai_insights:
-          totalReadings > 0
-            ? 'Tus métricas se están generando en base a datos reales de tus sensores conectados.'
-            : 'Tus dispositivos están conectados. Aguardamos lecturas para mostrar tendencias.',
-        generated_at: new Date().toISOString(),
-      });
     } catch (err: any) {
-      console.error('Error cargando el dashboard', err);
-      setError(err.response?.data?.detail || err.message || 'Error al cargar el dashboard');
+      console.error('Error cargando plantas:', err);
+      setError('Error cargando tus plantas');
     } finally {
       setLoading(false);
     }
-  }, [timeframe, truncateDateToTimeframe]);
-
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
-
-  const apiCall = async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Error desconocido' }));
-      throw new Error(errorData.detail || `Error ${response.status}`);
-    }
-
-    return response.json();
   };
 
-  // loadDashboardData definido arriba con useCallback
+  const loadPlantData = async () => {
+    if (!selectedPlant || !selectedPlant.sensor_id) {
+      setChartData([]);
+      return;
+    }
 
-  const loadDeviceReport = async (deviceId: number) => {
     try {
       setLoading(true);
-      const report = await apiCall(`/api/reports/device/${deviceId}/ai-report`);
-      setSelectedDeviceReport(report);
-      setSelectedDevice(deviceId);
+      
+      // Calcular límite según timeframe
+      let limit = 24; // 1 día por hora
+      if (timeframe === 'hour') limit = 60; // 1 hora por minuto
+      if (timeframe === 'week') limit = 168; // 1 semana por hora
+
+      // Obtener lecturas del sensor
+      const readingsResponse = await sensorsAPI.getSensorReadings(
+        selectedPlant.sensor_id,
+        limit
+      );
+      
+      // Asegurar que sea un array
+      const readings: SensorReading[] = Array.isArray(readingsResponse) 
+        ? readingsResponse 
+        : readingsResponse.readings || [];
+
+      // Agrupar por timeframe
+      const grouped: Record<string, { humidity: number[]; temperature: number[] }> = {};
+      
+      readings.forEach(reading => {
+        const date = new Date(reading.reading_time);
+        let bucket: string;
+        
+        if (timeframe === 'hour') {
+          bucket = date.toISOString().slice(0, 16); // Por minuto
+        } else if (timeframe === 'day') {
+          bucket = date.toISOString().slice(0, 13); // Por hora
+        } else {
+          bucket = date.toISOString().slice(0, 10); // Por día
+        }
+
+        if (!grouped[bucket]) {
+          grouped[bucket] = { humidity: [], temperature: [] };
+        }
+        
+        grouped[bucket].humidity.push(reading.humidity);
+        if (reading.temperature) {
+          grouped[bucket].temperature.push(reading.temperature);
+        }
+      });
+
+      // Convertir a formato de gráfico
+      const entries: ChartEntry[] = Object.entries(grouped).map(([bucket, values]) => ({
+        bucket,
+        plant_id: selectedPlant.id,
+        humidity: values.humidity.length > 0 
+          ? values.humidity.reduce((a, b) => a + b, 0) / values.humidity.length 
+          : null,
+        temperature: values.temperature.length > 0
+          ? values.temperature.reduce((a, b) => a + b, 0) / values.temperature.length
+          : null,
+      }));
+
+      entries.sort((a, b) => new Date(a.bucket).getTime() - new Date(b.bucket).getTime());
+      setChartData(entries);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Error cargando datos de planta:', err);
+      setError('Error cargando datos del sensor');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && !dashboardData) {
+  const getMoodEmoji = (mood: string) => {
+    const emojis: { [key: string]: string } = {
+      happy: '😊',
+      sad: '😢',
+      thirsty: '💧',
+      overwatered: '🌊',
+      sick: '🤒',
+    };
+    return emojis[mood.toLowerCase()] || '😐';
+  };
+
+  const getHealthColor = (status: string) => {
+    const colors: { [key: string]: string } = {
+      healthy: '#4ade80',
+      warning: '#fbbf24',
+      critical: '#ef4444'
+    };
+    return colors[status] || '#gray';
+  };
+
+  if (loading && plants.length === 0) {
     return (
       <div className="dashboard-charts">
         <div className="loading-container">
           <div className="spinner-large"></div>
-          <p>Cargando tu dashboard personalizado...</p>
+          <p>Cargando tus plantas...</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && plants.length === 0) {
     return (
       <div className="dashboard-charts">
         <div className="error-container">
-          <h3>❌ Error cargando datos</h3>
+          <h3>❌ Error</h3>
           <p>{error}</p>
-          <button onClick={loadDashboardData} className="btn-primary">
+          <button onClick={loadPlants} className="btn-primary">
             🔄 Reintentar
           </button>
         </div>
@@ -485,79 +224,42 @@ const DashboardCharts: React.FC = () => {
     );
   }
 
-  if (!dashboardData) {
+  if (plants.length === 0) {
     return (
       <div className="dashboard-charts">
-        <div className="loading-container">
-          <div className="spinner-large"></div>
-          <p>Preparando datos...</p>
+        <div className="empty-state">
+          <div className="empty-icon">🌱</div>
+          <h2>¡Aún no tienes plantas!</h2>
+          <p>Ve a "Tu Jardín" para añadir tu primera planta y comenzar a monitorearla.</p>
         </div>
       </div>
     );
   }
 
-  // Preparar datos para el gráfico de líneas
-  const chartLabelsIso = Array.from(
-    new Set((dashboardData.chart_data || []).map((d) => d.bucket))
-  ).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-
-  const chartLabels = chartLabelsIso.map((iso) => formatBucketLabel(iso, timeframe));
-
-  const colorPalette = [
-    'rgba(74, 222, 128, 0.8)',
-    'rgba(59, 130, 246, 0.8)',
-    'rgba(245, 158, 11, 0.8)',
-    'rgba(239, 68, 68, 0.8)',
-    'rgba(139, 92, 246, 0.8)',
-  ];
-
-  const metricInfo = METRIC_INFO[selectedMetric];
-  const chartUnitSuffix =
-    metricInfo.unit ? (metricInfo.unit === '%' ? metricInfo.unit : ` ${metricInfo.unit}`) : '';
-
-  const formatMetricValue = (
-    value: number | null | undefined,
-    metric: MetricKey,
-    options: { withUnit?: boolean; decimals?: number } = {}
-  ): string => {
-    const { withUnit = true, decimals } = options;
-    if (value === null || value === undefined || Number.isNaN(value)) {
-      return '--';
+  // Preparar datos del gráfico
+  const labels = chartData.map(entry => {
+    const date = new Date(entry.bucket);
+    if (timeframe === 'hour') {
+      return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    } else if (timeframe === 'day') {
+      return date.toLocaleTimeString('es-ES', { hour: '2-digit' });
+    } else {
+      return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
     }
-    const info = METRIC_INFO[metric];
-    const precision = decimals ?? info.decimals;
-    const formatted = Number(value).toFixed(precision);
-    if (!withUnit || !info.unit) {
-      return formatted;
-    }
-    const suffix = info.unit === '%' ? info.unit : ` ${info.unit}`;
-    return `${formatted}${suffix}`;
-  };
+  });
 
-  const chartData = {
-    labels: chartLabels,
-    datasets: (dashboardData.devices || []).map((device, index) => {
-      const deviceData = (dashboardData.chart_data || []).filter(
-        (entry) => entry.device_id === device.id
-      );
-      const valuesByDay = deviceData.reduce<Record<string, number | null>>((acc, entry) => {
-        const value = entry[selectedMetric];
-        acc[entry.bucket] = value !== null && value !== undefined ? Number(value) : null;
-        return acc;
-      }, {});
-
-      return {
-        label: device.name || `Dispositivo ${device.id}`,
-        data: chartLabelsIso.map((day) =>
-          valuesByDay[day] !== undefined ? valuesByDay[day] : null
-        ),
-        borderColor: colorPalette[index % colorPalette.length],
-        backgroundColor: colorPalette[index % colorPalette.length].replace('0.8', '0.2'),
-        spanGaps: true,
-        fill: false,
-        tension: 0.4,
-      };
-    }),
+  const chartDataConfig = {
+    labels,
+    datasets: selectedPlant ? [{
+      label: selectedMetric === 'humidity' ? 'Humedad (%)' : 'Temperatura (°C)',
+      data: chartData.map(entry => entry[selectedMetric]),
+      borderColor: selectedMetric === 'humidity' ? 'rgba(74, 222, 128, 0.8)' : 'rgba(59, 130, 246, 0.8)',
+      backgroundColor: selectedMetric === 'humidity' 
+        ? 'rgba(74, 222, 128, 0.2)' 
+        : 'rgba(59, 130, 246, 0.2)',
+      fill: true,
+      tension: 0.4,
+    }] : [],
   };
 
   const chartOptions: ChartOptions<'line'> = {
@@ -568,413 +270,174 @@ const DashboardCharts: React.FC = () => {
       },
       title: {
         display: true,
-        text: `Tendencia de ${metricInfo.label} (${timeframeFriendlyLabel[timeframe]})`,
+        text: selectedPlant 
+          ? `${selectedMetric === 'humidity' ? 'Humedad' : 'Temperatura'} de ${selectedPlant.plant_name}`
+          : 'Selecciona una planta',
       },
     },
     scales: {
       y: {
-        min: metricInfo.min,
-        max: metricInfo.max,
+        min: selectedMetric === 'humidity' ? 0 : undefined,
+        max: selectedMetric === 'humidity' ? 100 : undefined,
         title: {
           display: true,
-          text: `${metricInfo.label}${chartUnitSuffix}`,
-        },
-        ticks: {
-          callback: (value: string | number) =>
-            `${value}${metricInfo.unit ? (metricInfo.unit === '%' ? metricInfo.unit : ` ${metricInfo.unit}`) : ''}`,
+          text: selectedMetric === 'humidity' ? 'Humedad (%)' : 'Temperatura (°C)',
         },
       },
     },
   };
 
-  const selectedAverageValue =
-    dashboardData.summary?.averages?.[selectedMetric] ?? null;
-  const selectedAverageDisplay = formatMetricValue(selectedAverageValue, selectedMetric);
-  const connectedDevices = dashboardData.summary?.connected_devices ?? 0;
-  const totalDevices = dashboardData.summary?.total_devices ?? 0;
-  const totalReadings = dashboardData.summary?.total_readings ?? 0;
-  const alertsCount = (dashboardData.alerts || []).length;
-
-  // Valor para gauge: promedio de la última fecha disponible del metric seleccionado
-  const lastDate = (dashboardData?.chart_data || []).reduce<string | null>((acc, entry) => {
-    const day = entry.bucket;
-    if (!day) return acc;
-    if (!acc) return day;
-    return new Date(day) > new Date(acc) ? day : acc;
-  }, null);
-
-  const gaugeDisplayValue = (() => {
-    if (!lastDate) {
-      return selectedAverageValue;
-    }
-    const items = (dashboardData?.chart_data || []).filter((entry) => entry.bucket === lastDate);
-    const values = items
-      .map((entry) => entry[selectedMetric])
-      .filter((value): value is number => value !== null && value !== undefined && !Number.isNaN(value));
-
-    if (values.length === 0) {
-      return selectedAverageValue;
-    }
-
-    const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
-    return Number(avg.toFixed(metricInfo.decimals));
-  })();
-
-  const metricRange = Math.max(metricInfo.max - metricInfo.min, 1);
-  const gaugeRatio =
-    gaugeDisplayValue !== null && gaugeDisplayValue !== undefined
-      ? (gaugeDisplayValue - metricInfo.min) / metricRange
-      : 0;
-  const gaugeClamped = Math.max(0, Math.min(1, gaugeRatio));
-  const gaugeValuePercent = gaugeClamped * 100;
-  const gaugeDisplayText = formatMetricValue(gaugeDisplayValue, selectedMetric);
-  const gaugeTicks = [0, 0.25, 0.5, 0.75, 1];
+  // Calcular estadísticas
+  const currentValue = chartData.length > 0 
+    ? chartData[chartData.length - 1][selectedMetric]
+    : null;
+  
+  const average = chartData.length > 0
+    ? chartData.reduce((sum, entry) => sum + (entry[selectedMetric] || 0), 0) / chartData.length
+    : null;
 
   return (
     <div className="dashboard-charts">
-      {/* Resumen de estadísticas */}
-      <div className="stats-overview">
-        <div className="stat-card">
-          <div className="stat-icon">
-            <DeviceCardIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{connectedDevices}</h3>
-            <p>Dispositivos Conectados</p>
-            {totalDevices > 0 && (
-              <small className="stat-subtext">de {totalDevices} totales</small>
-            )}
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <ChartIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{totalReadings}</h3>
-            <p>Lecturas Registradas</p>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <HumidityIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{selectedAverageDisplay}</h3>
-            <p>Promedio {metricInfo.label}</p>
-            <small className="stat-subtext">Métrica seleccionada</small>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <AlertIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{alertsCount}</h3>
-            <p>Alertas Activas</p>
-          </div>
-        </div>
+      <div className="plants-dashboard-header">
+        <h1>📊 Dashboard de Plantas</h1>
+        <p>Monitorea la salud de tus plantas en tiempo real</p>
       </div>
 
-      {/* Alertas importantes */}
-      {(dashboardData.alerts || []).length > 0 && (
-        <div className="alerts-section">
-          <h3>
-            <span style={{marginRight: 8, display: 'inline-flex', color: '#ef4444'}}>
-              <BellIcon className="nav-icon" />
-            </span>
-            Alertas Importantes
-          </h3>
-          <div className="alerts-grid">
-            {(dashboardData.alerts || []).map((alert) => (
-              <div key={alert.id} className={`alert-card ${alert.severity}`}>
-                <div className="alert-header">
-                  <span className="alert-type">
-                    {alert.severity === 'high' ? '🔴' :
-                     alert.severity === 'medium' ? '🟡' : '🔵'}
-                  </span>
-                  <span className="device-name">{alert.device_name}</span>
-                </div>
-                <p className="alert-message">{alert.message}</p>
-                {alert.action && (
-                  <p className="alert-action">
-                    <strong>Acción:</strong> {alert.action}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Selector de métricas */}
-      <div className="metric-tabs">
-        {METRIC_ORDER.map((metric) => {
-          const info = METRIC_INFO[metric];
-          return (
-            <button
-              key={metric}
-              className={`metric-tab ${selectedMetric === metric ? 'active' : ''}`}
-              onClick={() => setSelectedMetric(metric)}
+      {/* Selector de plantas */}
+      <div className="plants-selector">
+        <h3>Selecciona una planta:</h3>
+        <div className="plants-grid-mini">
+          {plants.map(plant => (
+            <div
+              key={plant.id}
+              className={`plant-mini-card ${selectedPlant?.id === plant.id ? 'active' : ''}`}
+              onClick={() => setSelectedPlant(plant)}
             >
-              <span className="metric-icon">{info.icon}</span>
-              {info.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="timeframe-tabs">
-        {TIMEFRAME_OPTIONS.map((option) => (
-          <button
-            key={option.key}
-            className={`timeframe-tab ${timeframe === option.key ? 'active' : ''}`}
-            onClick={() => setTimeframe(option.key)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Gráfico principal */}
-      <div className="chart-section">
-        <h3 className="chart-title">
-          {viewMode === 'line'
-            ? `Tendencia de ${metricInfo.label} (${timeframeFriendlyLabel[timeframe]})`
-            : `Indicador de ${metricInfo.label}`}
-        </h3>
-        {viewMode === 'line' ? (
-          <div className="chart-container">
-            <Line data={chartData} options={chartOptions} />
-          </div>
-        ) : (
-          <div className="gauge-container">
-            <svg viewBox="0 0 220 140" width="100%" style={{maxWidth: 500}}>
-              <defs>
-                <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8"/>
-                  <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.8"/>
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity="0.8"/>
-                </linearGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              {/* Arco del medidor */}
-              <path 
-                d="M20,120 A90,90 0 0,1 200,120" 
-                fill="none" 
-                stroke="url(#gaugeGradient)" 
-                strokeWidth="16" 
-                strokeLinecap="round"
-                filter="url(#glow)"
-              />
-              {/* Marcas de escala */}
-              {gaugeTicks.map((ratio, i) => {
-                const angle = (-180 + ratio * 180) * Math.PI / 180;
-                const cx = 110, cy = 120, r = 85;
-                const x1 = cx + (r-10)*Math.cos(angle);
-                const y1 = cy + (r-10)*Math.sin(angle);
-                const x2 = cx + r*Math.cos(angle);
-                const y2 = cy + r*Math.sin(angle);
-                const tickValue =
-                  metricInfo.min + ratio * (metricInfo.max - metricInfo.min);
-                const tickLabel = formatMetricValue(tickValue, selectedMetric);
-                return (
-                  <g key={i}>
-                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#94a3b8" strokeWidth="2"/>
-                    <text 
-                      x={x1 - 5} 
-                      y={y1 + 5} 
-                      textAnchor="middle" 
-                      fill="#cbd5e1" 
-                      fontSize="11"
-                      fontWeight="500"
-                    >
-                      {tickLabel}
-                    </text>
-                  </g>
-                );
-              })}
-              {/* Aguja */}
-              {(() => {
-                const angle = (-180 + (gaugeValuePercent / 100) * 180) * Math.PI / 180;
-                const cx = 110, cy = 120, r = 80;
-                const x = cx + r*Math.cos(angle);
-                const y = cy + r*Math.sin(angle);
-                return (
-                  <g>
-                    <line 
-                      x1={cx} 
-                      y1={cy} 
-                      x2={x} 
-                      y2={y} 
-                      stroke="#ffffff" 
-                      strokeWidth="5" 
-                      strokeLinecap="round"
-                      filter="url(#glow)"
-                    />
-                    <circle cx={cx} cy={cy} r="8" fill="#ffffff" filter="url(#glow)"/>
-                    <circle cx={cx} cy={cy} r="4" fill="#0f172a"/>
-                  </g>
-                );
-              })()}
-              {/* Valor central */}
-              <text 
-                x="110" 
-                y="90" 
-                textAnchor="middle" 
-                fill="#ffffff" 
-                fontSize="32" 
-                fontWeight="700"
-                filter="url(#glow)"
-              >
-                {gaugeDisplayText}
-              </text>
-              <text 
-                x="110" 
-                y="110" 
-                textAnchor="middle" 
-                fill="#94a3b8" 
-                fontSize="14"
-                fontWeight="500"
-              >
-                {metricInfo.label}
-              </text>
-            </svg>
-          </div>
-        )}
-      </div>
-      
-      {/* Botón de cambio de vista */}
-      <div className="charts-toolbar">
-        <button className="btn-secondary" onClick={() => setViewMode(viewMode==='line'?'gauge':'line')}>
-          {viewMode==='line' ? (
-            <>
-              <RefreshIcon className="nav-icon" />
-              Cambiar a Indicador
-            </>
-          ) : (
-            <>
-              <LineChartIcon className="nav-icon" />
-              Cambiar a Tendencia
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Insights de IA */}
-      <div className="ai-insights-section">
-        <h3>Insights de IA</h3>
-        <div className="ai-insights-content">
-          <div className="ai-avatar">
-            <img src="/Plantcareblanco-removebg-preview.png" alt="PlantCare AI" style={{width: '40px', height: '40px'}} />
-          </div>
-          <div className="ai-text">
-            <p>{dashboardData.ai_insights || 'Conecta tu primer sensor para comenzar a recibir recomendaciones personalizadas de IA.'}</p>
-            <small>
-              Generado el {(dashboardData.generated_at && !isNaN(Date.parse(dashboardData.generated_at)))
-                ? new Date(dashboardData.generated_at).toLocaleString()
-                : new Date().toLocaleString()}
-            </small>
-          </div>
-        </div>
-      </div>
-
-      {/* Lista de dispositivos con reportes */}
-      <div className="devices-reports">
-        <h3>📱 Mis Dispositivos</h3>
-        <div className="devices-grid">
-          {dashboardData.devices.map(device => (
-            <div key={device.id} className="device-card">
-              <div className="device-header">
-                <h4>{device.name || `Dispositivo ${device.id}`}</h4>
-                <span className={`device-status ${device.connected ? 'connected' : 'disconnected'}`}>
-                  {device.connected ? '🟢 Conectado' : '🔴 Desconectado'}
-                </span>
-              </div>
-              <div className="device-info">
-                <p><strong>Tipo:</strong> {device.plant_type || 'No especificado'}</p>
-                <p><strong>Ubicación:</strong> {device.location || 'No especificada'}</p>
-                <p><strong>Código:</strong> <code>{device.device_code}</code></p>
-              </div>
-              <div className="device-actions">
-                <button 
-                  onClick={() => loadDeviceReport(device.id)}
-                  className="btn-primary"
-                  disabled={loading && selectedDevice === device.id}
+              {plant.character_image_url ? (
+                <img src={plant.character_image_url} alt={plant.plant_name} />
+              ) : (
+                <div className="plant-placeholder">🌱</div>
+              )}
+              <div className="plant-mini-info">
+                <h4>{plant.plant_name}</h4>
+                <span className="mood-mini">{getMoodEmoji(plant.character_mood)}</span>
+                <span 
+                  className="health-badge"
+                  style={{ backgroundColor: getHealthColor(plant.health_status) }}
                 >
-                  {loading && selectedDevice === device.id ? (
-                    <>
-                      <span className="spinner"></span>
-                      Generando...
-                    </>
-                  ) : (
-                    '📊 Ver Reporte IA'
-                  )}
-                </button>
+                  {plant.health_status}
+                </span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Modal de reporte de dispositivo */}
-      {selectedDeviceReport && (
-        <div className="report-modal">
-          <div className="report-content">
-            <div className="report-header">
-              <h2>📊 Reporte de {selectedDeviceReport.device_info.name}</h2>
-              <button 
-                className="close-btn"
-                onClick={() => setSelectedDeviceReport(null)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="report-stats">
-              <div className="stat-item">
-                <span className="stat-label">Humedad Actual:</span>
-                <span className="stat-value">{selectedDeviceReport.statistics.current_humidity}%</span>
+      {selectedPlant && (
+        <>
+          {/* Información de la planta seleccionada */}
+          <div className="selected-plant-info">
+            <div className="plant-hero">
+              {selectedPlant.character_image_url ? (
+                <img src={selectedPlant.character_image_url} alt={selectedPlant.plant_name} />
+              ) : (
+                <div className="plant-hero-placeholder">🌱</div>
+              )}
+              <div className="plant-hero-details">
+                <h2>{selectedPlant.plant_name}</h2>
+                <p className="plant-type">{selectedPlant.plant_type}</p>
+                <div className="plant-status">
+                  <span className="mood-large">{getMoodEmoji(selectedPlant.character_mood)}</span>
+                  <span 
+                    className="health-status"
+                    style={{ color: getHealthColor(selectedPlant.health_status) }}
+                  >
+                    {selectedPlant.health_status}
+                  </span>
+                </div>
               </div>
-              <div className="stat-item">
-                <span className="stat-label">Promedio 48h:</span>
-                <span className="stat-value">{selectedDeviceReport.statistics.avg_humidity_48h.toFixed(1)}%</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-label">Tendencia:</span>
-                <span className={`trend-badge ${selectedDeviceReport.trend_analysis.trend}`}>
-                  {selectedDeviceReport.trend_analysis.trend === 'subiendo' ? '📈' :
-                   selectedDeviceReport.trend_analysis.trend === 'bajando' ? '📉' : '➡️'}
-                  {selectedDeviceReport.trend_analysis.trend_description}
-                </span>
-              </div>
-            </div>
-
-            <div className="ai-report">
-              <h3>🤖 Análisis de IA</h3>
-              <div className="ai-report-content">
-                {selectedDeviceReport.ai_report.split('\n').map((line, index) => (
-                  <p key={index}>{line}</p>
-                ))}
-              </div>
-            </div>
-
-            <div className="report-footer">
-              <small>
-                Reporte generado el {new Date(selectedDeviceReport.generated_at).toLocaleString()}
-              </small>
             </div>
           </div>
-        </div>
+
+          {selectedPlant.sensor_id ? (
+            <>
+              {/* Selector de métrica y timeframe */}
+              <div className="chart-controls">
+                <div className="metric-tabs">
+                  <button
+                    className={`metric-tab ${selectedMetric === 'humidity' ? 'active' : ''}`}
+                    onClick={() => setSelectedMetric('humidity')}
+                  >
+                    💧 Humedad
+                  </button>
+                  <button
+                    className={`metric-tab ${selectedMetric === 'temperature' ? 'active' : ''}`}
+                    onClick={() => setSelectedMetric('temperature')}
+                  >
+                    🌡️ Temperatura
+                  </button>
+                </div>
+
+                <div className="timeframe-tabs">
+                  {TIMEFRAME_OPTIONS.map(option => (
+                    <button
+                      key={option.key}
+                      className={`timeframe-tab ${timeframe === option.key ? 'active' : ''}`}
+                      onClick={() => setTimeframe(option.key)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Estadísticas rápidas */}
+              <div className="stats-overview">
+                <div className="stat-card">
+                  <div className="stat-icon">{selectedMetric === 'humidity' ? '💧' : '🌡️'}</div>
+                  <div className="stat-content">
+                    <h3>{currentValue !== null ? `${currentValue.toFixed(1)}${selectedMetric === 'humidity' ? '%' : '°C'}` : '--'}</h3>
+                    <p>Valor Actual</p>
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">📊</div>
+                  <div className="stat-content">
+                    <h3>{average !== null ? `${average.toFixed(1)}${selectedMetric === 'humidity' ? '%' : '°C'}` : '--'}</h3>
+                    <p>Promedio</p>
+                  </div>
+                </div>
+                {selectedPlant.optimal_humidity_min && selectedPlant.optimal_humidity_max && selectedMetric === 'humidity' && (
+                  <div className="stat-card">
+                    <div className="stat-icon">🎯</div>
+                    <div className="stat-content">
+                      <h3>{selectedPlant.optimal_humidity_min}% - {selectedPlant.optimal_humidity_max}%</h3>
+                      <p>Rango Óptimo</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Gráfico */}
+              {chartData.length > 0 ? (
+                <div className="chart-section">
+                  <div className="chart-container">
+                    <Line data={chartDataConfig} options={chartOptions} />
+                  </div>
+                </div>
+              ) : (
+                <div className="no-data-message">
+                  <p>📡 No hay datos del sensor aún. Espera a que el sensor envíe lecturas.</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="no-sensor-message">
+              <h3>📡 Sin Sensor Conectado</h3>
+              <p>Esta planta no tiene un sensor asignado. Ve a "Dispositivos" para asignar un sensor a {selectedPlant.plant_name}.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

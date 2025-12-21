@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+*.txt
+!requirements.txt
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Scripts
+*.sh
+setup_*.sh
+
+# Migrations (opcional, si quieres ejecutarlas manualmente)
+# migrations/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Uploads (se crean en el contenedor)
+uploads/*
+!uploads/.gitkeep
+
+# Data
+data/*
+!data/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Wemos (código Arduino)
+wemos_plantcare/
+

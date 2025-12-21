@@ -12,6 +12,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onClose }) =>
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    remember_me: false,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -157,6 +158,18 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onClose }) =>
               required
               placeholder="Tu contraseña"
             />
+          </div>
+
+          <div className="form-group remember-me">
+            <label className="remember-me-label">
+              <input
+                type="checkbox"
+                name="remember_me"
+                checked={formData.remember_me}
+                onChange={(e) => setFormData(prev => ({ ...prev, remember_me: e.target.checked }))}
+              />
+              <span>Recordarme (sesión de 1 mes)</span>
+            </label>
           </div>
 
           <button 

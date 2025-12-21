@@ -1,16 +1,231 @@
 .dashboard-charts {
-  padding: 20px;
-  max-width: 1200px;
+  padding: 2rem;
+  max-width: 1400px;
   margin: 0 auto;
+  color: #e2e8f0;
+  min-height: calc(100vh - 200px);
+}
+
+/* Header del dashboard de plantas */
+.plants-dashboard-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.plants-dashboard-header h1 {
+  margin: 0 0 0.5rem 0;
+  color: #4ade80;
+  font-size: 2rem;
+}
+
+.plants-dashboard-header p {
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* Selector de plantas */
+.plants-selector {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 16px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.plants-selector h3 {
+  color: #4ade80;
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+}
+
+.plants-grid-mini {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.plant-mini-card {
+  background: rgba(15, 23, 42, 0.5);
+  border: 2px solid rgba(74, 222, 128, 0.2);
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.plant-mini-card:hover {
+  transform: translateY(-2px);
+  border-color: #4ade80;
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+}
+
+.plant-mini-card.active {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.4);
+}
+
+.plant-mini-card img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.plant-placeholder {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  background: rgba(74, 222, 128, 0.1);
+  border-radius: 8px;
+  margin: 0 auto 0.5rem;
+}
+
+.plant-mini-info h4 {
+  margin: 0.5rem 0;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+}
+
+.mood-mini {
+  font-size: 1.5rem;
+  display: block;
+  margin: 0.25rem 0;
+}
+
+.health-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
   color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  margin-top: 0.25rem;
+}
+
+/* Información de planta seleccionada */
+.selected-plant-info {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(34, 197, 94, 0.1));
+  border-radius: 16px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.plant-hero {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.plant-hero img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 2px solid rgba(74, 222, 128, 0.3);
+}
+
+.plant-hero-placeholder {
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  background: rgba(74, 222, 128, 0.1);
+  border-radius: 16px;
+  border: 2px solid rgba(74, 222, 128, 0.3);
+}
+
+.plant-hero-details h2 {
+  margin: 0 0 0.5rem 0;
+  color: #4ade80;
+  font-size: 1.75rem;
+}
+
+.plant-type {
+  color: #94a3b8;
+  margin: 0 0 1rem 0;
+}
+
+.plant-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.mood-large {
+  font-size: 2rem;
+}
+
+.health-status {
+  font-weight: 600;
+  text-transform: capitalize;
+  font-size: 1.1rem;
+}
+
+/* Controles de gráfico */
+.chart-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* Estados vacíos */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 16px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state h2 {
+  color: #4ade80;
+  margin: 1rem 0;
+}
+
+.empty-state p {
+  color: #94a3b8;
+  margin: 1rem 0;
+}
+
+.no-data-message,
+.no-sensor-message {
+  text-align: center;
+  padding: 2rem;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: #94a3b8;
+}
+
+.no-sensor-message h3 {
+  color: #4ade80;
+  margin: 0 0 0.5rem 0;
 }
 
 /* Chart Section */
 .chart-section {
   margin-bottom: 40px;
   padding: 30px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(74, 222, 128, 0.15);
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(74, 222, 128, 0.2);
   border-radius: 16px;
 }
 

@@ -29,7 +29,7 @@ _db: Optional[AsyncPgDbToolkit] = None
 
 async def init_db() -> AsyncPgDbToolkit:
     """
-    Inicializa la base de datos y crea las tablas necesarias
+    Inicializa la base de datos y crea las tablas necesarias (ESQUEMA V2 CON ROLES)
     """
     async with _db_lock:
         global _db
@@ -59,103 +59,397 @@ async def init_db() -> AsyncPgDbToolkit:
             raise
 
 async def _create_tables(db: AsyncPgDbToolkit):
-    """Crea las tablas necesarias en la base de datos"""
+    """Crea las tablas necesarias en la base de datos (ESQUEMA V2 CON ROLES)"""
     try:
         tables = await db.get_tables()
         
-        # Tabla de roles
+        # ============================================
+        # PASO 1: CREAR TABLA ROLES PRIMERO (ES REFERENCIADA POR USERS)
+        # ============================================
         if "roles" not in tables:
             logger.info("📋 Creando tabla roles...")
             await db.create_table("roles", {
                 "id": "SERIAL PRIMARY KEY",
                 "name": "VARCHAR(50) UNIQUE NOT NULL",
-                "description": "VARCHAR(200)",
+                "description": "TEXT",
+                "permissions": "JSONB",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             })
             
             # Insertar roles por defecto
-            await db.insert_records("roles", [
-                {"id": 1, "name": "user", "description": "Usuario normal - Propietario de viñas"},
-                {"id": 2, "name": "admin", "description": "Administrador - Gestión completa del sistema"}
-            ])
+            logger.info("📋 Insertando roles por defecto...")
+            await db.execute_query("""
+                INSERT INTO roles (id, name, description, permissions) VALUES
+                (1, 'user', 'Usuario regular con acceso básico', '{"can_create_plants": true, "can_manage_sensors": true, "can_view_garden": true}'),
+                (2, 'admin', 'Administrador con acceso completo', '{"can_create_plants": true, "can_manage_sensors": true, "can_view_garden": true, "can_manage_users": true, "can_view_stats": true, "can_delete_any_plant": true}')
+            """)
             
-            logger.info("✅ Tabla roles creada con roles por defecto")
+            # Resetear secuencia para que el siguiente ID sea 3
+            await db.execute_query("SELECT setval('roles_id_seq', 2, true)")
+            
+            logger.info("✅ Tabla roles creada con roles por defecto (user=1, admin=2)")
+        else:
+            logger.info("✅ Tabla roles ya existe")
         
-        # Tabla de usuarios
+        # ============================================
+        # PASO 2: CREAR/ACTUALIZAR TABLA USERS CON role_id
+        # ============================================
         if "users" not in tables:
-            logger.info("📋 Creando tabla users...")
+            logger.info("📋 Creando tabla users (v2 con role_id)...")
             await db.create_table("users", {
                 "id": "SERIAL PRIMARY KEY",
-                "first_name": "VARCHAR(100) NOT NULL",
-                "last_name": "VARCHAR(100) NOT NULL",
                 "email": "VARCHAR(255) UNIQUE NOT NULL",
-                "phone": "VARCHAR(20)",
-                "region": "VARCHAR(100)",
-                "vineyard_name": "VARCHAR(200)",
-                "hectares": "DECIMAL(10,2) CHECK (hectares >= 0)",
-                "grape_type": "VARCHAR(100)",
-                "avatar_url": "VARCHAR(500)",
-                "is_verified": "BOOLEAN DEFAULT false",
-                "password_hash": "VARCHAR(255) NOT NULL",
-                "role_id": "INTEGER DEFAULT 1 REFERENCES roles(id) ON DELETE RESTRICT",
+                "hashed_password": "VARCHAR(255) NOT NULL",
+                "full_name": "VARCHAR(255)",
+                "role_id": "INTEGER REFERENCES roles(id) DEFAULT 1",
+                "is_active": "BOOLEAN DEFAULT TRUE",
+                "is_verified": "BOOLEAN DEFAULT FALSE",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "last_login": "TIMESTAMP",
-                "active": "BOOLEAN DEFAULT true"
+                "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             })
-            logger.info("✅ Tabla users creada exitosamente")
+            logger.info("✅ Tabla users (v2) creada exitosamente con role_id")
         else:
-            # Verificar si existe la columna role_id, si no, agregarla
+            # Migración: verificar si tiene columna role_id o role (string)
+            logger.info("📋 Verificando estructura de tabla users...")
             try:
-                await db.execute_query("SELECT role_id FROM users LIMIT 1")
+                # Intentar seleccionar role_id e is_verified
+                await db.execute_query("SELECT role_id, is_verified FROM users LIMIT 1")
+                logger.info("✅ Tabla users ya tiene columnas role_id e is_verified")
             except:
-                logger.info("📋 Agregando columna role_id a tabla users...")
-                # Primero agregar la columna sin la referencia
-                await db.execute_query("ALTER TABLE users ADD COLUMN role_id INTEGER DEFAULT 1")
-                # Actualizar usuarios existentes para que tengan rol de usuario (1)
-                await db.execute_query("UPDATE users SET role_id = 1 WHERE role_id IS NULL")
-                # Ahora agregar la referencia de clave foránea
+                # No tiene role_id, necesita migración
+                logger.info("📋 Migrando tabla users a esquema v2 con role_id...")
                 try:
-                    await db.execute_query("ALTER TABLE users ADD CONSTRAINT users_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id)")
-                except Exception as fk_error:
-                    logger.warning(f"No se pudo agregar la clave foránea: {fk_error}")
-                logger.info("✅ Columna role_id agregada y usuarios actualizados")
-
-            # Asegurar columna is_verified
-            try:
-                await db.execute_query("SELECT is_verified FROM users LIMIT 1")
-            except Exception:
-                logger.info("📋 Agregando columna is_verified a tabla users...")
-                await db.execute_query("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT false")
-                # Index para verificación
-                await db.execute_query("CREATE INDEX IF NOT EXISTS idx_users_is_verified ON users(is_verified)")
+                    # Agregar columnas nuevas si no existen
+                    await db.execute_query("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)")
+                    # Agregar columnas nuevas si no existen
+                    try:
+                        await db.execute_query("SELECT is_verified FROM users LIMIT 1")
+                    except:
+                        await db.execute_query("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE")
+                        logger.info("✅ Columna is_verified agregada")
+                    
+                    try:
+                        await db.execute_query("SELECT hashed_password FROM users LIMIT 1")
+                    except:
+                        await db.execute_query("ALTER TABLE users ADD COLUMN hashed_password VARCHAR(255)")
+                        logger.info("✅ Columna hashed_password agregada")
+                    
+                    try:
+                        await db.execute_query("SELECT role_id FROM users LIMIT 1")
+                    except:
+                        await db.execute_query("ALTER TABLE users ADD COLUMN role_id INTEGER")
+                        logger.info("✅ Columna role_id agregada")
+                    
+                    try:
+                        await db.execute_query("SELECT is_active FROM users LIMIT 1")
+                    except:
+                        await db.execute_query("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE")
+                        logger.info("✅ Columna is_active agregada")
+                    
+                    try:
+                        await db.execute_query("SELECT updated_at FROM users LIMIT 1")
+                    except:
+                        await db.execute_query("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                        logger.info("✅ Columna updated_at agregada")
+                    
+                    # Migrar datos de columnas antiguas
+                    try:
+                        # Migrar first_name + last_name → full_name
+                        await db.execute_query("""
+                            UPDATE users 
+                            SET full_name = TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')))
+                            WHERE full_name IS NULL AND (first_name IS NOT NULL OR last_name IS NOT NULL)
+                        """)
+                        logger.info("✅ Migrado first_name + last_name → full_name")
+                    except Exception as e:
+                        logger.warning(f"No se pudo migrar full_name: {e}")
+                    
+                    try:
+                        # Migrar password_hash → hashed_password
+                        await db.execute_query("""
+                            UPDATE users 
+                            SET hashed_password = password_hash
+                            WHERE hashed_password IS NULL AND password_hash IS NOT NULL
+                        """)
+                        logger.info("✅ Migrado password_hash → hashed_password")
+                    except Exception as e:
+                        logger.warning(f"No se pudo migrar hashed_password: {e}")
+                    
+                    try:
+                        # Migrar active → is_active
+                        await db.execute_query("""
+                            UPDATE users 
+                            SET is_active = active
+                            WHERE is_active IS NULL AND active IS NOT NULL
+                        """)
+                        logger.info("✅ Migrado active → is_active")
+                    except Exception as e:
+                        logger.warning(f"No se pudo migrar is_active: {e}")
+                    
+                    try:
+                        # Migrar role (string) → role_id (FK)
+                        # Caso 1: Si existe columna 'role' como string
+                        await db.execute_query("""
+                            UPDATE users 
+                            SET role_id = CASE 
+                                WHEN role = 'admin' THEN 2
+                                WHEN role = 'user' THEN 1
+                                ELSE 1
+                            END
+                            WHERE role_id IS NULL
+                        """)
+                        logger.info("✅ Migrado role (string) → role_id")
+                    except Exception as e:
+                        # Caso 2: Si tiene role_id viejo (antes de FK)
+                        try:
+                            await db.execute_query("""
+                                UPDATE users 
+                                SET role_id = CASE 
+                                    WHEN role_id = 2 THEN 2
+                                    ELSE 1
+                                END
+                                WHERE role_id IS NOT NULL
+                            """)
+                            logger.info("✅ Normalizado role_id existente")
+                        except Exception as e2:
+                            logger.warning(f"No se pudo migrar role_id: {e2}")
+                    
+                    # Establecer role_id=1 por defecto si es NULL
+                    await db.execute_query("""
+                        UPDATE users 
+                        SET role_id = 1
+                        WHERE role_id IS NULL
+                    """)
+                    
+                    # Agregar constraint FK a roles
+                    try:
+                        await db.execute_query("""
+                            ALTER TABLE users 
+                            ADD CONSTRAINT fk_users_role_id 
+                            FOREIGN KEY (role_id) REFERENCES roles(id)
+                        """)
+                        logger.info("✅ Foreign key role_id → roles(id) agregada")
+                    except Exception as e:
+                        logger.warning(f"FK ya existe o error: {e}")
+                    
+                    # Establecer DEFAULT para nuevos registros
+                    try:
+                        await db.execute_query("""
+                            ALTER TABLE users 
+                            ALTER COLUMN role_id SET DEFAULT 1
+                        """)
+                        logger.info("✅ DEFAULT 1 establecido para role_id")
+                    except Exception as e:
+                        logger.warning(f"Error estableciendo DEFAULT: {e}")
+                    
+                    logger.info("✅ Tabla users migrada exitosamente a esquema v2 con role_id")
+                except Exception as e:
+                    logger.error(f"❌ Error en migración de users: {e}")
+                    raise
         
-        # Tabla de dispositivos IoT
-        if "devices" not in tables:
-            logger.info("📋 Creando tabla devices...")
-            await db.create_table("devices", {
-                "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE",
-                "device_code": "VARCHAR(12) UNIQUE NOT NULL",  # Código verificador único tipo patente
-                "name": "VARCHAR(100)",
-                "device_type": "VARCHAR(50) NOT NULL DEFAULT 'humidity_sensor'",
-                "location": "VARCHAR(200)",
-                "plant_type": "VARCHAR(100)",
-                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "last_seen": "TIMESTAMP",
-                "connected_at": "TIMESTAMP",  # Cuando se conectó por primera vez
-                "active": "BOOLEAN DEFAULT true",
-                "connected": "BOOLEAN DEFAULT false",  # Si está conectado a un usuario
-                "config": "JSONB"
-            })
-            logger.info("✅ Tabla devices creada exitosamente")
+        # ============================================
+        # PASO 3: CREAR TABLA SENSORS (REDISEÑADA CON UUID)
+        # ============================================
+        if "sensors" not in tables:
+            logger.info("📋 Creando tabla sensors (v2 con UUID)...")
+            # Primero habilitar extensión UUID si no existe
+            await db.execute_query("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
             
-            # Crear índice único para device_code
             await db.execute_query("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_code ON devices(device_code);
+                CREATE TABLE sensors (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    device_id VARCHAR(50) UNIQUE NOT NULL,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    plant_id INTEGER REFERENCES plants(id) ON DELETE SET NULL,
+                    name VARCHAR(100) NOT NULL,
+                    device_type VARCHAR(50) DEFAULT 'esp8266',
+                    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
+                    last_connection TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             """)
-            logger.info("✅ Índice único para device_code creado")
+            logger.info("✅ Tabla sensors creada exitosamente (v2 con UUID)")
+        else:
+            logger.info("✅ Tabla sensors ya existe")
+            # Verificar si necesita migración (si tiene device_key en lugar de device_id)
+            try:
+                check_query = """
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'sensors' AND column_name = 'device_key'
+                """
+                result = await db.execute_query(check_query)
+                if result is not None and not result.empty:
+                    logger.warning("⚠️ Tabla sensors tiene estructura antigua. Se requiere migración manual.")
+            except Exception:
+                pass
         
-        # Tabla de verificación de email
+        # ============================================
+        # PASO 4: CREAR TABLA PLANTS
+        # ============================================
+        if "plants" not in tables:
+            logger.info("📋 Creando tabla plants...")
+            await db.create_table("plants", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
+                "sensor_id": "INTEGER REFERENCES sensors(id) ON DELETE SET NULL",
+                "plant_name": "VARCHAR(100) NOT NULL",
+                "plant_type": "VARCHAR(100)",
+                "scientific_name": "VARCHAR(200)",
+                "care_level": "VARCHAR(20)",
+                "care_tips": "TEXT",
+                "original_photo_url": "TEXT",
+                "character_image_url": "TEXT",
+                "character_personality": "TEXT",
+                "character_mood": "VARCHAR(50) DEFAULT 'happy'",
+                "health_status": "VARCHAR(20) DEFAULT 'healthy'",
+                "last_watered": "TIMESTAMP",
+                "optimal_humidity_min": "FLOAT",
+                "optimal_humidity_max": "FLOAT",
+                "optimal_temp_min": "FLOAT",
+                "optimal_temp_max": "FLOAT",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            logger.info("✅ Tabla plants creada exitosamente")
+        else:
+            logger.info("✅ Tabla plants ya existe")
+        
+        # ============================================
+        # PASO 5: CREAR TABLA SENSOR_READINGS (REDISEÑADA CON UUID Y NUEVOS CAMPOS)
+        # ============================================
+        if "sensor_readings" not in tables:
+            logger.info("📋 Creando tabla sensor_readings (v2 con UUID y nuevos campos)...")
+            # Primero habilitar extensión UUID si no existe
+            await db.execute_query("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+            
+            await db.execute_query("""
+                CREATE TABLE sensor_readings (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    sensor_id UUID NOT NULL REFERENCES sensors(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    plant_id INTEGER REFERENCES plants(id) ON DELETE SET NULL,
+                    temperature INTEGER NOT NULL CHECK (temperature >= -20 AND temperature <= 60),
+                    air_humidity FLOAT NOT NULL CHECK (air_humidity >= 0 AND air_humidity <= 100),
+                    soil_moisture FLOAT NOT NULL CHECK (soil_moisture >= 0 AND soil_moisture <= 100),
+                    light_intensity INTEGER,
+                    electrical_conductivity FLOAT CHECK (electrical_conductivity IS NULL OR electrical_conductivity >= 0),
+                    timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            logger.info("✅ Tabla sensor_readings creada exitosamente (v2 con UUID)")
+        else:
+            logger.info("✅ Tabla sensor_readings ya existe")
+            # Verificar si necesita migración (si tiene reading_time en lugar de timestamp)
+            try:
+                check_query = """
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'sensor_readings' AND column_name = 'reading_time'
+                """
+                result = await db.execute_query(check_query)
+                if result is not None and not result.empty:
+                    logger.warning("⚠️ Tabla sensor_readings tiene estructura antigua. Se requiere migración manual.")
+            except Exception:
+                pass
+        
+        # ============================================
+        # PASO 6: CREAR TABLA PLANT_PHOTOS
+        # ============================================
+        if "plant_photos" not in tables:
+            logger.info("📋 Creando tabla plant_photos...")
+            await db.create_table("plant_photos", {
+                "id": "SERIAL PRIMARY KEY",
+                "plant_id": "INTEGER REFERENCES plants(id) ON DELETE CASCADE",
+                "photo_url": "TEXT NOT NULL",
+                "notes": "TEXT",
+                "taken_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            logger.info("✅ Tabla plant_photos creada exitosamente")
+        else:
+            logger.info("✅ Tabla plant_photos ya existe")
+        
+        # ============================================
+        # PASO 7: CREAR TABLA ACHIEVEMENTS
+        # ============================================
+        if "achievements" not in tables:
+            logger.info("📋 Creando tabla achievements...")
+            await db.create_table("achievements", {
+                "id": "SERIAL PRIMARY KEY",
+                "name": "VARCHAR(100) NOT NULL",
+                "description": "TEXT",
+                "icon_url": "TEXT",
+                "points": "INTEGER DEFAULT 0",
+                "requirement_type": "VARCHAR(50)",
+                "requirement_value": "INTEGER"
+            })
+            
+            # Insertar achievements por defecto
+            logger.info("📋 Insertando achievements por defecto...")
+            await db.execute_query("""
+                INSERT INTO achievements (name, description, points, requirement_type, requirement_value) VALUES
+                ('Primera Planta', 'Registra tu primera planta', 10, 'plants_count', 1),
+                ('Jardinero Dedicado', 'Riega una planta 7 días seguidos', 50, 'water_streak', 7),
+                ('Pulgar Verde', 'Mantén una planta saludable 30 días', 100, 'days_alive', 30),
+                ('Coleccionista', 'Registra 5 plantas diferentes', 75, 'plants_count', 5),
+                ('Hidratación Perfecta', 'Mantén la humedad ideal por 14 días', 60, 'optimal_humidity_streak', 14),
+                ('Maestro Botánico', 'Identifica 10 plantas diferentes', 80, 'plants_identified', 10),
+                ('Guardián del Jardín', 'Mantén 3 plantas saludables simultáneamente', 90, 'healthy_plants_simultaneous', 3)
+            """)
+            logger.info("✅ Tabla achievements creada con logros por defecto")
+        else:
+            logger.info("✅ Tabla achievements ya existe")
+        
+        # ============================================
+        # PASO 8: CREAR TABLA USER_ACHIEVEMENTS
+        # ============================================
+        if "user_achievements" not in tables:
+            logger.info("📋 Creando tabla user_achievements...")
+            await db.create_table("user_achievements", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
+                "achievement_id": "INTEGER REFERENCES achievements(id) ON DELETE CASCADE",
+                "earned_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            
+            # Crear constraint único
+            try:
+                await db.execute_query("""
+                    ALTER TABLE user_achievements 
+                    ADD CONSTRAINT user_achievements_unique UNIQUE(user_id, achievement_id)
+                """)
+                logger.info("✅ Constraint único agregado a user_achievements")
+            except Exception as e:
+                logger.warning(f"Constraint único ya existe: {e}")
+            
+            logger.info("✅ Tabla user_achievements creada exitosamente")
+        else:
+            logger.info("✅ Tabla user_achievements ya existe")
+        
+        # ============================================
+        # PASO 9: CREAR TABLA NOTIFICATIONS
+        # ============================================
+        if "notifications" not in tables:
+            logger.info("📋 Creando tabla notifications...")
+            await db.create_table("notifications", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
+                "plant_id": "INTEGER REFERENCES plants(id) ON DELETE CASCADE",
+                "notification_type": "VARCHAR(50)",
+                "message": "TEXT NOT NULL",
+                "is_read": "BOOLEAN DEFAULT FALSE",
+                "sent_via_email": "BOOLEAN DEFAULT FALSE",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            logger.info("✅ Tabla notifications creada exitosamente")
+        else:
+            logger.info("✅ Tabla notifications ya existe")
+        
+        # ============================================
+        # PASO 10: CREAR TABLA EMAIL_VERIFICATION_TOKENS
+        # ============================================
         if "email_verification_tokens" not in tables:
             logger.info("📋 Creando tabla email_verification_tokens...")
             await db.create_table("email_verification_tokens", {
@@ -167,124 +461,8 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             })
             logger.info("✅ Tabla email_verification_tokens creada exitosamente")
-
-        # Tabla de sensores de humedad
-        if "sensor_humedad_suelo" not in tables:
-            logger.info("📋 Creando tabla sensor_humedad_suelo...")
-            await db.create_table("sensor_humedad_suelo", {
-                "id": "SERIAL PRIMARY KEY",
-                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE ON UPDATE CASCADE",
-                "valor": "DOUBLE PRECISION NOT NULL CHECK (valor >= 0 AND valor <= 100)",
-                "luz": "DOUBLE PRECISION CHECK (luz >= 0)",
-                "temperatura": "DOUBLE PRECISION CHECK (temperatura >= -20 AND temperatura <= 60)",
-                "humedad_aire": "DOUBLE PRECISION CHECK (humedad_aire >= 0 AND humedad_aire <= 100)",
-                "fecha": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
-                "bateria": "DOUBLE PRECISION CHECK (bateria >= 0 AND bateria <= 100)",
-                "senal": "INTEGER CHECK (senal >= -100 AND senal <= 0)",
-                "presion": "DOUBLE PRECISION",
-                "altitud": "DOUBLE PRECISION",
-                "timestamp_sensor": "TIMESTAMP"
-            })
-            logger.info("✅ Tabla sensor_humedad_suelo creada exitosamente")
         else:
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS luz DOUBLE PRECISION")
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS temperatura DOUBLE PRECISION")
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS humedad_aire DOUBLE PRECISION")
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS bateria DOUBLE PRECISION")
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS senal INTEGER")
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS presion DOUBLE PRECISION")
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS altitud DOUBLE PRECISION")
-            await db.execute_query("ALTER TABLE sensor_humedad_suelo ADD COLUMN IF NOT EXISTS timestamp_sensor TIMESTAMP")
-        
-        # Tabla de alertas
-        if "alerts" not in tables:
-            logger.info("📋 Creando tabla alerts...")
-            await db.create_table("alerts", {
-                "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE",
-                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE ON UPDATE CASCADE",
-                "alert_type": "VARCHAR(50) NOT NULL CHECK (alert_type IN ('low_humidity', 'high_humidity', 'device_offline', 'battery_low'))",
-                "message": "TEXT NOT NULL",
-                "severity": "VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical'))",
-                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "read_at": "TIMESTAMP",
-                "resolved_at": "TIMESTAMP",
-                "active": "BOOLEAN DEFAULT true",
-                "deleted_at": "TIMESTAMP"  # Soft delete
-            })
-            logger.info("✅ Tabla alerts creada exitosamente")
-        
-        # Tabla de recomendaciones de IA
-        if "ai_recommendations" not in tables:
-            logger.info("📋 Creando tabla ai_recommendations...")
-            await db.create_table("ai_recommendations", {
-                "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE",
-                "device_id": "INTEGER REFERENCES devices(id) ON DELETE CASCADE ON UPDATE CASCADE",
-                "recommendation_type": "VARCHAR(50) NOT NULL",
-                "title": "VARCHAR(200) NOT NULL",
-                "description": "TEXT NOT NULL",
-                "action_items": "JSONB",
-                "priority": "VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high'))",
-                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "applied_at": "TIMESTAMP",
-                "active": "BOOLEAN DEFAULT true",
-                "deleted_at": "TIMESTAMP"  # Soft delete
-            })
-            logger.info("✅ Tabla ai_recommendations creada exitosamente")
-        
-        # Tabla de cotizaciones
-        if "quotes" not in tables:
-            logger.info("📋 Creando tabla quotes...")
-            await db.create_table("quotes", {
-                "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE",
-                "reference_id": "VARCHAR(20) UNIQUE NOT NULL",
-                "name": "VARCHAR(100) NOT NULL",
-                "email": "VARCHAR(255) NOT NULL",
-                "phone": "VARCHAR(20)",
-                "company": "VARCHAR(200)",
-                "vineyard_name": "VARCHAR(200)",
-                "hectares": "DECIMAL(10,2)",
-                "grape_type": "VARCHAR(100)",
-                "region": "VARCHAR(100)",
-                "location": "VARCHAR(200)",
-                "project_type": "VARCHAR(50)",
-                "coverage_area": "VARCHAR(200)",
-                "desired_date": "VARCHAR(50)",
-                "has_existing_infrastructure": "BOOLEAN",
-                "requires_installation": "BOOLEAN",
-                "requires_training": "BOOLEAN",
-                "num_devices": "INTEGER DEFAULT 1 CHECK (num_devices > 0)",
-                "installation_type": "VARCHAR(50)",
-                "budget_range": "VARCHAR(50)",
-                "message": "TEXT",
-                "status": "VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'contacted', 'quoted', 'accepted', 'rejected', 'cancelled'))",
-                "assigned_to": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
-                "quoted_price": "DECIMAL(12,2)",
-                "quoted_at": "TIMESTAMP",
-                "status_message": "TEXT",
-                "ip_address": "VARCHAR(45)",
-                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "deleted_at": "TIMESTAMP"  # Soft delete
-            })
-            logger.info("✅ Tabla quotes creada exitosamente")
-        else:
-            # Asegurar columnas recientes
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS location VARCHAR(200)")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS project_type VARCHAR(50)")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS coverage_area VARCHAR(200)")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS desired_date VARCHAR(50)")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS has_existing_infrastructure BOOLEAN")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS requires_installation BOOLEAN")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS requires_training BOOLEAN")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS num_devices INTEGER DEFAULT 1")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS installation_type VARCHAR(50)")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS budget_range VARCHAR(50)")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
-            await db.execute_query("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS status_message TEXT")
+            logger.info("✅ Tabla email_verification_tokens ya existe")
             
     except Exception as e:
         log_error_with_context(e, "create_tables")
@@ -295,76 +473,103 @@ async def _create_indexes(db: AsyncPgDbToolkit):
     try:
         logger.info("🔍 Creando índices de optimización...")
         
-        # Índices para usuarios (campos de búsqueda frecuente)
+        # Índices para roles
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_roles_name ON roles(name);
+        """)
+        logger.info("✅ Índices para tabla roles creados")
+        
+        # Índices para usuarios
         await db.execute_query("""
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-            CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
+            CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
             CREATE INDEX IF NOT EXISTS idx_users_is_verified ON users(is_verified);
-            CREATE INDEX IF NOT EXISTS idx_users_region ON users(region);
-            CREATE INDEX IF NOT EXISTS idx_users_vineyard ON users(vineyard_name);
             CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
-            CREATE INDEX IF NOT EXISTS idx_users_first_name ON users(first_name);
-            CREATE INDEX IF NOT EXISTS idx_users_last_name ON users(last_name);
+            CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
         """)
         logger.info("✅ Índices para tabla users creados")
         
-        # Índices para dispositivos
+        # Índices para sensores (v2 - ya se crean en _create_tables, pero por si acaso)
         await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
-            CREATE INDEX IF NOT EXISTS idx_devices_active ON devices(active);
-            CREATE INDEX IF NOT EXISTS idx_devices_type ON devices(device_type);
-            CREATE INDEX IF NOT EXISTS idx_devices_last_seen ON devices(last_seen DESC);
-            CREATE INDEX IF NOT EXISTS idx_devices_connected ON devices(connected);
+            CREATE INDEX IF NOT EXISTS idx_sensors_device_id ON sensors(device_id);
+            CREATE INDEX IF NOT EXISTS idx_sensors_user_id ON sensors(user_id);
+            CREATE INDEX IF NOT EXISTS idx_sensors_plant_id ON sensors(plant_id);
+            CREATE INDEX IF NOT EXISTS idx_sensors_status ON sensors(status);
         """)
-        logger.info("✅ Índices para tabla devices creados")
+        logger.info("✅ Índices para tabla sensors creados")
         
-        # Índices para sensores (optimización de consultas con agregaciones)
+        # Índices para plantas
         await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_sensor_device_id ON sensor_humedad_suelo(device_id);
-            CREATE INDEX IF NOT EXISTS idx_sensor_fecha ON sensor_humedad_suelo(fecha DESC);
-            CREATE INDEX IF NOT EXISTS idx_sensor_device_fecha ON sensor_humedad_suelo(device_id, fecha DESC);
-            CREATE INDEX IF NOT EXISTS idx_sensor_valor ON sensor_humedad_suelo(valor);
-            CREATE INDEX IF NOT EXISTS idx_sensor_temperatura ON sensor_humedad_suelo(temperatura);
+            CREATE INDEX IF NOT EXISTS idx_plants_user_id ON plants(user_id);
+            CREATE INDEX IF NOT EXISTS idx_plants_sensor_id ON plants(sensor_id);
+            CREATE INDEX IF NOT EXISTS idx_plants_health_status ON plants(health_status);
+            CREATE INDEX IF NOT EXISTS idx_plants_character_mood ON plants(character_mood);
+            CREATE INDEX IF NOT EXISTS idx_plants_created_at ON plants(created_at DESC);
         """)
-        logger.info("✅ Índices para tabla sensor_humedad_suelo creados")
+        logger.info("✅ Índices para tabla plants creados")
         
-        # Índices para alertas
+        # Índices para sensors (v2)
         await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_alerts_user_id ON alerts(user_id);
-            CREATE INDEX IF NOT EXISTS idx_alerts_device_id ON alerts(device_id);
-            CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(active);
-            CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type);
+            CREATE INDEX IF NOT EXISTS idx_sensors_device_id ON sensors(device_id);
+            CREATE INDEX IF NOT EXISTS idx_sensors_user_id ON sensors(user_id);
+            CREATE INDEX IF NOT EXISTS idx_sensors_plant_id ON sensors(plant_id);
+            CREATE INDEX IF NOT EXISTS idx_sensors_status ON sensors(status);
         """)
-        logger.info("✅ Índices para tabla alerts creados")
+        logger.info("✅ Índices para tabla sensors creados")
         
-        # Índices para recomendaciones
+        # Índices para sensor_readings (v2)
         await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_recommendations_user_id ON ai_recommendations(user_id);
-            CREATE INDEX IF NOT EXISTS idx_recommendations_device_id ON ai_recommendations(device_id);
-            CREATE INDEX IF NOT EXISTS idx_recommendations_active ON ai_recommendations(active);
-            CREATE INDEX IF NOT EXISTS idx_recommendations_created_at ON ai_recommendations(created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_recommendations_type ON ai_recommendations(recommendation_type);
+            CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_id ON sensor_readings(sensor_id);
+            CREATE INDEX IF NOT EXISTS idx_sensor_readings_user_id ON sensor_readings(user_id);
+            CREATE INDEX IF NOT EXISTS idx_sensor_readings_plant_id ON sensor_readings(plant_id);
+            CREATE INDEX IF NOT EXISTS idx_sensor_readings_timestamp ON sensor_readings(timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_timestamp ON sensor_readings(sensor_id, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_sensor_readings_user_timestamp ON sensor_readings(user_id, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_sensor_readings_plant_timestamp ON sensor_readings(plant_id, timestamp DESC);
         """)
-        logger.info("✅ Índices para tabla ai_recommendations creados")
-
-        # Índices para verificación de email
+        logger.info("✅ Índices para tabla sensor_readings creados")
+        
+        # Índices para plant_photos
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_plant_photos_plant_id ON plant_photos(plant_id);
+            CREATE INDEX IF NOT EXISTS idx_plant_photos_taken_at ON plant_photos(taken_at DESC);
+        """)
+        logger.info("✅ Índices para tabla plant_photos creados")
+        
+        # Índices para achievements
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_achievements_requirement_type ON achievements(requirement_type);
+            CREATE INDEX IF NOT EXISTS idx_achievements_points ON achievements(points DESC);
+        """)
+        logger.info("✅ Índices para tabla achievements creados")
+        
+        # Índices para user_achievements
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);
+            CREATE INDEX IF NOT EXISTS idx_user_achievements_achievement_id ON user_achievements(achievement_id);
+            CREATE INDEX IF NOT EXISTS idx_user_achievements_earned_at ON user_achievements(earned_at DESC);
+        """)
+        logger.info("✅ Índices para tabla user_achievements creados")
+        
+        # Índices para notifications
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+            CREATE INDEX IF NOT EXISTS idx_notifications_plant_id ON notifications(plant_id);
+            CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+            CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(notification_type);
+            CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;
+        """)
+        logger.info("✅ Índices para tabla notifications creados")
+        
+        # Índices para email_verification_tokens
         await db.execute_query("""
             CREATE INDEX IF NOT EXISTS idx_email_tokens_user_id ON email_verification_tokens(user_id);
+            CREATE INDEX IF NOT EXISTS idx_email_tokens_token ON email_verification_tokens(token);
             CREATE INDEX IF NOT EXISTS idx_email_tokens_expires_at ON email_verification_tokens(expires_at);
             CREATE INDEX IF NOT EXISTS idx_email_tokens_used_at ON email_verification_tokens(used_at);
         """)
         logger.info("✅ Índices para tabla email_verification_tokens creados")
-        
-        # Índices para cotizaciones
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_quotes_user_id ON quotes(user_id);
-            CREATE INDEX IF NOT EXISTS idx_quotes_reference_id ON quotes(reference_id);
-            CREATE INDEX IF NOT EXISTS idx_quotes_email ON quotes(email);
-            CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
-            CREATE INDEX IF NOT EXISTS idx_quotes_created_at ON quotes(created_at DESC);
-        """)
-        logger.info("✅ Índices para tabla quotes creados")
         
         logger.info("✅ Todos los índices creados exitosamente")
         
@@ -403,7 +608,6 @@ async def health_check() -> Dict[str, Any]:
         db = await get_db()
         result = await db.execute_query("SELECT 1 as health")
         
-        # Verificar si el resultado es válido
         if result is not None and not result.empty:
             return {
                 "status": "healthy",
@@ -431,28 +635,72 @@ async def get_database_stats() -> Dict[str, Any]:
     try:
         db = await get_db()
         
-        # Contar registros en cada tabla
         stats = {}
-        tables = ["users", "devices", "sensor_humedad_suelo", "alerts", "ai_recommendations"]
+        tables = ["users", "roles", "sensors", "plants", "sensor_readings", "notifications", "user_achievements", "achievements"]
         
         for table in tables:
-            result = await db.execute_query(f"SELECT COUNT(*) as count FROM {table}")
-            if result is not None and not result.empty:
-                stats[f"{table}_count"] = result.iloc[0]["count"]
-            else:
+            try:
+                result = await db.execute_query(f"SELECT COUNT(*) as count FROM {table}")
+                if result is not None and not result.empty:
+                    stats[f"{table}_count"] = int(result.iloc[0]["count"])
+                else:
+                    stats[f"{table}_count"] = 0
+            except Exception as e:
+                logger.warning(f"Error contando registros de {table}: {e}")
                 stats[f"{table}_count"] = 0
         
-        # Obtener tamaño de la base de datos
-        size_result = await db.execute_query("""
-            SELECT pg_size_pretty(pg_database_size(current_database())) as size
-        """)
-        if size_result is not None and not size_result.empty:
-            stats["database_size"] = size_result.iloc[0]["size"]
-        else:
+        try:
+            size_result = await db.execute_query("""
+                SELECT pg_size_pretty(pg_database_size(current_database())) as size
+            """)
+            if size_result is not None and not size_result.empty:
+                stats["database_size"] = size_result.iloc[0]["size"]
+            else:
+                stats["database_size"] = "Unknown"
+        except Exception as e:
+            logger.warning(f"Error obteniendo tamaño de DB: {e}")
             stats["database_size"] = "Unknown"
         
         return stats
         
     except Exception as e:
         log_error_with_context(e, "database_stats")
-        return {"error": str(e)} 
+        return {"error": str(e)}
+
+async def get_role_by_name(role_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene un rol por su nombre
+    """
+    try:
+        db = await get_db()
+        result = await db.fetch_records(
+            "roles",
+            conditions={"name": role_name}
+        )
+        
+        if result is not None and not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+        
+    except Exception as e:
+        log_error_with_context(e, "get_role_by_name")
+        return None
+
+async def get_role_by_id(role_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene un rol por su ID
+    """
+    try:
+        db = await get_db()
+        result = await db.fetch_records(
+            "roles",
+            conditions={"id": role_id}
+        )
+        
+        if result is not None and not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+        
+    except Exception as e:
+        log_error_with_context(e, "get_role_by_id")
+        return None
