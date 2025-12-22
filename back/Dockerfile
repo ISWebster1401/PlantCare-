@@ -1,34 +1,71 @@
-# Etapa 1: Imagen base para la aplicación principal (Python)
-FROM python:3.11-slim AS app
+# ============================================
+# PlantCare Backend - Dockerfile
+# ============================================
+# Multi-stage build para optimizar tamaño de imagen
+# Soporta desarrollo (hot reload) y producción
 
-# Establecer directorio de trabajo
+# Etapa 1: Builder (para dependencias que requieren compilación)
+FROM python:3.11-slim AS builder
+
 WORKDIR /app
 
-# Establecer variables de entorno
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Instalar dependencias del sistema para compilación
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    postgresql-client \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instalar dependencias del sistema necesarias
-RUN apt-get update && apt-get install -y \
-    nano \
+# Copiar e instalar dependencias Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Etapa 2: Runtime (imagen final optimizada)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instalar solo dependencias runtime del sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar los requerimientos e instalarlos
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Copiar dependencias Python instaladas desde builder
+COPY --from=builder /root/.local /root/.local
 
-# Copiar el código de la aplicación
-COPY . /app
+# Asegurar que scripts en .local estén en PATH
+ENV PATH=/root/.local/bin:$PATH
 
-# Crear directorios necesarios
-RUN mkdir -p /app/uploads/avatars /app/data
+# Variables de entorno Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Exponer el puerto para la aplicación
-EXPOSE 5000
+# Crear usuario no-root para seguridad
+RUN useradd --create-home --shell /bin/bash plantcare && \
+    chown -R plantcare:plantcare /app
 
-# Comando para ejecutar la aplicación
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
+# Copiar código de la aplicación
+COPY --chown=plantcare:plantcare . /app
 
+# Crear directorios necesarios con permisos correctos
+RUN mkdir -p /app/uploads/avatars /app/data /app/logs && \
+    chown -R plantcare:plantcare /app/uploads /app/data /app/logs
+
+# Cambiar a usuario no-root
+USER plantcare
+
+# Exponer puerto (ajustar según tu configuración)
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl --fail http://localhost:8000/api/health || exit 1
+
+# Comando por defecto (producción)
+# Para desarrollo, esto se sobrescribe en docker-compose.yml
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

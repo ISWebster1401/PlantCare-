@@ -1,92 +1,154 @@
+version: '3.8'
+
 services:
+  # ============================================
+  # Backend FastAPI
+  # ============================================
   app:
     build:
-      context: .  # Directorio de contexto para la construcción de la imagen
-      dockerfile: Dockerfile  # Archivo Dockerfile a utilizar
-      target: app  # Usamos la etapa "app" del Dockerfile
-    container_name: plantcare-backend  # Nombre del contenedor para la aplicación
+      context: .
+      dockerfile: Dockerfile
+    container_name: plantcare-backend
     ports:
-      - "5000:5000"  # Mapeo de puertos: puerto 5000 del host al puerto 5000 del contenedor
+      - "8000:8000"  # Cambiado a 8000 para consistencia
     volumes:
-      - api_data:/app/data  # Volumen para persistir datos de la aplicación
-      - uploads_data:/app/uploads  # Volumen para persistir archivos subidos (avatars, etc.)
+      # Volumen para desarrollo (hot reload)
+      - ./app:/app/app:ro  # Montar código como read-only (puedes cambiar a rw para hot reload)
+      # Volúmenes para persistencia de datos
+      - api_data:/app/data
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
     networks:
-      - app_network  # Red a la que pertenece el contenedor
+      - app_network
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:5000/api/health"]  # Comando para verificar la salud del servicio
-      interval: 1m  # Intervalo entre verificaciones de salud
-      timeout: 10s  # Tiempo de espera para que la verificación de salud se complete
-      retries: 3  # Número de intentos antes de considerar el servicio no saludable
-    restart: always  # Política de reinicio del contenedor
-    env_file:
-      - .env  # Archivo de variables de entorno a cargar
     environment:
-      # Sobrescribir variables de DB para usar el servicio de postgres
+      # Sobrescribir variables para Docker
       - DB_HOST=postgres
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      # Hot reload para desarrollo (descomentar si necesitas)
+      # - RELOAD=true
+    env_file:
+      - .env  # Carga el resto de variables desde .env
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo '⏳ Esperando a que PostgreSQL esté listo...' &&
+        until pg_isready -h postgres -p 5432 -U $${DB_USER:-postgres} 2>/dev/null; do
+          sleep 2
+        done &&
+        echo '✅ PostgreSQL listo' &&
+        echo '⏳ Esperando a que Redis esté listo...' &&
+        until redis-cli -h redis ping > /dev/null 2>&1; do
+          sleep 2
+        done &&
+        echo '✅ Redis listo' &&
+        echo '🚀 Iniciando PlantCare Backend...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+      "
 
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
   postgres:
-    image: postgres:15-alpine  # Imagen de PostgreSQL a utilizar
-    container_name: plantcare-postgres  # Nombre del contenedor para PostgreSQL
+    image: postgres:15-alpine
+    container_name: plantcare-postgres
     environment:
-      - POSTGRES_USER=${DB_USER:-postgres}  # Usuario de PostgreSQL desde .env
-      - POSTGRES_PASSWORD=${DB_PASSWORD}  # Contraseña de PostgreSQL desde .env
-      - POSTGRES_DB=${DB_DATABASE:-plantcare_db}  # Base de datos desde .env
-      - PGDATA=/var/lib/postgresql/data/pgdata  # Directorio de datos de PostgreSQL
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_DATABASE:-plantcare_db}
+      - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
-      - postgres_data:/var/lib/postgresql/data  # Volumen para persistir datos de PostgreSQL
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"  # Mapeo de puertos: puerto 5432 del host al puerto 5432 del contenedor
+      - "5432:5432"  # Expuesto para desarrollo, comentar en producción
     networks:
-      - app_network  # Red a la que pertenece el contenedor
-    restart: always  # Política de reinicio del contenedor
+      - app_network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]  # Comando para verificar la salud del servicio PostgreSQL
-      interval: 10s  # Intervalo entre verificaciones de salud
-      timeout: 5s  # Tiempo de espera para que la verificación de salud se complete
-      retries: 5  # Número de intentos antes de considerar el servicio no saludable
-      start_period: 10s  # Tiempo de espera antes de comenzar las verificaciones de salud
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Configuración de rendimiento (opcional)
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c max_connections=100
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
 
+  # ============================================
+  # Redis Cache
+  # ============================================
   redis:
-    image: redis:7-alpine  # Imagen de Redis a utilizar
-    container_name: plantcare-redis  # Nombre del contenedor para Redis
+    image: redis:7-alpine
+    container_name: plantcare-redis
     ports:
-      - "6379:6379"  # Mapeo de puertos: puerto 6379 del host al puerto 6379 del contenedor
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+      - "6379:6379"  # Expuesto para desarrollo, comentar en producción
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-}
     volumes:
-      - redis_data:/data  # Volumen para persistir datos de Redis
+      - redis_data:/data
     networks:
-      - app_network  # Red a la que pertenece el contenedor
-    restart: always  # Política de reinicio del contenedor
+      - app_network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]  # Comando para verificar la salud del servicio Redis
-      interval: 10s  # Intervalo entre verificaciones de salud
-      timeout: 3s  # Tiempo de espera para que la verificación de salud se complete
-      retries: 5  # Número de intentos antes de considerar el servicio no saludable
-      start_period: 5s  # Tiempo de espera antes de comenzar las verificaciones de salud
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
+# ============================================
+# Networks
+# ============================================
 networks:
   app_network:
-    name: app_network  # Nombre de la red
-    driver: bridge  # Driver de red a utilizar
+    name: plantcare_network
+    driver: bridge
 
+# ============================================
+# Volumes
+# ============================================
 volumes:
   api_data:
-    name: plantcare_api_data  # Nombre del volumen para datos de la aplicación
-    driver: local  # Driver de volumen a utilizar
+    name: plantcare_api_data
+    driver: local
   postgres_data:
-    name: plantcare_postgres_data  # Nombre del volumen para datos de PostgreSQL
-    driver: local  # Driver de volumen a utilizar
+    name: plantcare_postgres_data
+    driver: local
   uploads_data:
-    name: plantcare_uploads_data  # Nombre del volumen para archivos subidos
-    driver: local  # Driver de volumen a utilizar
+    name: plantcare_uploads_data
+    driver: local
+  logs_data:
+    name: plantcare_logs_data
+    driver: local
   redis_data:
-    name: plantcare_redis_data  # Nombre del volumen para datos de Redis
-    driver: local  # Driver de volumen a utilizar
-
+    name: plantcare_redis_data
+    driver: local
