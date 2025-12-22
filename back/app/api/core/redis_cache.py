@@ -4,6 +4,7 @@ Implementa patrón Cache Aside para mejorar performance de consultas frecuentes.
 """
 import json
 import logging
+import os
 from typing import Any, Optional, Dict
 from redis.asyncio import Redis as AsyncRedis
 from redis.asyncio import from_url
@@ -27,8 +28,25 @@ def init_redis() -> Optional[AsyncRedis]:
         return None
     
     try:
+        # Construir URL de Redis con contraseña si está configurada
+        redis_url = settings.REDIS_URL
+        
+        # Si hay contraseña en variables de entorno pero no en la URL, agregarla
+        redis_password = os.getenv("REDIS_PASSWORD", "").strip()
+        if redis_password and "@" not in redis_url:
+            # Insertar contraseña en la URL: redis://host:port -> redis://:password@host:port
+            if redis_url.startswith("redis://"):
+                # Extraer host:port/db
+                url_part = redis_url.replace("redis://", "")
+                if "/" in url_part:
+                    host_port, db_part = url_part.split("/", 1)
+                    redis_url = f"redis://:{redis_password}@{host_port}/{db_part}"
+                else:
+                    redis_url = f"redis://:{redis_password}@{url_part}"
+                logger.debug(f"Redis URL actualizada con contraseña (sin mostrar password)")
+        
         _redis_client = from_url(
-            settings.REDIS_URL,
+            redis_url,
             encoding="utf-8",
             decode_responses=True,
             max_connections=10

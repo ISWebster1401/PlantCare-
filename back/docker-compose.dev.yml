@@ -9,16 +9,20 @@ services:
     command: >
       sh -c "
         echo '⏳ Esperando a que PostgreSQL esté listo...' &&
-        until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
-          echo 'PostgreSQL no está listo, esperando...'
+        until pg_isready -h postgres -p 5432 -U $${DB_USER:-postgres} 2>/dev/null; do
           sleep 2
         done &&
         echo '✅ PostgreSQL listo' &&
         echo '⏳ Esperando a que Redis esté listo...' &&
-        until redis-cli -h redis ping > /dev/null 2>&1; do
-          echo 'Redis no está listo, esperando...'
-          sleep 2
-        done &&
+        if [ -n \"$${REDIS_PASSWORD}\" ]; then
+          until redis-cli -h redis -a \"$${REDIS_PASSWORD}\" ping > /dev/null 2>&1; do
+            sleep 2
+          done
+        else
+          until redis-cli -h redis ping > /dev/null 2>&1; do
+            sleep 2
+          done
+        fi &&
         echo '✅ Redis listo' &&
         echo '🚀 Iniciando PlantCare Backend en modo desarrollo (hot reload)...' &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app
