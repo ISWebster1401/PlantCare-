@@ -248,52 +248,14 @@ async def _create_tables(db: AsyncPgDbToolkit):
                     raise
         
         # ============================================
-        # PASO 3: CREAR TABLA SENSORS (REDISEÑADA CON UUID)
-        # ============================================
-        if "sensors" not in tables:
-            logger.info("📋 Creando tabla sensors (v2 con UUID)...")
-            # Primero habilitar extensión UUID si no existe
-            await db.execute_query("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
-            
-            await db.execute_query("""
-                CREATE TABLE sensors (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    device_id VARCHAR(50) UNIQUE NOT NULL,
-                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    plant_id INTEGER REFERENCES plants(id) ON DELETE SET NULL,
-                    name VARCHAR(100) NOT NULL,
-                    device_type VARCHAR(50) DEFAULT 'esp8266',
-                    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
-                    last_connection TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Tabla sensors creada exitosamente (v2 con UUID)")
-        else:
-            logger.info("✅ Tabla sensors ya existe")
-            # Verificar si necesita migración (si tiene device_key en lugar de device_id)
-            try:
-                check_query = """
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'sensors' AND column_name = 'device_key'
-                """
-                result = await db.execute_query(check_query)
-                if result is not None and not result.empty:
-                    logger.warning("⚠️ Tabla sensors tiene estructura antigua. Se requiere migración manual.")
-            except Exception:
-                pass
-        
-        # ============================================
-        # PASO 4: CREAR TABLA PLANTS
+        # PASO 3: CREAR TABLA PLANTS (ANTES QUE SENSORS PORQUE SENSORS REFERENCIA PLANTS)
         # ============================================
         if "plants" not in tables:
             logger.info("📋 Creando tabla plants...")
             await db.create_table("plants", {
                 "id": "SERIAL PRIMARY KEY",
                 "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
-                "sensor_id": "INTEGER REFERENCES sensors(id) ON DELETE SET NULL",
+                "sensor_id": "INTEGER",  # Se agregará FK después de crear sensors
                 "plant_name": "VARCHAR(100) NOT NULL",
                 "plant_type": "VARCHAR(100)",
                 "scientific_name": "VARCHAR(200)",
@@ -317,7 +279,76 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla plants ya existe")
         
         # ============================================
+        # PASO 4: CREAR TABLA SENSORS (REDISEÑADA CON UUID)
+        # ============================================
+        if "sensors" not in tables:
+            logger.info("📋 Creando tabla sensors (v2 con UUID)...")
+            # Primero habilitar extensión UUID si no existe
+            await db.execute_query("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+            
+            await db.execute_query("""
+                CREATE TABLE sensors (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    device_id VARCHAR(50) UNIQUE NOT NULL,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    plant_id INTEGER REFERENCES plants(id) ON DELETE SET NULL,
+                    name VARCHAR(100) NOT NULL,
+                    device_type VARCHAR(50) DEFAULT 'esp8266',
+                    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
+                    last_connection TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            logger.info("✅ Tabla sensors creada exitosamente (v2 con UUID)")
+            
+            # Agregar foreign key de plants.sensor_id → sensors.id después de crear sensors
+            try:
+                await db.execute_query("""
+                    ALTER TABLE plants 
+                    ADD CONSTRAINT fk_plants_sensor_id 
+                    FOREIGN KEY (sensor_id) REFERENCES sensors(id) ON DELETE SET NULL
+                """)
+                logger.info("✅ Foreign key plants.sensor_id → sensors(id) agregada")
+            except Exception as e:
+                logger.warning(f"FK plants.sensor_id ya existe o error: {e}")
+        else:
+            logger.info("✅ Tabla sensors ya existe")
+            # Verificar si necesita migración (si tiene device_key en lugar de device_id)
+            try:
+                check_query = """
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'sensors' AND column_name = 'device_key'
+                """
+                result = await db.execute_query(check_query)
+                if result is not None and not result.empty:
+                    logger.warning("⚠️ Tabla sensors tiene estructura antigua. Se requiere migración manual.")
+            except Exception:
+                pass
+            
+            # Asegurar que la FK de plants.sensor_id existe
+            try:
+                await db.execute_query("""
+                    DO $$ 
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint 
+                            WHERE conname = 'fk_plants_sensor_id'
+                        ) THEN
+                            ALTER TABLE plants 
+                            ADD CONSTRAINT fk_plants_sensor_id 
+                            FOREIGN KEY (sensor_id) REFERENCES sensors(id) ON DELETE SET NULL;
+                        END IF;
+                    END $$;
+                """)
+                logger.info("✅ Foreign key plants.sensor_id → sensors(id) verificada")
+            except Exception as e:
+                logger.warning(f"Error verificando FK plants.sensor_id: {e}")
+        
+        # ============================================
         # PASO 5: CREAR TABLA SENSOR_READINGS (REDISEÑADA CON UUID Y NUEVOS CAMPOS)
+        # ============================================
         # ============================================
         if "sensor_readings" not in tables:
             logger.info("📋 Creando tabla sensor_readings (v2 con UUID y nuevos campos)...")
