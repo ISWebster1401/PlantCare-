@@ -72,11 +72,15 @@ export default function RegisterScreen() {
       await register(formData);
       Alert.alert(
         'Registro exitoso',
-        'Tu cuenta ha sido creada. Por favor verifica tu email antes de iniciar sesión.',
+        'Tu cuenta ha sido creada. Te enviamos un código de verificación a tu correo.',
         [
           {
-            text: 'OK',
-            onPress: () => router.replace('/(auth)/login'),
+            text: 'Verificar correo',
+            onPress: () =>
+              router.replace({
+                pathname: '/(auth)/verify-email',
+                params: { email: formData.email },
+              }),
           },
         ]
       );

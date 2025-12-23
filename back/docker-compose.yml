@@ -36,7 +36,8 @@ services:
     env_file:
       - .env  # Carga el resto de variables desde .env
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8000/api/health"]
+      # Usamos /health (sin /api) porque el endpoint está definido así en main.py
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       start_period: 40s
