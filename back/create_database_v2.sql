@@ -132,6 +132,71 @@ CREATE INDEX IF NOT EXISTS idx_plant_photos_plant_id ON plant_photos(plant_id);
 CREATE INDEX IF NOT EXISTS idx_plant_photos_taken_at ON plant_photos(taken_at DESC);
 
 -- ============================================================
+-- TABLA: plant_models (modelos 3D base)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS plant_models (
+    id SERIAL PRIMARY KEY,
+    plant_type VARCHAR(100) NOT NULL,              -- Tipo de planta ("Monstera", "Cactus", etc.)
+    name VARCHAR(100) NOT NULL,                    -- Nombre del modelo ("Monstera default")
+    model_3d_url TEXT NOT NULL,                    -- URL en Supabase Storage del archivo 3D (.glb/.fbx)
+    default_render_url TEXT,                       -- Render 2D por defecto para mostrar en UI
+    is_default BOOLEAN DEFAULT FALSE,              -- Si es el modelo por defecto para ese tipo de planta
+    metadata JSONB,                                -- Info extra (escala, versión, etc.)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_plant_models_plant_type ON plant_models(plant_type);
+CREATE INDEX IF NOT EXISTS idx_plant_models_is_default ON plant_models(is_default);
+
+-- ============================================================
+-- TABLA: plant_accessories (accesorios 3D)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS plant_accessories (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,              -- "chupaya", "christmas_hat", etc.
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    model_3d_url TEXT NOT NULL,                    -- URL en Supabase Storage del accesorio 3D
+    preview_image_url TEXT,                        -- Imagen previa para UI
+    metadata JSONB,                                -- Posición, escala, etc.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_plant_accessories_code ON plant_accessories(code);
+
+-- ============================================================
+-- TABLA: plant_model_assignments (modelo asignado por planta)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS plant_model_assignments (
+    id SERIAL PRIMARY KEY,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    model_id INTEGER NOT NULL REFERENCES plant_models(id) ON DELETE CASCADE,
+    custom_render_url TEXT,                        -- Render personalizado si existe
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_plant_model_assignments_plant_id ON plant_model_assignments(plant_id);
+CREATE INDEX IF NOT EXISTS idx_plant_model_assignments_model_id ON plant_model_assignments(model_id);
+
+-- ============================================================
+-- TABLA: plant_accessory_assignments (accesorios activos por planta)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS plant_accessory_assignments (
+    id SERIAL PRIMARY KEY,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    accessory_id INTEGER NOT NULL REFERENCES plant_accessories(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_plant_id ON plant_accessory_assignments(plant_id);
+CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_accessory_id ON plant_accessory_assignments(accessory_id);
+CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_is_active ON plant_accessory_assignments(is_active);
+
+-- ============================================================
 -- TABLA: achievements (NUEVA - gamificación)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS achievements (

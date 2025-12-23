@@ -611,6 +611,19 @@ async def _create_indexes(db: AsyncPgDbToolkit):
         """)
         logger.info("✅ Índices para tabla plants creados")
         
+        # Índices para modelos 3D y accesorios
+        await db.execute_query("""
+            CREATE INDEX IF NOT EXISTS idx_plant_models_plant_type ON plant_models(plant_type);
+            CREATE INDEX IF NOT EXISTS idx_plant_models_is_default ON plant_models(is_default);
+            CREATE INDEX IF NOT EXISTS idx_plant_accessories_code ON plant_accessories(code);
+            CREATE INDEX IF NOT EXISTS idx_plant_model_assignments_plant_id ON plant_model_assignments(plant_id);
+            CREATE INDEX IF NOT EXISTS idx_plant_model_assignments_model_id ON plant_model_assignments(model_id);
+            CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_plant_id ON plant_accessory_assignments(plant_id);
+            CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_accessory_id ON plant_accessory_assignments(accessory_id);
+            CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_is_active ON plant_accessory_assignments(is_active);
+        """)
+        logger.info("✅ Índices para tablas de modelos 3D y accesorios creados")
+        
         # Índices para sensors (v2)
         await db.execute_query("""
             CREATE INDEX IF NOT EXISTS idx_sensors_device_id ON sensors(device_id);

@@ -127,26 +127,27 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         
         # Subir a Supabase Storage
         # El método upload acepta bytes directamente
+        # upsert debe ser un parámetro separado, no dentro de file_options
         try:
             response = client.storage.from_(bucket).upload(
                 path=file_path,
                 file=file_content,
                 file_options={
-                    "content-type": content_type,
-                    "upsert": True  # Sobrescribir si existe
-                }
+                    "content-type": content_type
+                },
+                upsert=True  # Sobrescribir si existe (parámetro separado)
             )
         except Exception as upload_error:
-            # Si el error es que el archivo ya existe, intentar con upsert
-            if "already exists" in str(upload_error).lower():
+            # Si el error es que el archivo ya existe, intentar con upsert explícito
+            if "already exists" in str(upload_error).lower() or "duplicate" in str(upload_error).lower():
                 logger.warning(f"Archivo ya existe, sobrescribiendo: {file_path}")
                 response = client.storage.from_(bucket).upload(
                     path=file_path,
                     file=file_content,
                     file_options={
-                        "content-type": content_type,
-                        "upsert": True
-                    }
+                        "content-type": content_type
+                    },
+                    upsert=True
                 )
             else:
                 raise
