@@ -72,8 +72,8 @@ CREATE TABLE IF NOT EXISTS plants (
     care_tips TEXT,                                -- Tips JSON de cuidado de IA
     
     -- IA y personaje
-    original_photo_url TEXT,                       -- URL en Cloudinary de foto original
-    character_image_url TEXT,                      -- URL en Cloudinary del personaje generado
+    original_photo_url TEXT,                       -- URL en Supabase Storage de foto original
+    character_image_url TEXT,                      -- URL en Supabase Storage del personaje/render
     character_personality TEXT,                    -- "Aventurero", "Tímido", etc
     character_mood VARCHAR(50) DEFAULT 'happy',    -- happy, sad, sick, thirsty, overwatered
     
@@ -123,7 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_time ON sensor_readings(se
 CREATE TABLE IF NOT EXISTS plant_photos (
     id SERIAL PRIMARY KEY,
     plant_id INTEGER REFERENCES plants(id) ON DELETE CASCADE,
-    photo_url TEXT NOT NULL,                       -- URL en Cloudinary
+    photo_url TEXT NOT NULL,                       -- URL en Supabase Storage
     notes TEXT,                                    -- Notas del usuario
     taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

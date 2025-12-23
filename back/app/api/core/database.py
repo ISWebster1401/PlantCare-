@@ -403,7 +403,79 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla plant_photos ya existe")
         
         # ============================================
-        # PASO 7: CREAR TABLA ACHIEVEMENTS
+        # PASO 7: CREAR TABLAS PARA MODELOS 3D Y ACCESORIOS
+        # ============================================
+        if "plant_models" not in tables:
+            logger.info("📋 Creando tabla plant_models (modelos 3D por tipo de planta)...")
+            await db.execute_query("""
+                CREATE TABLE plant_models (
+                    id SERIAL PRIMARY KEY,
+                    plant_type VARCHAR(100) NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    model_3d_url TEXT NOT NULL,
+                    default_render_url TEXT,
+                    is_default BOOLEAN DEFAULT FALSE,
+                    metadata JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            logger.info("✅ Tabla plant_models creada exitosamente")
+        else:
+            logger.info("✅ Tabla plant_models ya existe")
+
+        if "plant_accessories" not in tables:
+            logger.info("📋 Creando tabla plant_accessories (accesorios 3D)...")
+            await db.execute_query("""
+                CREATE TABLE plant_accessories (
+                    id SERIAL PRIMARY KEY,
+                    code VARCHAR(50) UNIQUE NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    description TEXT,
+                    model_3d_url TEXT NOT NULL,
+                    preview_image_url TEXT,
+                    metadata JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            logger.info("✅ Tabla plant_accessories creada exitosamente")
+        else:
+            logger.info("✅ Tabla plant_accessories ya existe")
+
+        if "plant_model_assignments" not in tables:
+            logger.info("📋 Creando tabla plant_model_assignments (asignación de modelo por planta)...")
+            await db.execute_query("""
+                CREATE TABLE plant_model_assignments (
+                    id SERIAL PRIMARY KEY,
+                    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+                    model_id INTEGER NOT NULL REFERENCES plant_models(id) ON DELETE CASCADE,
+                    custom_render_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            logger.info("✅ Tabla plant_model_assignments creada exitosamente")
+        else:
+            logger.info("✅ Tabla plant_model_assignments ya existe")
+
+        if "plant_accessory_assignments" not in tables:
+            logger.info("📋 Creando tabla plant_accessory_assignments (accesorios activos por planta)...")
+            await db.execute_query("""
+                CREATE TABLE plant_accessory_assignments (
+                    id SERIAL PRIMARY KEY,
+                    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+                    accessory_id INTEGER NOT NULL REFERENCES plant_accessories(id) ON DELETE CASCADE,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            logger.info("✅ Tabla plant_accessory_assignments creada exitosamente")
+        else:
+            logger.info("✅ Tabla plant_accessory_assignments ya existe")
+
+        # ============================================
+        # PASO 8: CREAR TABLA ACHIEVEMENTS
         # ============================================
         if "achievements" not in tables:
             logger.info("📋 Creando tabla achievements...")
@@ -434,7 +506,7 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla achievements ya existe")
         
         # ============================================
-        # PASO 8: CREAR TABLA USER_ACHIEVEMENTS
+        # PASO 9: CREAR TABLA USER_ACHIEVEMENTS
         # ============================================
         if "user_achievements" not in tables:
             logger.info("📋 Creando tabla user_achievements...")
@@ -460,7 +532,7 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla user_achievements ya existe")
         
         # ============================================
-        # PASO 9: CREAR TABLA NOTIFICATIONS
+        # PASO 10: CREAR TABLA NOTIFICATIONS
         # ============================================
         if "notifications" not in tables:
             logger.info("📋 Creando tabla notifications...")
@@ -479,7 +551,7 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla notifications ya existe")
         
         # ============================================
-        # PASO 10: CREAR TABLA EMAIL_VERIFICATION_TOKENS
+        # PASO 11: CREAR TABLA EMAIL_VERIFICATION_TOKENS
         # ============================================
         if "email_verification_tokens" not in tables:
             logger.info("📋 Creando tabla email_verification_tokens...")

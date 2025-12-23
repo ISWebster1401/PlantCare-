@@ -24,11 +24,8 @@ passlib[bcrypt]==1.7.4
 # Dotenv - Versión compatible con pgdbtoolkit
 python-dotenv==1.0.1
 
-# IA y OpenAI
+# IA y OpenAI (solo reconocimiento de plantas, sin generación de imágenes)
 openai>=1.35.3
-
-# Google Vertex AI para generación de imágenes (Imagen)
-google-cloud-aiplatform>=1.38.0
 
 # Email service
 sendgrid==6.11.0

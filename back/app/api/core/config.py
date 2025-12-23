@@ -90,10 +90,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))  # 1 hora por defecto
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
-    # Configuración de IA
+    # Configuración de IA (solo OpenAI para reconocimiento de plantas)
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "").strip()
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "").strip()
-    GEMINI_IMAGE_MODEL: str = os.getenv("GEMINI_IMAGE_MODEL", "imagen-3.0-generate-001").strip()
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "True").lower() == "true"
 
