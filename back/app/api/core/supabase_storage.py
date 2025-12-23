@@ -127,27 +127,35 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         
         # Subir a Supabase Storage
         # El método upload acepta bytes directamente
-        # upsert debe ser un parámetro separado, no dentro de file_options
+        # upsert debe ir dentro de file_options como string "true", no como boolean
         try:
             response = client.storage.from_(bucket).upload(
                 path=file_path,
                 file=file_content,
                 file_options={
-                    "content-type": content_type
-                },
-                upsert=True  # Sobrescribir si existe (parámetro separado)
+                    "content-type": content_type,
+                    "upsert": "true"  # Sobrescribir si existe (debe ser string, no boolean)
+                }
             )
         except Exception as upload_error:
-            # Si el error es que el archivo ya existe, intentar con upsert explícito
+            # Si el error es que el archivo ya existe, intentar eliminar primero y luego subir
             if "already exists" in str(upload_error).lower() or "duplicate" in str(upload_error).lower():
-                logger.warning(f"Archivo ya existe, sobrescribiendo: {file_path}")
+                logger.warning(f"Archivo ya existe, intentando eliminar y resubir: {file_path}")
+                try:
+                    # Intentar eliminar el archivo existente
+                    client.storage.from_(bucket).remove([file_path])
+                    logger.info(f"Archivo eliminado exitosamente: {file_path}")
+                except Exception as remove_error:
+                    logger.warning(f"No se pudo eliminar archivo existente: {remove_error}")
+                
+                # Volver a intentar subir
                 response = client.storage.from_(bucket).upload(
                     path=file_path,
                     file=file_content,
                     file_options={
-                        "content-type": content_type
-                    },
-                    upsert=True
+                        "content-type": content_type,
+                        "upsert": "true"
+                    }
                 )
             else:
                 raise
