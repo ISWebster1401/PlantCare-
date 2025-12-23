@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "True").lower() == "true"
 
     # ============================================
-    # Configuración de Supabase Storage (reemplaza Cloudinary)
+    # Configuración de Supabase Storage
     # ============================================
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "").strip()
     SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "").strip()  # anon public key (recomendada)
@@ -113,12 +113,6 @@ class Settings(BaseSettings):
     REDIS_CACHE_TTL_DAILY: int = int(os.getenv("REDIS_CACHE_TTL_DAILY", "86400"))  # 24 horas
     REDIS_CACHE_TTL_WEEKLY: int = int(os.getenv("REDIS_CACHE_TTL_WEEKLY", "604800"))  # 7 días
     
-    # ============================================
-    # Configuración de Cloudinary (DEPRECATED - usar Supabase)
-    # ============================================
-    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
-    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
-    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
 
     # Autenticación con Google
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -172,16 +166,46 @@ try:
         logger.warning("💡 Verifica que el archivo .env esté en la carpeta 'back/' y contenga OPENAI_API_KEY=...")
     
     # Validar Supabase Storage
-    if settings.SUPABASE_URL and (settings.SUPABASE_ANON_KEY or settings.SUPABASE_KEY):
-        logger.info(f"✅ Supabase Storage configurado: {settings.SUPABASE_URL}")
-        logger.info(f"   Bucket: {settings.SUPABASE_STORAGE_BUCKET}")
-        if settings.SUPABASE_ANON_KEY:
-            logger.info("   Usando: SUPABASE_ANON_KEY (anon public key)")
-        elif settings.SUPABASE_KEY:
-            logger.info("   Usando: SUPABASE_KEY (service_role key)")
+    logger.info("=" * 60)
+    logger.info("📦 VERIFICACIÓN DE SUPABASE STORAGE")
+    logger.info("=" * 60)
+    
+    if settings.SUPABASE_URL:
+        logger.info(f"✅ SUPABASE_URL configurado: {settings.SUPABASE_URL}")
     else:
-        logger.warning("⚠️ Supabase Storage no está completamente configurado. Las funciones de imágenes no funcionarán.")
-        logger.warning("💡 Verifica que el archivo .env contenga SUPABASE_URL y SUPABASE_ANON_KEY (o SUPABASE_KEY)")
+        logger.error("❌ SUPABASE_URL NO está configurado")
+    
+    if settings.SUPABASE_ANON_KEY:
+        logger.info(f"✅ SUPABASE_ANON_KEY configurado (longitud: {len(settings.SUPABASE_ANON_KEY)} caracteres)")
+        key_type = "anon public key"
+    elif settings.SUPABASE_KEY:
+        logger.info(f"✅ SUPABASE_KEY configurado (longitud: {len(settings.SUPABASE_KEY)} caracteres)")
+        key_type = "service_role key"
+    else:
+        logger.error("❌ SUPABASE_ANON_KEY y SUPABASE_KEY NO están configurados")
+        key_type = None
+    
+    if settings.SUPABASE_STORAGE_BUCKET:
+        logger.info(f"✅ SUPABASE_STORAGE_BUCKET configurado: {settings.SUPABASE_STORAGE_BUCKET}")
+    else:
+        logger.warning("⚠️ SUPABASE_STORAGE_BUCKET no configurado, usando 'plantcare' por defecto")
+    
+    if settings.SUPABASE_URL and (settings.SUPABASE_ANON_KEY or settings.SUPABASE_KEY):
+        logger.info("=" * 60)
+        logger.info(f"✅ Supabase Storage COMPLETAMENTE CONFIGURADO")
+        logger.info(f"   URL: {settings.SUPABASE_URL}")
+        logger.info(f"   Bucket: {settings.SUPABASE_STORAGE_BUCKET or 'plantcare'}")
+        logger.info(f"   Key Type: {key_type}")
+        logger.info("=" * 60)
+    else:
+        logger.error("=" * 60)
+        logger.error("❌ Supabase Storage NO está completamente configurado")
+        logger.error("   Las funciones de imágenes NO funcionarán")
+        logger.error("💡 Verifica que el archivo .env contenga:")
+        logger.error("   - SUPABASE_URL")
+        logger.error("   - SUPABASE_ANON_KEY (recomendada) o SUPABASE_KEY")
+        logger.error("   - SUPABASE_STORAGE_BUCKET (opcional, default: 'plantcare')")
+        logger.error("=" * 60)
     
     # Validar Redis Cache
     if settings.REDIS_URL:
@@ -192,10 +216,6 @@ try:
     else:
         logger.warning("⚠️ REDIS_URL no está configurado. El cache no estará disponible.")
         logger.warning("💡 Verifica que el archivo .env contenga REDIS_URL")
-    
-    # Validar Cloudinary (DEPRECATED - mantener por compatibilidad temporal)
-    if settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET:
-        logger.warning("⚠️ Cloudinary está configurado pero está DEPRECATED. Usa Supabase Storage.")
         
 except Exception as e:
     logger.error(f"Error cargando configuración: {e}")

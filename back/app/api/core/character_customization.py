@@ -23,13 +23,13 @@ def add_accessory_to_character(
     Superpone un accesorio sobre el personaje base.
     
     Args:
-        character_url: URL del personaje base (Cloudinary)
+        character_url: URL del personaje base (Supabase Storage)
         accessory_url: URL del accesorio (PNG con transparencia)
         position: Posición del accesorio ("top", "head", "body", "center")
         scale: Escala del accesorio relativo al personaje (0.0 - 1.0)
     
     Returns:
-        str: URL de la imagen resultante en Cloudinary
+        str: URL de la imagen resultante en Supabase Storage
     """
     try:
         logger.info(f"Agregando accesorio a personaje. Posición: {position}, Escala: {scale}")
@@ -103,12 +103,12 @@ def add_accessory_to_character(
             white_bg.paste(result_img, mask=result_img.split()[3])  # Usar canal alpha como máscara
             result_img = white_bg
         
-        # 7. Guardar en buffer y subir a Cloudinary
+        # 7. Guardar en buffer y subir a Supabase Storage
         output_buffer = BytesIO()
         result_img.save(output_buffer, format='PNG', quality=95)
         output_buffer.seek(0)
         
-        logger.info("Subiendo imagen personalizada a Cloudinary...")
+        logger.info("Subiendo imagen personalizada a Supabase Storage...")
         result_url = upload_image(
             output_buffer,
             folder="plantcare/plants/characters/customized"

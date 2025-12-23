@@ -37,11 +37,8 @@ sendgrid==6.11.0
 google-auth==2.36.0
 requests>=2.31.0
 
-# Supabase Storage para almacenamiento de imágenes (reemplaza Cloudinary)
+# Supabase Storage para almacenamiento de imágenes
 supabase>=2.0.0
-
-# Cloudinary (DEPRECATED - mantener temporalmente por compatibilidad)
-# cloudinary
 
 # Pillow para procesamiento de imágenes
 Pillow

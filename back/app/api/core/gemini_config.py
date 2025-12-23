@@ -9,7 +9,7 @@ import requests
 import base64
 from io import BytesIO
 from .config import settings
-from .cloudinary_config import upload_image
+from .supabase_storage import upload_image
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ async def generate_character_with_gemini(
         mood: Estado de ánimo del personaje (happy, sad, thirsty, overwatered, sick)
     
     Returns:
-        str: URL de la imagen generada en Cloudinary
+        str: URL de la imagen generada en Supabase Storage
     
     Raises:
         Exception: Si falla la generación
@@ -158,7 +158,7 @@ async def generate_character_with_gemini(
             # Obtener la primera imagen (bytes)
             image_bytes = response.images[0]._image_bytes
             
-            # Subir a Cloudinary
+            # Subir a Supabase Storage
             image_buffer = BytesIO(image_bytes)
             image_url = upload_image(
                 image_buffer,
@@ -239,7 +239,7 @@ async def generate_character_with_gemini_simple(
         import requests
         import base64
         from io import BytesIO
-        from .cloudinary_config import upload_image
+        from .supabase_storage import upload_image
         
         # Obtener características de la planta
         plant_chars = get_plant_characteristics(plant_type)

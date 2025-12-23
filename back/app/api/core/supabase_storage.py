@@ -1,6 +1,5 @@
 """
 Configuración de Supabase Storage para almacenamiento de imágenes.
-Reemplaza Cloudinary con Supabase Storage.
 """
 import os
 import logging
@@ -23,27 +22,38 @@ def init_supabase() -> Optional[Client]:
     global supabase_client
     
     if supabase_client is None:
+        logger.info("🔧 Inicializando cliente de Supabase...")
+        
         if not settings.SUPABASE_URL:
+            logger.error("❌ SUPABASE_URL no está configurado en .env")
             logger.warning(
                 "⚠️ Supabase no está configurado. Verifica SUPABASE_URL en .env"
             )
             return None
         
+        logger.info(f"   URL encontrada: {settings.SUPABASE_URL}")
+        
         # Priorizar anon_key sobre service_role key
         supabase_key = settings.SUPABASE_ANON_KEY or settings.SUPABASE_KEY
         
         if not supabase_key:
+            logger.error("❌ SUPABASE_ANON_KEY y SUPABASE_KEY no están configurados en .env")
             logger.warning(
                 "⚠️ Supabase no está configurado. Verifica SUPABASE_ANON_KEY o SUPABASE_KEY en .env"
             )
             return None
         
+        key_type = "anon public" if settings.SUPABASE_ANON_KEY else "service_role"
+        logger.info(f"   Key Type: {key_type} (longitud: {len(supabase_key)} caracteres)")
+        
         try:
             supabase_client = create_client(settings.SUPABASE_URL, supabase_key)
-            key_type = "anon" if settings.SUPABASE_ANON_KEY else "service_role"
-            logger.info(f"✅ Cliente de Supabase inicializado correctamente (usando {key_type} key)")
+            logger.info(f"✅ Cliente de Supabase inicializado correctamente")
+            logger.info(f"   Usando: {key_type} key")
+            logger.info(f"   Bucket configurado: {settings.SUPABASE_STORAGE_BUCKET or 'plantcare'}")
         except Exception as e:
-            logger.error(f"Error inicializando Supabase: {str(e)}")
+            logger.error(f"❌ Error inicializando Supabase: {str(e)}")
+            logger.error(f"   Verifica que SUPABASE_URL y la key sean correctas")
             raise
     
     return supabase_client
