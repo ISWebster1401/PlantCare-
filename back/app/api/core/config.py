@@ -101,7 +101,8 @@ class Settings(BaseSettings):
     # Configuración de Supabase Storage (reemplaza Cloudinary)
     # ============================================
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "").strip()
-    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "").strip()  # service_role key
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "").strip()  # anon public key (recomendada)
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "").strip()  # service_role key (solo si se necesita permisos admin)
     SUPABASE_STORAGE_BUCKET: str = os.getenv("SUPABASE_STORAGE_BUCKET", "plantcare").strip()
     
     # ============================================
@@ -171,12 +172,16 @@ try:
         logger.warning("💡 Verifica que el archivo .env esté en la carpeta 'back/' y contenga OPENAI_API_KEY=...")
     
     # Validar Supabase Storage
-    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+    if settings.SUPABASE_URL and (settings.SUPABASE_ANON_KEY or settings.SUPABASE_KEY):
         logger.info(f"✅ Supabase Storage configurado: {settings.SUPABASE_URL}")
         logger.info(f"   Bucket: {settings.SUPABASE_STORAGE_BUCKET}")
+        if settings.SUPABASE_ANON_KEY:
+            logger.info("   Usando: SUPABASE_ANON_KEY (anon public key)")
+        elif settings.SUPABASE_KEY:
+            logger.info("   Usando: SUPABASE_KEY (service_role key)")
     else:
         logger.warning("⚠️ Supabase Storage no está completamente configurado. Las funciones de imágenes no funcionarán.")
-        logger.warning("💡 Verifica que el archivo .env contenga SUPABASE_URL y SUPABASE_KEY")
+        logger.warning("💡 Verifica que el archivo .env contenga SUPABASE_URL y SUPABASE_ANON_KEY (o SUPABASE_KEY)")
     
     # Validar Redis Cache
     if settings.REDIS_URL:

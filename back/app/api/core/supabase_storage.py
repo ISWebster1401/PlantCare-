@@ -14,19 +14,34 @@ logger = logging.getLogger(__name__)
 supabase_client: Optional[Client] = None
 
 def init_supabase() -> Optional[Client]:
-    """Inicializa el cliente de Supabase."""
+    """Inicializa el cliente de Supabase.
+    
+    Prioridad:
+    1. SUPABASE_ANON_KEY (recomendada para operaciones públicas)
+    2. SUPABASE_KEY (service_role, solo si anon_key no está disponible)
+    """
     global supabase_client
     
     if supabase_client is None:
-        if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+        if not settings.SUPABASE_URL:
             logger.warning(
-                "⚠️ Supabase no está configurado. Verifica SUPABASE_URL y SUPABASE_KEY en .env"
+                "⚠️ Supabase no está configurado. Verifica SUPABASE_URL en .env"
+            )
+            return None
+        
+        # Priorizar anon_key sobre service_role key
+        supabase_key = settings.SUPABASE_ANON_KEY or settings.SUPABASE_KEY
+        
+        if not supabase_key:
+            logger.warning(
+                "⚠️ Supabase no está configurado. Verifica SUPABASE_ANON_KEY o SUPABASE_KEY en .env"
             )
             return None
         
         try:
-            supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-            logger.info("✅ Cliente de Supabase inicializado correctamente")
+            supabase_client = create_client(settings.SUPABASE_URL, supabase_key)
+            key_type = "anon" if settings.SUPABASE_ANON_KEY else "service_role"
+            logger.info(f"✅ Cliente de Supabase inicializado correctamente (usando {key_type} key)")
         except Exception as e:
             logger.error(f"Error inicializando Supabase: {str(e)}")
             raise
@@ -52,7 +67,7 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         client = init_supabase()
         if not client:
             raise Exception(
-                "Supabase no está configurado. Verifica SUPABASE_URL y SUPABASE_KEY en .env"
+                "Supabase no está configurado. Verifica SUPABASE_URL y SUPABASE_ANON_KEY (o SUPABASE_KEY) en .env"
             )
         
         bucket = settings.SUPABASE_STORAGE_BUCKET or "plantcare"
