@@ -14,12 +14,12 @@ services:
         done &&
         echo '✅ PostgreSQL listo' &&
         echo '⏳ Esperando a que Redis esté listo...' &&
-        REDIS_PASS=\"$${REDIS_PASSWORD:-redis123}\" &&
-        until redis-cli -h redis -a \"$$REDIS_PASS\" ping > /dev/null 2>&1; do
+        until nc -z redis 6379 > /dev/null 2>&1; do
           sleep 2
         done &&
         echo '✅ Redis listo' &&
         echo '🚀 Iniciando PlantCare Backend en modo desarrollo (hot reload)...' &&
+        export PATH=/root/.local/bin:$$PATH &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app
       "
     volumes:
