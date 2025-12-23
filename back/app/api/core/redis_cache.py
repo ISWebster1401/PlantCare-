@@ -31,7 +31,7 @@ def init_redis() -> Optional[AsyncRedis]:
         # Construir URL de Redis con contraseña si está configurada
         redis_url = settings.REDIS_URL
         
-        # Si hay contraseña en variables de entorno pero no en la URL, agregarla
+        # Si la URL no tiene contraseña pero REDIS_PASSWORD está configurado, agregarla
         redis_password = os.getenv("REDIS_PASSWORD", "").strip()
         if redis_password and "@" not in redis_url:
             # Insertar contraseña en la URL: redis://host:port -> redis://:password@host:port
@@ -43,7 +43,7 @@ def init_redis() -> Optional[AsyncRedis]:
                     redis_url = f"redis://:{redis_password}@{host_port}/{db_part}"
                 else:
                     redis_url = f"redis://:{redis_password}@{url_part}"
-                logger.debug(f"Redis URL actualizada con contraseña (sin mostrar password)")
+                logger.debug("Redis URL actualizada con contraseña")
         
         _redis_client = from_url(
             redis_url,
