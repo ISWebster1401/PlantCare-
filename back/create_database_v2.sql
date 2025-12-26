@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_sensors_is_assigned ON sensors(is_assigned);
 CREATE TABLE IF NOT EXISTS plants (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    sensor_id INTEGER REFERENCES sensors(id) ON DELETE SET NULL,  -- Puede ser NULL
+    sensor_id UUID REFERENCES sensors(id) ON DELETE SET NULL,  -- Puede ser NULL (UUID para coincidir con sensors.id)
     
     -- Info básica de la planta
     plant_name VARCHAR(100) NOT NULL,              -- "Pepito", "Rosa", etc

@@ -255,7 +255,7 @@ async def _create_tables(db: AsyncPgDbToolkit):
             await db.create_table("plants", {
                 "id": "SERIAL PRIMARY KEY",
                 "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
-                "sensor_id": "INTEGER",  # Se agregará FK después de crear sensors
+                "sensor_id": "UUID",  # Se agregará FK después de crear sensors (UUID para coincidir con sensors.id)
                 "plant_name": "VARCHAR(100) NOT NULL",
                 "plant_type": "VARCHAR(100)",
                 "scientific_name": "VARCHAR(200)",
@@ -277,6 +277,30 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla plants creada exitosamente")
         else:
             logger.info("✅ Tabla plants ya existe")
+            # Migrar sensor_id a UUID si existe como INTEGER (para coincidir con sensors.id UUID)
+            try:
+                result = await db.execute_query("""
+                    SELECT data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'plants' AND column_name = 'sensor_id'
+                """)
+                if result is not None and not result.empty:
+                    current_type = result.iloc[0]['data_type']
+                    if current_type == 'integer':
+                        logger.info("📋 Migrando plants.sensor_id de INTEGER a UUID...")
+                        # Primero eliminar la FK si existe
+                        await db.execute_query("""
+                            ALTER TABLE plants 
+                            DROP CONSTRAINT IF EXISTS fk_plants_sensor_id
+                        """)
+                        # Cambiar el tipo de columna (los valores INTEGER no se pueden convertir a UUID, se ponen NULL)
+                        await db.execute_query("""
+                            ALTER TABLE plants 
+                            ALTER COLUMN sensor_id TYPE UUID USING NULL
+                        """)
+                        logger.info("✅ plants.sensor_id migrado a UUID (valores existentes se perdieron - se requerirá reasignar sensores)")
+            except Exception as e:
+                logger.warning(f"No se pudo verificar/migrar sensor_id: {e}")
         
         # ============================================
         # PASO 4: CREAR TABLA SENSORS (REDISEÑADA CON UUID)
