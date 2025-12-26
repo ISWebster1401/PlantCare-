@@ -9,10 +9,10 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
-# Cliente de Supabase (se inicializa al importar)
+# Cliente de Supabase (se inicializa cuando se necesita)
 supabase_client: Optional[Client] = None
 
-def init_supabase() -> Optional[Client]:
+def init_supabase(force_reinit: bool = False) -> Optional[Client]:
     """Inicializa el cliente de Supabase.
     
     Prioridad:
@@ -21,7 +21,7 @@ def init_supabase() -> Optional[Client]:
     """
     global supabase_client
     
-    if supabase_client is None:
+    if supabase_client is None or force_reinit:
         logger.info("🔧 Inicializando cliente de Supabase...")
         
         if not settings.SUPABASE_URL:
@@ -57,7 +57,9 @@ def init_supabase() -> Optional[Client]:
             supabase_client = create_client(settings.SUPABASE_URL, supabase_key)
             logger.info(f"✅ Cliente de Supabase inicializado correctamente")
             logger.info(f"   Usando: {key_type} key")
+            logger.info(f"   Key (primeros 20 chars): {supabase_key[:20]}...")
             logger.info(f"   Bucket configurado: {settings.SUPABASE_STORAGE_BUCKET or 'plantcare'}")
+            logger.info(f"   URL: {settings.SUPABASE_URL}")
         except Exception as e:
             logger.error(f"❌ Error inicializando Supabase: {str(e)}")
             logger.error(f"   Verifica que SUPABASE_URL y la key sean correctas")
@@ -116,13 +118,28 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         Exception: Si falla la subida
     """
     try:
-        client = init_supabase()
+        # Forzar reinicialización si tenemos SUPABASE_KEY pero el cliente podría estar usando anon_key
+        # Esto asegura que usemos service_role key si está disponible
+        if settings.SUPABASE_KEY:
+            client = init_supabase(force_reinit=True)
+        else:
+            client = init_supabase()
         if not client:
             raise Exception(
                 "Supabase no está configurado. Verifica SUPABASE_URL y SUPABASE_KEY (recomendada) o SUPABASE_ANON_KEY en .env"
             )
         
         bucket = settings.SUPABASE_STORAGE_BUCKET or "plantcare"
+        
+        # Log de debug para ver qué key está usando
+        if settings.SUPABASE_KEY:
+            key_type_used = "service_role"
+            logger.info(f"📤 Subiendo imagen - Key: service_role ✅, Bucket: {bucket}, Folder: {folder}")
+        elif settings.SUPABASE_ANON_KEY:
+            key_type_used = "anon"
+            logger.warning(f"⚠️ Subiendo imagen - Key: anon (puede fallar por RLS), Bucket: {bucket}, Folder: {folder}")
+        else:
+            key_type_used = "none"
         
         # Verificar bucket pasivamente (no intenta crear - el bucket debe existir en Supabase Dashboard)
         _ensure_bucket_exists(client, bucket)

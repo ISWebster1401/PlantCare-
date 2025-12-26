@@ -54,7 +54,7 @@ async def identify_plant(
 
         logger.info(f"✅ Archivo válido para identificación: {file.filename} ({file.content_type})")
 
-        original_photo_url = upload_image(file.file, folder="plantcare/plants/original")
+        original_photo_url = upload_image(file.file, folder="plants/original")
         plant_data = await identify_plant_with_vision(original_photo_url)
 
         return PlantIdentify(**plant_data)
@@ -114,7 +114,7 @@ async def create_plant(
 
         # 1. Subir foto original
         logger.info(f"Subiendo foto original para planta {plant_name}")
-        original_photo_url = upload_image(file.file, folder="plantcare/plants/original")
+        original_photo_url = upload_image(file.file, folder="plants/original")
 
         # 2. Identificar planta
         logger.info("Identificando planta...")
@@ -484,7 +484,7 @@ async def upload_plant_render(
 
         # Subir render a Supabase Storage
         logger.info(f"Subiendo render del modelo 3D para planta {plant_id}")
-        render_url = upload_image(file.file, folder="plantcare/plants/renders")
+        render_url = upload_image(file.file, folder="plants/renders")
 
         # Actualizar en DB
         await db.execute_query(
