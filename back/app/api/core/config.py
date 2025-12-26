@@ -173,14 +173,15 @@ try:
     else:
         logger.error("❌ SUPABASE_URL NO está configurado")
     
-    if settings.SUPABASE_ANON_KEY:
-        logger.info(f"✅ SUPABASE_ANON_KEY configurado (longitud: {len(settings.SUPABASE_ANON_KEY)} caracteres)")
-        key_type = "anon public key"
-    elif settings.SUPABASE_KEY:
-        logger.info(f"✅ SUPABASE_KEY configurado (longitud: {len(settings.SUPABASE_KEY)} caracteres)")
+    if settings.SUPABASE_KEY:
+        logger.info(f"✅ SUPABASE_KEY configurado (longitud: {len(settings.SUPABASE_KEY)} caracteres) - service_role (recomendada para backend)")
         key_type = "service_role key"
+    elif settings.SUPABASE_ANON_KEY:
+        logger.warning(f"⚠️ SUPABASE_ANON_KEY configurado (longitud: {len(settings.SUPABASE_ANON_KEY)} caracteres) - anon key")
+        logger.warning("   💡 Recomendado: Usa SUPABASE_KEY (service_role) para el backend")
+        key_type = "anon public key"
     else:
-        logger.error("❌ SUPABASE_ANON_KEY y SUPABASE_KEY NO están configurados")
+        logger.error("❌ SUPABASE_KEY y SUPABASE_ANON_KEY NO están configurados")
         key_type = None
     
     if settings.SUPABASE_STORAGE_BUCKET:
@@ -201,7 +202,7 @@ try:
         logger.error("   Las funciones de imágenes NO funcionarán")
         logger.error("💡 Verifica que el archivo .env contenga:")
         logger.error("   - SUPABASE_URL")
-        logger.error("   - SUPABASE_ANON_KEY (recomendada) o SUPABASE_KEY")
+        logger.error("   - SUPABASE_KEY (service_role, RECOMENDADA para backend) o SUPABASE_ANON_KEY")
         logger.error("   - SUPABASE_STORAGE_BUCKET (opcional, default: 'plantcare')")
         logger.error("=" * 60)
     
