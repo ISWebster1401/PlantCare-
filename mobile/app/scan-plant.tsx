@@ -54,6 +54,7 @@ export default function ScanPlantScreen() {
 
     try {
       const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -81,6 +82,7 @@ export default function ScanPlantScreen() {
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -105,10 +107,11 @@ export default function ScanPlantScreen() {
   const identifyPlant = async (imageUri: string) => {
     setIsLoading(true);
     try {
+      // Usar el tipo de la foto seleccionada (ya tiene el tipo correcto: image/jpeg o image/png)
       const file = {
         uri: imageUri,
-        type: 'image/jpeg',
-        name: `plant_${Date.now()}.jpg`,
+        type: photo?.type || 'image/jpeg',
+        name: photo?.name || `plant_${Date.now()}.${photo?.type?.includes('png') ? 'png' : 'jpg'}`,
       };
 
       const result = await plantsAPI.identifyPlant(file);
