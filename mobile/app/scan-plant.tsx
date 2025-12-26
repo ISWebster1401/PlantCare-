@@ -54,7 +54,7 @@ export default function ScanPlantScreen() {
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images || 'images',
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -82,7 +82,7 @@ export default function ScanPlantScreen() {
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -212,7 +212,7 @@ export default function ScanPlantScreen() {
         if (!identification) return null;
 
         return (
-          <ScrollView style={styles.stepContainer} contentContainerStyle={styles.resultsContent}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.resultsContent}>
             {photo && <Image source={{ uri: photo.uri }} style={styles.previewImage} />}
 
             <View style={styles.resultCard}>
@@ -386,7 +386,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   resultsContent: {
+    padding: 24,
     paddingBottom: 32,
+    flexGrow: 1,
   },
   previewImage: {
     width: '100%',
