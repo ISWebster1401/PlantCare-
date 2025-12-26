@@ -59,13 +59,112 @@ def init_supabase() -> Optional[Client]:
     return supabase_client
 
 
+def _ensure_bucket_exists(client: Client, bucket_name: str) -> bool:
+    """
+    Verifica si un bucket existe en Supabase Storage, y lo crea si no existe.
+    
+    Args:
+        client: Cliente de Supabase
+        bucket_name: Nombre del bucket
+    
+    Returns:
+        bool: True si el bucket existe o fue creado exitosamente
+    
+    Raises:
+        Exception: Si el bucket no existe y no se pudo crear
+    """
+    try:
+        # Intentar listar buckets para verificar si existe
+        try:
+            buckets = client.storage.list_buckets()
+            bucket_exists = any(b.name == bucket_name for b in buckets)
+            
+            if bucket_exists:
+                logger.info(f"✅ Bucket '{bucket_name}' existe en Supabase Storage")
+                return True
+        except Exception as list_error:
+            # Si falla listar (puede ser por permisos), intentar crear directamente
+            logger.warning(f"⚠️ No se pudo listar buckets (puede ser por permisos): {list_error}")
+        
+        # Si no existe, intentar crearlo
+        logger.warning(f"⚠️ Bucket '{bucket_name}' no encontrado. Intentando crearlo automáticamente...")
+        try:
+            # Crear bucket como público para que las URLs funcionen
+            response = client.storage.create_bucket(
+                bucket_name,
+                options={
+                    "public": True,  # Bucket público para acceso a URLs
+                    "allowed_mime_types": ["image/jpeg", "image/png", "image/jpg"],
+                    "file_size_limit": 10485760  # 10MB
+                }
+            )
+            logger.info(f"✅ Bucket '{bucket_name}' creado exitosamente")
+            return True
+        except Exception as create_error:
+            error_msg = str(create_error).lower()
+            if "already exists" in error_msg or "duplicate" in error_msg or "409" in error_msg:
+                logger.info(f"✅ Bucket '{bucket_name}' ya existe (verificado)")
+                return True
+            else:
+                # No se pudo crear automáticamente, dar instrucciones claras
+                logger.error("=" * 80)
+                logger.error(f"❌ ERROR: Bucket '{bucket_name}' NO existe en Supabase Storage")
+                logger.error(f"❌ No se pudo crear automáticamente: {create_error}")
+                logger.error("=" * 80)
+                logger.error("💡 INSTRUCCIONES PARA CREAR EL BUCKET MANUALMENTE:")
+                logger.error("   1. Ve a https://app.supabase.com")
+                logger.error("   2. Selecciona tu proyecto")
+                logger.error("   3. Ve a 'Storage' en el menú lateral")
+                logger.error("   4. Clic en 'Buckets' (o 'Buckets' en la parte superior)")
+                logger.error("   5. Clic en 'New bucket' (botón azul)")
+                logger.error(f"   6. Nombre del bucket: '{bucket_name}'")
+                logger.error("   7. ✅ MARCA 'Public bucket' (MUY IMPORTANTE para que las URLs funcionen)")
+                logger.error("   8. Opcional: Configura 'File size limit' a 10485760 (10MB)")
+                logger.error("   9. Clic en 'Create bucket'")
+                logger.error("   10. Después de crearlo, intenta subir la imagen nuevamente")
+                logger.error("=" * 80)
+                raise Exception(
+                    f"Bucket '{bucket_name}' no existe en Supabase Storage. "
+                    f"Por favor, créalo manualmente en Supabase Dashboard. "
+                    f"Ver los logs arriba para instrucciones detalladas. "
+                    f"Error al intentar crearlo: {create_error}"
+                )
+    except Exception as e:
+        # Si el error es específico de "bucket not found", dar instrucciones claras
+        error_str = str(e).lower()
+        if "bucket not found" in error_str or "404" in error_str or "does not exist" in error_str:
+            logger.error("=" * 80)
+            logger.error(f"❌ ERROR: Bucket '{bucket_name}' NO existe en Supabase Storage")
+            logger.error("=" * 80)
+            logger.error("💡 INSTRUCCIONES PARA CREAR EL BUCKET MANUALMENTE:")
+            logger.error("   1. Ve a https://app.supabase.com")
+            logger.error("   2. Selecciona tu proyecto")
+            logger.error("   3. Ve a 'Storage' en el menú lateral")
+            logger.error("   4. Clic en 'Buckets' (o 'Buckets' en la parte superior)")
+            logger.error("   5. Clic en 'New bucket' (botón azul)")
+            logger.error(f"   6. Nombre del bucket: '{bucket_name}'")
+            logger.error("   7. ✅ MARCA 'Public bucket' (MUY IMPORTANTE para que las URLs funcionen)")
+            logger.error("   8. Opcional: Configura 'File size limit' a 10485760 (10MB)")
+            logger.error("   9. Clic en 'Create bucket'")
+            logger.error("   10. Después de crearlo, intenta subir la imagen nuevamente")
+            logger.error("=" * 80)
+            raise Exception(
+                f"Bucket '{bucket_name}' no existe en Supabase Storage. "
+                f"Por favor, créalo manualmente en Supabase Dashboard. "
+                f"Ver los logs arriba para instrucciones detalladas."
+            )
+        else:
+            raise
+
+
 def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
     """
     Sube imagen binaria a Supabase Storage y retorna URL pública.
     
     Args:
         file: Archivo binario (BytesIO o file object)
-        folder: Carpeta dentro del bucket (ej: "plantcare/plants/original")
+        folder: Carpeta dentro del bucket (ej: "plants/original")
+                 NOTA: No incluyas el nombre del bucket aquí, solo la ruta dentro del bucket
     
     Returns:
         str: URL pública de la imagen
@@ -81,6 +180,9 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
             )
         
         bucket = settings.SUPABASE_STORAGE_BUCKET or "plantcare"
+        
+        # Asegurar que el bucket existe
+        _ensure_bucket_exists(client, bucket)
         
         # Generar nombre único para el archivo
         import uuid
