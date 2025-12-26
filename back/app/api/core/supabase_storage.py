@@ -152,7 +152,7 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         file_extension = ".jpg"  # Por defecto
         if hasattr(file, 'name') and file.name:
             ext = os.path.splitext(file.name)[1].lower()
-            if ext in [".jpg", ".jpeg", ".png"]:
+            if ext in [".jpg", ".jpeg", ".png", ".heic", ".heif"]:
                 file_extension = ext
         
         # Nombre único: timestamp + uuid + extensión
@@ -183,7 +183,9 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         content_type_map = {
             ".jpg": "image/jpeg",
             ".jpeg": "image/jpeg",
-            ".png": "image/png"
+            ".png": "image/png",
+            ".heic": "image/jpeg",  # HEIC se maneja como JPEG en Supabase
+            ".heif": "image/jpeg"   # HEIF se maneja como JPEG en Supabase
         }
         content_type = content_type_map.get(file_extension, "image/jpeg")
         

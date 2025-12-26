@@ -33,8 +33,8 @@ async def identify_plant(
 ):
     """Sube una foto a Supabase Storage y usa GPT‑4o Vision para identificar la planta."""
     try:
-        allowed_extensions = {".jpg", ".jpeg", ".png"}
-        allowed_content_types = {"image/jpeg", "image/jpg", "image/png"}
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
+        allowed_content_types = {"image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif"}
 
         file_extension = None
         if file.filename:
@@ -43,13 +43,13 @@ async def identify_plant(
         if file_extension and file_extension not in allowed_extensions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de archivo no permitido. Solo se aceptan: JPEG, JPG, PNG. Recibido: {file_extension}",
+                detail=f"Tipo de archivo no permitido. Solo se aceptan: JPEG, JPG, PNG, HEIC, HEIF. Recibido: {file_extension}",
             )
 
         if file.content_type and file.content_type.lower() not in allowed_content_types:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de contenido no permitido. Solo se aceptan: image/jpeg, image/png. Recibido: {file.content_type}",
+                detail=f"Tipo de contenido no permitido. Solo se aceptan: image/jpeg, image/png, image/heic, image/heif. Recibido: {file.content_type}",
             )
 
         logger.info(f"✅ Archivo válido para identificación: {file.filename} ({file.content_type})")
@@ -86,8 +86,8 @@ async def create_plant(
     Nota: El modelo 3D y su render se crearán manualmente y se subirán después.
     """
     try:
-        allowed_extensions = {".jpg", ".jpeg", ".png"}
-        allowed_content_types = {"image/jpeg", "image/jpg", "image/png"}
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
+        allowed_content_types = {"image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif"}
 
         file_extension = None
         if file.filename:
@@ -96,13 +96,13 @@ async def create_plant(
         if file_extension and file_extension not in allowed_extensions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de archivo no permitido. Solo se aceptan: JPEG, JPG, PNG. Recibido: {file_extension}",
+                detail=f"Tipo de archivo no permitido. Solo se aceptan: JPEG, JPG, PNG, HEIC, HEIF. Recibido: {file_extension}",
             )
 
         if file.content_type and file.content_type.lower() not in allowed_content_types:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de contenido no permitido. Solo se aceptan: image/jpeg, image/png. Recibido: {file.content_type}",
+                detail=f"Tipo de contenido no permitido. Solo se aceptan: image/jpeg, image/png, image/heic, image/heif. Recibido: {file.content_type}",
             )
 
         logger.info(f"✅ Archivo válido: {file.filename} ({file.content_type})")
@@ -447,8 +447,8 @@ async def upload_plant_render(
     """
     try:
         # Validar tipo de archivo
-        allowed_extensions = {".jpg", ".jpeg", ".png"}
-        allowed_content_types = {"image/jpeg", "image/jpg", "image/png"}
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
+        allowed_content_types = {"image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif"}
 
         file_extension = None
         if file.filename:
@@ -457,13 +457,13 @@ async def upload_plant_render(
         if file_extension and file_extension not in allowed_extensions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de archivo no permitido. Solo se aceptan: JPEG, JPG, PNG. Recibido: {file_extension}",
+                detail=f"Tipo de archivo no permitido. Solo se aceptan: JPEG, JPG, PNG, HEIC, HEIF. Recibido: {file_extension}",
             )
 
         if file.content_type and file.content_type.lower() not in allowed_content_types:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de contenido no permitido. Solo se aceptan: image/jpeg, image/png. Recibido: {file.content_type}",
+                detail=f"Tipo de contenido no permitido. Solo se aceptan: image/jpeg, image/png, image/heic, image/heif. Recibido: {file.content_type}",
             )
 
         # Verificar que la planta existe y pertenece al usuario

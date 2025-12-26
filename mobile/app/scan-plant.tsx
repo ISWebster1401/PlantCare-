@@ -54,7 +54,6 @@ export default function ScanPlantScreen() {
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        ...(ImagePicker.MediaTypeOptions ? { mediaTypes: ImagePicker.MediaTypeOptions.Images } : {}),
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -81,9 +80,8 @@ export default function ScanPlantScreen() {
     if (!hasPermission) return;
 
     try {
-      // Usar MediaTypeOptions si está disponible, sino omitir (por defecto selecciona imágenes)
+      // Omitir mediaTypes para evitar errores - por defecto selecciona imágenes
       const result = await ImagePicker.launchImageLibraryAsync({
-        ...(ImagePicker.MediaTypeOptions ? { mediaTypes: ImagePicker.MediaTypeOptions.Images } : {}),
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -91,10 +89,23 @@ export default function ScanPlantScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
+        // Detectar tipo de imagen (JPEG, PNG, o HEIC/HEIF de iPhone)
+        let imageType = 'image/jpeg';
+        let extension = 'jpg';
+        const uriLower = asset.uri.toLowerCase();
+        if (uriLower.includes('.png')) {
+          imageType = 'image/png';
+          extension = 'png';
+        } else if (uriLower.includes('.heic') || uriLower.includes('.heif')) {
+          // HEIC se convierte a JPEG automáticamente en Expo, pero marcamos como JPEG
+          imageType = 'image/jpeg';
+          extension = 'jpg';
+        }
+        
         setPhoto({
           uri: asset.uri,
-          type: asset.uri.endsWith('.png') ? 'image/png' : 'image/jpeg',
-          name: asset.uri.split('/').pop() || `plant_${Date.now()}.jpg`,
+          type: imageType,
+          name: asset.uri.split('/').pop() || `plant_${Date.now()}.${extension}`,
         });
         setStep('identifying');
         identifyPlant(asset.uri);
