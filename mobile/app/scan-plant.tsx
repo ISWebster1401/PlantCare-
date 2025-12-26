@@ -54,7 +54,6 @@ export default function ScanPlantScreen() {
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images || 'images',
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -82,7 +81,6 @@ export default function ScanPlantScreen() {
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
