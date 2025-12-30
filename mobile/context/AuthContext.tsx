@@ -12,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   register: (userData: UserRegistration) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -86,6 +87,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (credential: string) => {
+    try {
+      const response = await authAPI.loginWithGoogle(credential);
+      await persistSession(response, false);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Error al iniciar sesión con Google');
+    }
+  };
+
   const register = async (userData: UserRegistration) => {
     try {
       await authAPI.register(userData);
@@ -122,6 +132,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     isAuthenticated: !!user && !!token,
     login,
+    loginWithGoogle,
     register,
     logout,
     refreshUser,
