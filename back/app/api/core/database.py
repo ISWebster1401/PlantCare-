@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import json
 from typing import Optional, Dict, Any
 from datetime import datetime
 from pgdbtoolkit import AsyncPgDbToolkit
@@ -590,10 +591,109 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla email_verification_tokens creada exitosamente")
         else:
             logger.info("✅ Tabla email_verification_tokens ya existe")
+        
+        # ============================================
+        # PASO 12: INSERTAR MODELOS 3D PREDETERMINADOS
+        # ============================================
+        await _seed_plant_models(db)
             
     except Exception as e:
         log_error_with_context(e, "create_tables")
         raise
+
+async def _seed_plant_models(db: AsyncPgDbToolkit):
+    """Inserta modelos 3D predeterminados para tipos de plantas comunes"""
+    try:
+        logger.info("🌱 Insertando modelos 3D predeterminados...")
+        
+        # Verificar si ya existen modelos
+        existing_models = await db.execute_query(
+            "SELECT COUNT(*) as count FROM plant_models"
+        )
+        
+        if existing_models is not None and not existing_models.empty:
+            count = existing_models.iloc[0]["count"]
+            if count > 0:
+                logger.info(f"✅ Ya existen {count} modelos 3D en la base de datos, omitiendo inserción")
+                return
+        
+        # Modelos base con URLs placeholder
+        models = [
+            {
+                "plant_type": "Cactus",
+                "name": "Cactus Default",
+                "model_3d_url": "PLACEHOLDER_upload_to_supabase/cactus_default.glb",
+                "default_render_url": "PLACEHOLDER_upload_to_supabase/cactus_default_render.jpg",
+                "is_default": True,
+                "metadata": {"category": "succulent", "scale": 1.0}
+            },
+            {
+                "plant_type": "Suculenta",
+                "name": "Suculenta Default",
+                "model_3d_url": "PLACEHOLDER_upload_to_supabase/suculenta_default.glb",
+                "default_render_url": "PLACEHOLDER_upload_to_supabase/suculenta_default_render.jpg",
+                "is_default": True,
+                "metadata": {"category": "succulent", "scale": 1.0}
+            },
+            {
+                "plant_type": "Monstera",
+                "name": "Monstera Default",
+                "model_3d_url": "PLACEHOLDER_upload_to_supabase/monstera_default.glb",
+                "default_render_url": "PLACEHOLDER_upload_to_supabase/monstera_default_render.jpg",
+                "is_default": True,
+                "metadata": {"category": "tropical", "scale": 1.2}
+            },
+            {
+                "plant_type": "Helecho",
+                "name": "Helecho Default",
+                "model_3d_url": "PLACEHOLDER_upload_to_supabase/helecho_default.glb",
+                "default_render_url": "PLACEHOLDER_upload_to_supabase/helecho_default_render.jpg",
+                "is_default": True,
+                "metadata": {"category": "fern", "scale": 1.1}
+            },
+            {
+                "plant_type": "Rosa",
+                "name": "Rosa Default",
+                "model_3d_url": "PLACEHOLDER_upload_to_supabase/rosa_default.glb",
+                "default_render_url": "PLACEHOLDER_upload_to_supabase/rosa_default_render.jpg",
+                "is_default": True,
+                "metadata": {"category": "flower", "scale": 0.8}
+            },
+            {
+                "plant_type": "Planta",
+                "name": "Planta Genérica",
+                "model_3d_url": "PLACEHOLDER_upload_to_supabase/planta_generica.glb",
+                "default_render_url": "PLACEHOLDER_upload_to_supabase/planta_generica_render.jpg",
+                "is_default": True,
+                "metadata": {"category": "generic", "scale": 1.0}
+            }
+        ]
+        
+        # Insertar modelos usando execute_query
+        for model in models:
+            try:
+                await db.execute_query("""
+                    INSERT INTO plant_models (plant_type, name, model_3d_url, default_render_url, is_default, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT DO NOTHING
+                """, (
+                    model["plant_type"],
+                    model["name"],
+                    model["model_3d_url"],
+                    model.get("default_render_url"),
+                    model["is_default"],
+                    json.dumps(model.get("metadata", {}))
+                ))
+            except Exception as e:
+                logger.warning(f"Error insertando modelo {model['name']}: {e}")
+        
+        logger.info(f"✅ Modelos 3D predeterminados insertados: {len(models)} modelos")
+        
+    except Exception as e:
+        logger.error(f"❌ Error insertando modelos 3D predeterminados: {e}")
+        # No lanzar excepción - los modelos pueden insertarse manualmente después
+        logger.warning("⚠️ Continuando sin modelos predeterminados (pueden insertarse manualmente después)")
+
 
 async def _create_indexes(db: AsyncPgDbToolkit):
     """Crea índices para optimizar las consultas"""
