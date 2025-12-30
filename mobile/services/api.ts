@@ -89,6 +89,11 @@ export const authAPI = {
     const response = await api.post('/auth/resend-code', { email });
     return response.data;
   },
+
+  loginWithGoogle: async (credential: string): Promise<AuthResponse> => {
+    const response = await api.post('/auth/google', { credential });
+    return response.data;
+  },
 };
 
 // ============================================
