@@ -34,32 +34,33 @@ export default function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
 
-  // Configurar redirect URI usando el esquema personalizado de la app
-  // Para desarrollo con Expo Go, usamos useProxy: true
-  // Para producción, usa el esquema nativo
+  // Configurar redirect URI para desarrollo con Expo Go
+  // useProxy: true usa el proxy de Expo (https://auth.expo.io/@anonymous/plantcare)
+  // Para usuario no logueado, usa @anonymous
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'plantcare',
     path: 'oauth',
     useProxy: true, // Usar proxy de Expo en desarrollo
   });
 
-  // Configurar Google OAuth - usar useIdTokenAuthRequest que maneja ID tokens
-  // IMPORTANTE: Necesitas un OAuth Client ID tipo "iOS" en Google Cloud Console
-  // Bundle ID debe ser: com.plantcare.mobile
-  // También necesitas crear un Client ID tipo "Web application" para desarrollo
-  // y agregar el redirect URI como: https://auth.expo.io/@tu-usuario/plantcare
+  // Configurar Google OAuth
+  // IMPORTANTE: Para desarrollo, usa Client ID tipo "Web application"
+  // y agrega el redirect URI: https://auth.expo.io/@anonymous/plantcare
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: Config.GOOGLE_CLIENT_ID,
-    iosClientId: Config.GOOGLE_CLIENT_ID,
-    redirectUri, // Usar redirect URI explícito
+    clientId: Config.GOOGLE_CLIENT_ID, // Client ID tipo "Web application" para desarrollo
+    redirectUri, // Redirect URI explícito
   });
 
   // Debug: Verificar configuración
   React.useEffect(() => {
-    console.log('Google Client ID configurado:', Config.GOOGLE_CLIENT_ID ? 'Sí' : 'No');
-    console.log('Redirect URI:', redirectUri);
+    console.log('🔐 Google Auth Config:');
+    console.log('  Client ID:', Config.GOOGLE_CLIENT_ID ? '✅ Configurado' : '❌ No configurado');
+    console.log('  Redirect URI:', redirectUri);
+    console.log('  ⚠️ Agrega este Redirect URI en Google Cloud Console');
     if (request) {
-      console.log('OAuth request preparado');
+      console.log('  Request: ✅ Preparado');
+    } else {
+      console.log('  Request: ⏳ Cargando...');
     }
   }, [request, redirectUri]);
 
