@@ -40,13 +40,19 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push('/edit-profile')}
+        >
           <Ionicons name="person-outline" size={24} color="#fff" />
           <Text style={styles.menuText}>Editar Perfil</Text>
           <Ionicons name="chevron-forward" size={24} color="#64748b" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push('/notifications')}
+        >
           <Ionicons name="notifications-outline" size={24} color="#fff" />
           <Text style={styles.menuText}>Notificaciones</Text>
           <Ionicons name="chevron-forward" size={24} color="#64748b" />

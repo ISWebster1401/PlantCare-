@@ -120,6 +120,8 @@ export interface NotificationResponse {
   is_read: boolean;
   sent_via_email: boolean;
   created_at: string;
+  plant_name?: string | null;
+  character_image_url?: string | null;
 }
 
 // ============================================
