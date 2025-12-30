@@ -1041,6 +1041,96 @@ async def create_email_verification_code(db, user_id: int, minutes_valid: int = 
         logger.error(f"Error creando código de verificación: {str(e)}")
         raise
 
+async def create_email_change_request(db, user_id: int, new_email: str, minutes_valid: int = 15) -> Dict[str, Any]:
+    """
+    Crea un código de verificación para cambio de email.
+    Almacena el nuevo email pendiente hasta que se verifique el código.
+    """
+    try:
+        # Invalidar solicitudes previas no usadas para este usuario
+        await db.execute_query(
+            "UPDATE email_change_requests SET used_at = %s WHERE user_id = %s AND used_at IS NULL",
+            (datetime.utcnow(), user_id)
+        )
+
+        code = _generate_4_digit_code()
+        expires_at = datetime.utcnow() + timedelta(minutes=minutes_valid)
+        await db.execute_query(
+            "INSERT INTO email_change_requests (user_id, new_email, token, expires_at) VALUES (%s, %s, %s, %s)",
+            (user_id, new_email, code, expires_at)
+        )
+        return {"code": code, "expires_at": expires_at, "new_email": new_email}
+    except Exception as e:
+        logger.error(f"Error creando solicitud de cambio de email: {str(e)}")
+        raise
+
+async def confirm_email_change(db, user_id: int, new_email: str, code: str) -> bool:
+    """
+    Confirma el cambio de email verificando el código y actualizando el email del usuario.
+    """
+    try:
+        logger.info(f"🔍 Confirmando cambio de email para user_id={user_id}, new_email={new_email}")
+        
+        # Buscar solicitud activa
+        requests_df = await db.execute_query(
+            """
+            SELECT * FROM email_change_requests
+            WHERE user_id = %s AND new_email = %s AND token = %s AND used_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (user_id, new_email, code)
+        )
+
+        if requests_df is None or requests_df.empty:
+            logger.warning(f"No se encontró solicitud activa para user_id={user_id}, email={new_email}, code={code}")
+            return False
+
+        request_row = requests_df.iloc[0].to_dict()
+        
+        # Verificar expiración
+        if request_row.get("expires_at"):
+            expires_at = request_row["expires_at"]
+            if isinstance(expires_at, str):
+                try:
+                    expires_at = date_parser.parse(expires_at)
+                except Exception as e:
+                    logger.error(f"Error parseando fecha de expiración: {e}")
+                    return False
+            if hasattr(expires_at, 'to_pydatetime'):
+                expires_at = expires_at.to_pydatetime()
+            
+            now = datetime.utcnow()
+            if expires_at < now:
+                logger.warning(f"Solicitud expirada. Expira: {expires_at}, Ahora: {now}")
+                return False
+
+        # Verificar que el nuevo email no esté en uso
+        existing_user = await get_user_by_email(db, new_email)
+        if existing_user and existing_user["id"] != user_id:
+            logger.warning(f"El email {new_email} ya está en uso por otro usuario")
+            return False
+
+        # Actualizar el email del usuario
+        logger.info(f"🔄 Actualizando email del usuario {user_id} a {new_email}")
+        await db.execute_query(
+            "UPDATE users SET email = %s, is_verified = %s WHERE id = %s",
+            (new_email, True, user_id)
+        )
+        
+        # Marcar solicitud como usada
+        logger.info(f"🔄 Marcando solicitud {request_row['id']} como usada")
+        await db.execute_query(
+            "UPDATE email_change_requests SET used_at = %s WHERE id = %s",
+            (datetime.utcnow(), request_row["id"])
+        )
+        
+        logger.info(f"✅ Email cambiado exitosamente para usuario {user_id} a {new_email}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Error confirmando cambio de email: {str(e)}", exc_info=True)
+        return False
+
 async def verify_email_with_code(db, email: str, code: str) -> bool:
     """
     Verifica el email buscando por email del usuario y el código (token) activo.

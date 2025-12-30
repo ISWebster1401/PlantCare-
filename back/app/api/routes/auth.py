@@ -5,12 +5,14 @@ from app.api.core.auth_user import AuthService, get_current_user, get_current_ac
 from app.api.core.database import get_db, get_role_by_id
 from app.api.schemas.user import (
     UserCreate, UserLogin, UserResponse, Token, 
-    UserUpdate, PasswordChange, GoogleAuthRequest
+    UserUpdate, PasswordChange, GoogleAuthRequest,
+    EmailChangeRequest, EmailChangeConfirm
 )
 from app.db.queries import (
-    get_user_by_email, update_user_password, update_user, deactivate_user,
+    get_user_by_email, get_user_by_id, update_user_password, update_user, deactivate_user,
     create_email_verification_token, get_verification_token, mark_email_verified,
-    create_email_verification_code, verify_email_with_code
+    create_email_verification_code, verify_email_with_code,
+    create_email_change_request, confirm_email_change
 )
 from app.api.core.email_service import email_service
 from pgdbtoolkit import AsyncPgDbToolkit
@@ -573,6 +575,133 @@ async def delete_account(
         raise
     except Exception as e:
         logger.error(f"Error eliminando cuenta: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.post("/change-email")
+async def request_email_change(
+    email_data: EmailChangeRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Solicita un cambio de email. Envía un código de verificación al nuevo email.
+    
+    Args:
+        email_data: Datos con el nuevo email
+        current_user: Usuario actual obtenido del token
+        db: Conexión a la base de datos
+        
+    Returns:
+        dict: Mensaje de confirmación
+    """
+    try:
+        new_email = email_data.new_email.lower().strip()
+        
+        # Verificar que el nuevo email sea diferente al actual
+        if new_email == current_user["email"].lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El nuevo email debe ser diferente al actual"
+            )
+        
+        # Verificar que el nuevo email no esté en uso
+        existing_user = await get_user_by_email(db, new_email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Este email ya está en uso por otra cuenta"
+            )
+        
+        # Crear solicitud de cambio de email
+        code_data = await create_email_change_request(
+            db, 
+            current_user["id"], 
+            new_email, 
+            minutes_valid=15
+        )
+        
+        # Enviar código al nuevo email
+        user_name = current_user.get("full_name", "Usuario")
+        await email_service.send_email_change_code(
+            to_email=new_email,
+            user_name=user_name,
+            code=code_data["code"],
+            minutes_valid=15
+        )
+        
+        logger.info(f"Código de cambio de email enviado a {new_email} para usuario {current_user['id']}")
+        
+        return {
+            "message": "Código de verificación enviado al nuevo email",
+            "new_email": new_email  # Devolver para que el frontend sepa a dónde navegar
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error solicitando cambio de email: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.post("/confirm-email-change")
+async def confirm_email_change_endpoint(
+    confirm_data: EmailChangeConfirm,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Confirma el cambio de email usando el código de verificación.
+    
+    Args:
+        confirm_data: Datos con el nuevo email y código
+        current_user: Usuario actual obtenido del token
+        db: Conexión a la base de datos
+        
+    Returns:
+        UserResponse: Usuario actualizado
+    """
+    try:
+        new_email = confirm_data.new_email.lower().strip()
+        code = confirm_data.code.strip()
+        
+        # Confirmar el cambio de email
+        success = await confirm_email_change(
+            db,
+            current_user["id"],
+            new_email,
+            code
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Código inválido o expirado"
+            )
+        
+        # Obtener el usuario actualizado
+        updated_user = await get_user_by_id(db, current_user["id"])
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error obteniendo usuario actualizado"
+            )
+        
+        # Construir respuesta
+        user_response = await build_user_response(updated_user)
+        
+        logger.info(f"Email cambiado exitosamente para usuario {current_user['id']} a {new_email}")
+        
+        return user_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error confirmando cambio de email: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"

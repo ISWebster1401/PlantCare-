@@ -593,6 +593,24 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla email_verification_tokens ya existe")
         
         # ============================================
+        # TABLA: email_change_requests (para cambio de email con verificación)
+        # ============================================
+        if "email_change_requests" not in tables:
+            logger.info("📋 Creando tabla email_change_requests...")
+            await db.create_table("email_change_requests", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
+                "new_email": "VARCHAR(255) NOT NULL",
+                "token": "VARCHAR(4) NOT NULL",
+                "expires_at": "TIMESTAMP NOT NULL",
+                "used_at": "TIMESTAMP",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            logger.info("✅ Tabla email_change_requests creada exitosamente")
+        else:
+            logger.info("✅ Tabla email_change_requests ya existe")
+        
+        # ============================================
         # PASO 12: INSERTAR MODELOS 3D PREDETERMINADOS
         # ============================================
         await _seed_plant_models(db)

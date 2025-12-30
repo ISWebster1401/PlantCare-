@@ -140,6 +140,15 @@ class PasswordResetConfirm(BaseModel):
             raise ValueError('La contraseña debe contener al menos un carácter especial')
         return v
 
+class EmailChangeRequest(BaseModel):
+    """Esquema para solicitar cambio de email"""
+    new_email: EmailStr = Field(..., description="Nuevo email del usuario")
+
+class EmailChangeConfirm(BaseModel):
+    """Esquema para confirmar cambio de email con código"""
+    new_email: EmailStr = Field(..., description="Nuevo email del usuario")
+    code: str = Field(..., min_length=4, max_length=4, description="Código de verificación de 4 dígitos")
+
 class UserStats(BaseModel):
     """Esquema para estadísticas de usuario"""
     total_plants: int
