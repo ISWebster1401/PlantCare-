@@ -48,8 +48,7 @@ export default function GardenScreen() {
     <PlantCard
       plant={item}
       onPress={() => {
-        // TODO: Navegar a detalles de la planta
-        console.log('Plant pressed:', item.id);
+        router.push(`/plant-detail?id=${item.id}`);
       }}
     />
   );
