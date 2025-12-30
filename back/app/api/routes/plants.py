@@ -26,6 +26,83 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plants", tags=["plants"])
 
 
+async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type: str) -> Optional[int]:
+    """
+    Asigna automáticamente un modelo 3D predeterminado a una planta según su tipo.
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        plant_id: ID de la planta
+        plant_type: Tipo de planta identificado (ej: "Cactus", "Monstera")
+    
+    Returns:
+        Optional[int]: ID del modelo asignado, o None si no se pudo asignar
+    """
+    try:
+        # 1. Buscar modelo predeterminado para el tipo de planta específico
+        model_df = await db.execute_query("""
+            SELECT id, default_render_url
+            FROM plant_models
+            WHERE plant_type = %s AND is_default = TRUE
+            LIMIT 1
+        """, (plant_type,))
+        
+        model_id = None
+        default_render_url = None
+        
+        # 2. Si no encuentra modelo específico, buscar modelo genérico ("Planta")
+        if model_df is None or model_df.empty:
+            logger.info(f"⚠️ No se encontró modelo específico para '{plant_type}', buscando modelo genérico...")
+            generic_model_df = await db.execute_query("""
+                SELECT id, default_render_url
+                FROM plant_models
+                WHERE plant_type = 'Planta' AND is_default = TRUE
+                LIMIT 1
+            """)
+            
+            if generic_model_df is not None and not generic_model_df.empty:
+                model_id = generic_model_df.iloc[0]["id"]
+                default_render_url = generic_model_df.iloc[0].get("default_render_url")
+                logger.info(f"✅ Modelo genérico encontrado (id: {model_id})")
+            else:
+                logger.warning(f"⚠️ No se encontró ningún modelo predeterminado (ni específico ni genérico)")
+                return None
+        else:
+            model_id = model_df.iloc[0]["id"]
+            default_render_url = model_df.iloc[0].get("default_render_url")
+            logger.info(f"✅ Modelo específico encontrado para '{plant_type}' (id: {model_id})")
+        
+        # 3. Crear registro en plant_model_assignments
+        assignment_result = await db.execute_query("""
+            INSERT INTO plant_model_assignments (plant_id, model_id)
+            VALUES (%s, %s)
+            RETURNING id
+        """, (plant_id, model_id))
+        
+        if assignment_result is None or assignment_result.empty:
+            logger.error(f"❌ No se pudo crear plant_model_assignments para planta {plant_id}")
+            return None
+        
+        assignment_id = assignment_result.iloc[0]["id"]
+        logger.info(f"✅ Registro creado en plant_model_assignments (id: {assignment_id})")
+        
+        # 4. Si el modelo tiene default_render_url y no es placeholder, actualizar character_image_url
+        if default_render_url and not default_render_url.startswith("PLACEHOLDER_"):
+            await db.execute_query("""
+                UPDATE plants
+                SET character_image_url = %s, updated_at = NOW()
+                WHERE id = %s
+            """, (default_render_url, plant_id))
+            logger.info(f"✅ character_image_url actualizado con default_render_url del modelo")
+        
+        return model_id
+        
+    except Exception as e:
+        logger.error(f"❌ Error asignando modelo predeterminado: {e}", exc_info=True)
+        # No lanzar excepción - la planta se crea exitosamente aunque falle la asignación del modelo
+        return None
+
+
 @router.post("/identify", response_model=PlantIdentify)
 async def identify_plant(
     file: UploadFile = File(...),
@@ -167,15 +244,25 @@ async def create_plant(
         else:
             raise Exception("No se pudo obtener el ID de la planta creada")
 
-        # Recuperar la planta completa
-        plants_df = await db.execute_query(
-            """
-            SELECT * FROM plants
-            WHERE id = %s AND user_id = %s
+        # 4. Auto-asignar modelo 3D predeterminado según plant_type
+        plant_type = plant_data.get("plant_type", "Planta")
+        model_id = await _assign_default_model(db, plant_id, plant_type)
+        if model_id:
+            logger.info(f"✅ Modelo 3D asignado automáticamente (model_id: {model_id}) para tipo: {plant_type}")
+
+        # Recuperar la planta completa con información del modelo asignado
+        plants_df = await db.execute_query("""
+            SELECT 
+                p.*,
+                pma.id as assignment_id,
+                pma.model_id as assigned_model_id,
+                pm.model_3d_url
+            FROM plants p
+            LEFT JOIN plant_model_assignments pma ON p.id = pma.plant_id
+            LEFT JOIN plant_models pm ON pma.model_id = pm.id
+            WHERE p.id = %s AND p.user_id = %s
             LIMIT 1
-            """,
-            (plant_id, current_user["id"]),
-        )
+        """, (plant_id, current_user["id"]))
 
         if plants_df is None or plants_df.empty:
             raise HTTPException(
@@ -213,14 +300,18 @@ async def list_plants(
     Devuelve todas las plantas del usuario actual.
     """
     try:
-        plants_df = await db.execute_query(
-            """
-            SELECT * FROM plants
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            """,
-            (current_user["id"],),
-        )
+        plants_df = await db.execute_query("""
+            SELECT 
+                p.*,
+                pma.id as assignment_id,
+                pma.model_id as assigned_model_id,
+                pm.model_3d_url
+            FROM plants p
+            LEFT JOIN plant_model_assignments pma ON p.id = pma.plant_id
+            LEFT JOIN plant_models pm ON pma.model_id = pm.id
+            WHERE p.user_id = %s
+            ORDER BY p.created_at DESC
+        """, (current_user["id"],))
 
         if plants_df is None or plants_df.empty:
             return []
@@ -256,17 +347,21 @@ async def get_plant(
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
     """
-    Devuelve el detalle de una planta específica del usuario.
+    Devuelve el detalle de una planta específica del usuario con información del modelo 3D.
     """
     try:
-        plants_df = await db.execute_query(
-            """
-            SELECT * FROM plants
-            WHERE id = %s AND user_id = %s
+        plants_df = await db.execute_query("""
+            SELECT 
+                p.*,
+                pma.id as assignment_id,
+                pma.model_id as assigned_model_id,
+                pm.model_3d_url
+            FROM plants p
+            LEFT JOIN plant_model_assignments pma ON p.id = pma.plant_id
+            LEFT JOIN plant_models pm ON pma.model_id = pm.id
+            WHERE p.id = %s AND p.user_id = %s
             LIMIT 1
-            """,
-            (plant_id, current_user["id"]),
-        )
+        """, (plant_id, current_user["id"]))
 
         if plants_df is None or plants_df.empty:
             raise HTTPException(

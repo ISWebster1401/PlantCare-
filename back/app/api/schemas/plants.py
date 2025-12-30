@@ -2,7 +2,7 @@
 Schemas Pydantic para plantas.
 """
 from pydantic import BaseModel, HttpUrl
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -31,6 +31,32 @@ class PlantCreate(BaseModel):
     optimal_temp_max: Optional[float] = None
 
 
+class PlantModelResponse(BaseModel):
+    """Respuesta con información de un modelo 3D"""
+    id: int
+    plant_type: str
+    name: str
+    model_3d_url: str
+    default_render_url: Optional[str] = None
+    is_default: bool
+    metadata: Optional[Dict[str, Any]] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class PlantModelAssignmentResponse(BaseModel):
+    """Respuesta con información de asignación de modelo a planta"""
+    id: int
+    plant_id: int
+    model_id: int
+    custom_render_url: Optional[str] = None
+    model: Optional[PlantModelResponse] = None  # Info del modelo asignado
+    
+    class Config:
+        from_attributes = True
+
+
 class PlantResponse(BaseModel):
     """Respuesta con información de una planta"""
     id: int
@@ -53,6 +79,9 @@ class PlantResponse(BaseModel):
     optimal_temp_max: Optional[float]
     created_at: datetime
     updated_at: Optional[datetime]
+    # Campos de modelo 3D
+    assigned_model_id: Optional[int] = None
+    model_3d_url: Optional[str] = None  # URL del modelo 3D asignado
     
     class Config:
         from_attributes = True
