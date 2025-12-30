@@ -81,6 +81,11 @@ export const authAPI = {
     return response.data;
   },
 
+  updateMe: async (fullName: string): Promise<UserResponse> => {
+    const response = await api.put('/auth/me', { full_name: fullName });
+    return response.data;
+  },
+
   verifyCode: async (email: string, code: string): Promise<{ message: string }> => {
     const response = await api.post('/auth/verify-code', { email, code });
     return response.data;
@@ -88,6 +93,16 @@ export const authAPI = {
 
   resendCode: async (email: string): Promise<{ message: string }> => {
     const response = await api.post('/auth/resend-code', { email });
+    return response.data;
+  },
+
+  requestEmailChange: async (newEmail: string): Promise<{ message: string; new_email: string }> => {
+    const response = await api.post('/auth/change-email', { new_email: newEmail });
+    return response.data;
+  },
+
+  confirmEmailChange: async (newEmail: string, code: string): Promise<UserResponse> => {
+    const response = await api.post('/auth/confirm-email-change', { new_email: newEmail, code });
     return response.data;
   },
 

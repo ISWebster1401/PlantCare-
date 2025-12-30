@@ -13,10 +13,13 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: '#0a1929' },
         }}
       >
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="scan-plant" options={{ headerShown: false }} />
-        <Stack.Screen name="plant-detail" options={{ headerShown: false }} />
+                    <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="scan-plant" options={{ headerShown: false }} />
+                    <Stack.Screen name="plant-detail" options={{ headerShown: false }} />
+                    <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                    <Stack.Screen name="notifications" options={{ headerShown: false }} />
+                    <Stack.Screen name="change-email" options={{ headerShown: false }} />
       </Stack>
     </AuthProvider>
   );
