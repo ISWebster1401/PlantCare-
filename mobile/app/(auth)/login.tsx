@@ -39,6 +39,11 @@ export default function LoginScreen() {
     iosClientId: Config.GOOGLE_CLIENT_ID, // Mismo Client ID para iOS
   });
 
+  // Debug: Verificar si el Client ID está configurado
+  React.useEffect(() => {
+    console.log('Google Client ID configurado:', Config.GOOGLE_CLIENT_ID ? 'Sí' : 'No');
+  }, []);
+
   const handleGoogleLogin = React.useCallback(async (idToken: string) => {
     if (!Config.GOOGLE_CLIENT_ID) {
       Alert.alert('Error', 'Google Sign-In no está configurado');
@@ -123,7 +128,7 @@ export default function LoginScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
-            editable={!isLoading}
+            editable={!isLoading && !googleLoading}
           />
 
           <TextInput
@@ -133,13 +138,13 @@ export default function LoginScreen() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            editable={!isLoading}
+            editable={!isLoading && !googleLoading}
           />
 
           <TouchableOpacity
             style={styles.checkboxContainer}
             onPress={() => setRememberMe(!rememberMe)}
-            disabled={isLoading}
+            disabled={isLoading || googleLoading}
           >
             <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
               {rememberMe && <Text style={styles.checkmark}>✓</Text>}

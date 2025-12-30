@@ -47,11 +47,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      // Token expirado: limpiar storage
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Token expirado o no autorizado: limpiar storage
       try {
         await AsyncStorage.multiRemove(['access_token', 'refresh_token', 'user_data']);
-        // TODO: Redirigir a login (se manejará en el componente)
+        // No loguear el error aquí, solo limpiar la sesión
+        // Los componentes manejarán la redirección
       } catch (e) {
         console.error('Error limpiando storage:', e);
       }

@@ -32,8 +32,12 @@ export default function HomeScreen() {
 
       setPlantCount(plants.length);
       setActiveSensors(sensors.filter((s) => s.status === 'active').length);
-    } catch (error) {
-      console.error('Error cargando datos:', error);
+    } catch (error: any) {
+      // Solo loguear errores que no sean de autenticación (401/403)
+      // Los errores de auth se manejan en el interceptor de axios
+      if (error.response?.status !== 401 && error.response?.status !== 403) {
+        console.error('Error cargando datos:', error);
+      }
     }
   };
 
