@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../../context/AuthContext';
 import { LoginCredentials } from '../../types';
@@ -33,22 +34,34 @@ export default function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
 
+  // Configurar redirect URI usando el esquema personalizado de la app
+  // Para desarrollo con Expo Go, usamos useProxy: true
+  // Para producción, usa el esquema nativo
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'plantcare',
+    path: 'oauth',
+    useProxy: true, // Usar proxy de Expo en desarrollo
+  });
+
   // Configurar Google OAuth - usar useIdTokenAuthRequest que maneja ID tokens
-  // NOTA: Necesitas un OAuth Client ID tipo "Web application" en Google Cloud Console
-  // y agregar los redirect URIs autorizados (ver GOOGLE_OAUTH_FIX.md)
+  // IMPORTANTE: Necesitas un OAuth Client ID tipo "iOS" en Google Cloud Console
+  // Bundle ID debe ser: com.plantcare.mobile
+  // También necesitas crear un Client ID tipo "Web application" para desarrollo
+  // y agregar el redirect URI como: https://auth.expo.io/@tu-usuario/plantcare
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: Config.GOOGLE_CLIENT_ID,
-    // Para desarrollo, Expo genera redirect URIs dinámicos como exp://IP:PORT
-    // Debes agregar estos URIs en Google Cloud Console como "Authorized redirect URIs"
+    iosClientId: Config.GOOGLE_CLIENT_ID,
+    redirectUri, // Usar redirect URI explícito
   });
 
   // Debug: Verificar configuración
   React.useEffect(() => {
     console.log('Google Client ID configurado:', Config.GOOGLE_CLIENT_ID ? 'Sí' : 'No');
+    console.log('Redirect URI:', redirectUri);
     if (request) {
       console.log('OAuth request preparado');
     }
-  }, [request]);
+  }, [request, redirectUri]);
 
   const handleGoogleLogin = React.useCallback(async (idToken: string) => {
     if (!Config.GOOGLE_CLIENT_ID) {
