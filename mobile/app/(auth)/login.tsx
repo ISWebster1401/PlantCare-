@@ -33,16 +33,22 @@ export default function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
 
-  // Configurar Google OAuth
+  // Configurar Google OAuth - usar useIdTokenAuthRequest que maneja ID tokens
+  // NOTA: Necesitas un OAuth Client ID tipo "Web application" en Google Cloud Console
+  // y agregar los redirect URIs autorizados (ver GOOGLE_OAUTH_FIX.md)
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: Config.GOOGLE_CLIENT_ID,
-    iosClientId: Config.GOOGLE_CLIENT_ID, // Mismo Client ID para iOS
+    // Para desarrollo, Expo genera redirect URIs dinámicos como exp://IP:PORT
+    // Debes agregar estos URIs en Google Cloud Console como "Authorized redirect URIs"
   });
 
-  // Debug: Verificar si el Client ID está configurado
+  // Debug: Verificar configuración
   React.useEffect(() => {
     console.log('Google Client ID configurado:', Config.GOOGLE_CLIENT_ID ? 'Sí' : 'No');
-  }, []);
+    if (request) {
+      console.log('OAuth request preparado');
+    }
+  }, [request]);
 
   const handleGoogleLogin = React.useCallback(async (idToken: string) => {
     if (!Config.GOOGLE_CLIENT_ID) {
@@ -70,20 +76,32 @@ export default function LoginScreen() {
       }
     } else if (response?.type === 'error') {
       setGoogleLoading(false);
-      Alert.alert(
-        'Error',
-        'No se pudo autenticar con Google. Por favor intenta de nuevo.'
-      );
+      const errorMessage = response.error?.message || 'No se pudo autenticar con Google';
+      Alert.alert('Error', errorMessage);
+      console.error('Google Auth Error:', response.error);
     }
   }, [response, handleGoogleLogin]);
 
-  const handleGooglePress = () => {
+  const handleGooglePress = async () => {
     if (!Config.GOOGLE_CLIENT_ID) {
       Alert.alert('Error', 'Google Sign-In no está configurado');
       return;
     }
+    if (!request) {
+      Alert.alert('Error', 'Google Sign-In aún no está listo. Por favor espera un momento.');
+      return;
+    }
     setGoogleLoading(true);
-    promptAsync();
+    try {
+      const result = await promptAsync();
+      if (result.type === 'dismiss') {
+        setGoogleLoading(false);
+      }
+    } catch (error: any) {
+      setGoogleLoading(false);
+      Alert.alert('Error', 'No se pudo abrir la autenticación de Google');
+      console.error('Prompt error:', error);
+    }
   };
 
   const handleLogin = async () => {
