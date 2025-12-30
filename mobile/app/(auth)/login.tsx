@@ -14,17 +14,72 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../../context/AuthContext';
 import { LoginCredentials } from '../../types';
+import { Config } from '../../constants/Config';
+
+// Necesario para completar el flujo de autenticación en el navegador
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
+
+  // Configurar Google OAuth
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: Config.GOOGLE_CLIENT_ID,
+    iosClientId: Config.GOOGLE_CLIENT_ID, // Mismo Client ID para iOS
+  });
+
+  const handleGoogleLogin = React.useCallback(async (idToken: string) => {
+    if (!Config.GOOGLE_CLIENT_ID) {
+      Alert.alert('Error', 'Google Sign-In no está configurado');
+      return;
+    }
+
+    setGoogleLoading(true);
+    try {
+      await loginWithGoogle(idToken);
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      Alert.alert('Error de inicio de sesión', error.message || 'No se pudo iniciar sesión con Google');
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [loginWithGoogle, router]);
+
+  // Manejar respuesta de Google
+  React.useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      if (id_token) {
+        handleGoogleLogin(id_token);
+      }
+    } else if (response?.type === 'error') {
+      setGoogleLoading(false);
+      Alert.alert(
+        'Error',
+        'No se pudo autenticar con Google. Por favor intenta de nuevo.'
+      );
+    }
+  }, [response, handleGoogleLogin]);
+
+  const handleGooglePress = () => {
+    if (!Config.GOOGLE_CLIENT_ID) {
+      Alert.alert('Error', 'Google Sign-In no está configurado');
+      return;
+    }
+    setGoogleLoading(true);
+    promptAsync();
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -95,7 +150,7 @@ export default function LoginScreen() {
           <TouchableOpacity
             style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
-            disabled={isLoading}
+            disabled={isLoading || googleLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" />
@@ -104,9 +159,34 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
+          {Config.GOOGLE_CLIENT_ID && (
+            <>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>o continúa con</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                onPress={handleGooglePress}
+                disabled={isLoading || googleLoading || !request}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleButtonText}>Continuar con Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+
           <TouchableOpacity
             onPress={() => router.push('/(auth)/register')}
-            disabled={isLoading}
+            disabled={isLoading || googleLoading}
           >
             <Text style={styles.linkText}>
               ¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text>
@@ -203,6 +283,43 @@ const styles = StyleSheet.create({
   },
   linkBold: {
     color: '#4caf50',
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#334155',
+  },
+  dividerText: {
+    color: '#b0bec5',
+    fontSize: 14,
+    marginHorizontal: 12,
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4285F4',
+    marginRight: 12,
+  },
+  googleButtonText: {
+    color: '#1a1a1a',
+    fontSize: 16,
     fontWeight: '600',
   },
 });
