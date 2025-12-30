@@ -17,9 +17,13 @@ import { useRouter } from 'expo-router';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
 import { LoginCredentials } from '../../types';
 import { Config } from '../../constants/Config';
+
+// Verificar si estamos en Expo Go (desarrollo) o en standalone build (producción)
+const isStandalone = Constants.executionEnvironment === 'standalone' || Constants.executionEnvironment === 'storeClient';
 
 // Necesario para completar el flujo de autenticación en el navegador
 WebBrowser.maybeCompleteAuthSession();
@@ -34,8 +38,9 @@ export default function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
 
-  // Configurar redirect URI - usar el esquema nativo sin proxy (proxy está deprecado)
-  // El redirect URI será: plantcare://oauth
+  // Configurar redirect URI - usar el esquema nativo (solo funciona en standalone builds)
+  // En Expo Go (desarrollo), Google rechaza URIs exp:// con IPs
+  // En standalone builds, usará plantcare://oauth que sí funciona
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'plantcare',
     path: 'oauth',
@@ -197,7 +202,7 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          {Config.GOOGLE_CLIENT_ID && (
+          {Config.GOOGLE_CLIENT_ID && isStandalone && (
             <>
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
