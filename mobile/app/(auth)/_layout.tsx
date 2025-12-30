@@ -4,9 +4,11 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function AuthLayout() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { theme } = useTheme();
   const segments = useSegments();
   const router = useRouter();
 
@@ -28,7 +30,7 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#0a1929' },
+        contentStyle: { backgroundColor: theme.colors.background },
       }}
     >
       <Stack.Screen name="login" />

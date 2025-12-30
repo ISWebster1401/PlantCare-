@@ -12,13 +12,17 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { plantsAPI, sensorsAPI } from '../../services/api';
 import { PlantResponse } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const router = useRouter();
+  
+  const styles = createStyles(theme.colors);
   const [plantCount, setPlantCount] = useState(0);
   const [activeSensors, setActiveSensors] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +67,7 @@ export default function HomeScreen() {
 
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Ionicons name="leaf" size={32} color="#4caf50" />
+          <Ionicons name="leaf" size={32} color={theme.colors.primary} />
           <Text style={styles.statNumber}>{plantCount}</Text>
           <Text style={styles.statLabel}>Plantas</Text>
         </View>
@@ -80,7 +84,7 @@ export default function HomeScreen() {
           style={styles.actionButton}
           onPress={() => router.push('/(tabs)/garden')}
         >
-          <Ionicons name="leaf-outline" size={24} color="#fff" />
+          <Ionicons name="leaf-outline" size={24} color={theme.colors.icon} />
           <Text style={styles.actionButtonText}>Ver Mi Jardín</Text>
         </TouchableOpacity>
 
@@ -88,7 +92,7 @@ export default function HomeScreen() {
           style={[styles.actionButton, styles.actionButtonPrimary]}
           onPress={() => router.push('/scan-plant')}
         >
-          <Ionicons name="camera-outline" size={24} color="#fff" />
+          <Ionicons name="camera-outline" size={24} color={theme.colors.text} />
           <Text style={styles.actionButtonText}>Escanear Nueva Planta</Text>
         </TouchableOpacity>
       </View>
@@ -96,10 +100,10 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     padding: 24,
@@ -108,12 +112,12 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -123,22 +127,22 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   statNumber: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
     marginTop: 8,
   },
   statLabel: {
     fontSize: 14,
-    color: '#b0bec5',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   actionsContainer: {
@@ -146,21 +150,21 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   actionButton: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   actionButtonPrimary: {
-    backgroundColor: '#4caf50',
-    borderColor: '#4caf50',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   actionButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,

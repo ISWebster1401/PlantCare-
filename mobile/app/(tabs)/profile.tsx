@@ -5,11 +5,15 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   const router = useRouter();
+  
+  const styles = createStyles(theme.colors);
 
   const handleLogout = () => {
     Alert.alert(
@@ -33,7 +37,7 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color="#4caf50" />
+          <Ionicons name="person" size={48} color={theme.colors.primary} />
         </View>
         <Text style={styles.name}>{user?.full_name || 'Usuario'}</Text>
         <Text style={styles.email}>{user?.email}</Text>
@@ -44,24 +48,27 @@ export default function ProfileScreen() {
           style={styles.menuItem}
           onPress={() => router.push('/edit-profile')}
         >
-          <Ionicons name="person-outline" size={24} color="#fff" />
+          <Ionicons name="person-outline" size={24} color={theme.colors.icon} />
           <Text style={styles.menuText}>Editar Perfil</Text>
-          <Ionicons name="chevron-forward" size={24} color="#64748b" />
+          <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.menuItem}
           onPress={() => router.push('/notifications')}
         >
-          <Ionicons name="notifications-outline" size={24} color="#fff" />
+          <Ionicons name="notifications-outline" size={24} color={theme.colors.icon} />
           <Text style={styles.menuText}>Notificaciones</Text>
-          <Ionicons name="chevron-forward" size={24} color="#64748b" />
+          <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="settings-outline" size={24} color="#fff" />
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push('/settings')}
+        >
+          <Ionicons name="settings-outline" size={24} color={theme.colors.icon} />
           <Text style={styles.menuText}>Configuración</Text>
-          <Ionicons name="chevron-forward" size={24} color="#64748b" />
+          <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -73,10 +80,10 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     padding: 24,
@@ -87,22 +94,22 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#4caf50',
+    borderColor: colors.primary,
   },
   name: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 4,
   },
   email: {
     fontSize: 14,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
   section: {
     padding: 16,
@@ -110,34 +117,34 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   menuText: {
     flex: 1,
     fontSize: 16,
-    color: '#fff',
+    color: colors.text,
     marginLeft: 16,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     margin: 16,
     marginTop: 'auto',
     borderWidth: 1,
-    borderColor: '#f44336',
+    borderColor: colors.error,
   },
   logoutText: {
     fontSize: 16,
-    color: '#f44336',
+    color: colors.error,
     fontWeight: '600',
     marginLeft: 8,
   },

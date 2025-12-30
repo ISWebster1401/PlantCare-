@@ -5,9 +5,11 @@ import { Tabs, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function TabsLayout() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { theme } = useTheme();
   const segments = useSegments();
   const router = useRouter();
 
@@ -21,11 +23,11 @@ export default function TabsLayout() {
 
   const screenOptions = {
     headerShown: false,
-    tabBarActiveTintColor: '#4caf50',
-    tabBarInactiveTintColor: '#64748b',
+    tabBarActiveTintColor: theme.colors.primary,
+    tabBarInactiveTintColor: theme.colors.iconSecondary,
     tabBarStyle: {
-      backgroundColor: '#1e293b',
-      borderTopColor: '#334155',
+      backgroundColor: theme.colors.surface,
+      borderTopColor: theme.colors.border,
       borderTopWidth: 1,
     },
   };
