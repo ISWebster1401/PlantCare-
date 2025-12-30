@@ -34,29 +34,30 @@ export default function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
 
-  // Configurar redirect URI para desarrollo con Expo Go
-  // useProxy: true usa el proxy de Expo (https://auth.expo.io/@anonymous/plantcare)
-  // Para usuario no logueado, usa @anonymous
+  // Configurar redirect URI - usar el esquema nativo sin proxy (proxy está deprecado)
+  // El redirect URI será: plantcare://oauth
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'plantcare',
     path: 'oauth',
-    useProxy: true, // Usar proxy de Expo en desarrollo
+    useProxy: false, // NO usar proxy (está deprecado)
   });
 
   // Configurar Google OAuth
-  // IMPORTANTE: Para desarrollo, usa Client ID tipo "Web application"
-  // y agrega el redirect URI: https://auth.expo.io/@anonymous/plantcare
+  // IMPORTANTE: Para desarrollo con Expo Go, el redirect URI será exp://IP:PORT/--/oauth
+  // Necesitas agregar ese URI exacto en Google Cloud Console
+  // Para producción (standalone), será plantcare://oauth
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: Config.GOOGLE_CLIENT_ID, // Client ID tipo "Web application" para desarrollo
-    redirectUri, // Redirect URI explícito
+    clientId: Config.GOOGLE_CLIENT_ID,
+    redirectUri, // Usar redirect URI explícito
   });
 
   // Debug: Verificar configuración
   React.useEffect(() => {
     console.log('🔐 Google Auth Config:');
     console.log('  Client ID:', Config.GOOGLE_CLIENT_ID ? '✅ Configurado' : '❌ No configurado');
-    console.log('  Redirect URI:', redirectUri);
-    console.log('  ⚠️ Agrega este Redirect URI en Google Cloud Console');
+    console.log('  Redirect URI calculado:', redirectUri);
+    console.log('  ⚠️ Si ves error 400, agrega este URI exacto en Google Cloud Console');
+    console.log('  ⚠️ Para Expo Go, también agrega: exp://TU_IP:8081/--/oauth');
     if (request) {
       console.log('  Request: ✅ Preparado');
     } else {
