@@ -148,7 +148,18 @@ router = APIRouter(
 
 def require_admin(current_user: dict = Depends(get_current_active_user)):
     """Middleware para verificar que el usuario sea administrador"""
-    if current_user.get("role_id") != 2:
+    role_id = current_user.get("role_id")
+    logger.info(f"Verificando permisos admin para usuario: email={current_user.get('email')}, role_id={role_id}, tipo={type(role_id)}")
+    
+    # Verificar tanto role_id numérico como string 'admin'
+    is_admin = (
+        role_id == 2 or 
+        role_id == "2" or 
+        current_user.get("role") == "admin"
+    )
+    
+    if not is_admin:
+        logger.warning(f"Acceso denegado: usuario {current_user.get('email')} intentó acceder a endpoint admin. role_id={role_id}, role={current_user.get('role')}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acceso denegado. Se requieren permisos de administrador."
