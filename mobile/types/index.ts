@@ -12,6 +12,7 @@ export interface UserResponse {
   full_name: string;
   email: string;
   role: string;
+  role_id?: number; // ID del rol (1=user, 2=admin)
   is_active: boolean;
   created_at: string;
   updated_at?: string | null;
@@ -150,4 +151,72 @@ export interface AIResponse {
     total_tokens?: number;
   };
   timestamp: string;
+}
+
+// ============================================
+// ADMIN TYPES
+// ============================================
+
+export interface AdminStats {
+  total_users: number;
+  active_users: number;
+  inactive_users: number;
+  admin_users: number;
+  total_devices: number;
+  connected_devices: number;
+  unconnected_devices: number;
+  active_devices: number;
+  total_readings_today: number;
+  total_readings_week: number;
+  new_users_today: number;
+  new_users_week: number;
+  new_devices_today: number;
+  new_devices_week: number;
+}
+
+export interface UserAdminResponse {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string | null;
+  region?: string | null;
+  vineyard_name?: string | null;
+  hectares?: number | null;
+  grape_type?: string | null;
+  role_id: number;
+  role_name?: string | null;
+  created_at: string;
+  last_login?: string | null;
+  active: boolean;
+  device_count: number;
+}
+
+export interface DeviceAdminResponse {
+  id: number;
+  device_code: string;
+  name?: string | null;
+  device_type: string;
+  location?: string | null;
+  plant_type?: string | null;
+  user_id?: number | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  created_at: string;
+  last_seen?: string | null;
+  connected_at?: string | null;
+  active: boolean;
+  connected: boolean;
+}
+
+export interface DeviceCodeBatch {
+  device_type: string;
+  quantity: number;
+  prefix?: string | null;
+}
+
+export interface DeviceCodeResponse {
+  device_code: string;
+  device_type: string;
+  created_at: string;
 }

@@ -16,6 +16,11 @@ import {
   SensorReadingResponse,
   NotificationResponse,
   AIResponse,
+  AdminStats,
+  UserAdminResponse,
+  DeviceAdminResponse,
+  DeviceCodeBatch,
+  DeviceCodeResponse,
 } from '../types';
 
 // Crear instancia de Axios
@@ -266,6 +271,72 @@ export const aiAPI = {
 
   getMyDevices: async (): Promise<any[]> => {
     const response = await api.get('/ai/my-devices');
+    return response.data;
+  },
+};
+
+// ============================================
+// ADMIN API
+// ============================================
+
+export const adminAPI = {
+  // Obtener estadísticas del sistema
+  getStats: async (): Promise<AdminStats> => {
+    const response = await api.get('/admin/stats');
+    return response.data;
+  },
+
+  // Obtener todos los usuarios
+  getUsers: async (params?: {
+    role_id?: number;
+    active?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<UserAdminResponse[]> => {
+    const response = await api.get('/admin/users', { params });
+    return response.data;
+  },
+
+  // Obtener usuario por ID
+  getUserById: async (userId: number): Promise<UserAdminResponse> => {
+    const response = await api.get(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  // Actualizar usuario
+  updateUser: async (userId: number, data: Partial<UserAdminResponse>): Promise<UserAdminResponse> => {
+    const response = await api.put(`/admin/users/${userId}`, data);
+    return response.data;
+  },
+
+  // Eliminar usuario
+  deleteUser: async (userId: number): Promise<void> => {
+    await api.delete(`/admin/users/${userId}`);
+  },
+
+  // Activar/desactivar usuario
+  toggleUserStatus: async (userId: number, active: boolean): Promise<UserAdminResponse> => {
+    const response = await api.put(`/admin/users/${userId}`, { active });
+    return response.data;
+  },
+
+  // Obtener todos los dispositivos
+  getDevices: async (params?: {
+    device_type?: string;
+    connected?: boolean;
+    active?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<DeviceAdminResponse[]> => {
+    const response = await api.get('/admin/devices', { params });
+    return response.data;
+  },
+
+  // Generar códigos de dispositivos
+  generateDeviceCodes: async (batch: DeviceCodeBatch): Promise<DeviceCodeResponse[]> => {
+    const response = await api.post('/admin/devices/generate-codes', batch);
     return response.data;
   },
 };
