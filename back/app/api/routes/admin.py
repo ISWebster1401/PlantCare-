@@ -34,14 +34,25 @@ def require_admin(current_user: dict = Depends(get_current_active_user)):
     role_id = current_user.get("role_id")
     
     # Log temporal para debug
-    logger.info(f"[DEBUG ADMIN] Usuario intentando acceder: email={current_user.get('email')}, role_id={role_id}, tipo={type(role_id)}, user_keys={list(current_user.keys())}")
+    logger.info(f"[DEBUG ADMIN] Usuario intentando acceder: email={current_user.get('email')}, role_id={role_id}, tipo={type(role_id)}, user_keys={list(current_user.keys()) if isinstance(current_user, dict) else 'not_dict'}")
     
-    if role_id != 2:
-        logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} (esperado: 2)")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado. Se requieren permisos de administrador."
-        )
+    # Aceptar role_id como int o como string "2"
+    if role_id != 2 and role_id != "2":
+        # Intentar convertir a int si es string numérico
+        try:
+            role_id_int = int(role_id) if role_id is not None else None
+            if role_id_int != 2:
+                logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} (esperado: 2)")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Acceso denegado. Se requieren permisos de administrador."
+                )
+        except (ValueError, TypeError):
+            logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} no es válido (esperado: 2)")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso denegado. Se requieren permisos de administrador."
+            )
     
     logger.info(f"[DEBUG ADMIN] Acceso permitido para usuario {current_user.get('email')}")
     return current_user
@@ -243,3 +254,20 @@ async def get_sensor_detail(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
         )
+
+# ===============================================
+# ENDPOINT DE DEBUG TEMPORAL
+# ===============================================
+
+@router.get("/debug/me")
+async def debug_current_user(
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Endpoint temporal para debug - muestra info del usuario actual"""
+    return {
+        "user_data": current_user,
+        "role_id": current_user.get("role_id"),
+        "role_id_type": str(type(current_user.get("role_id"))),
+        "is_admin": current_user.get("role_id") == 2,
+        "all_keys": list(current_user.keys())
+    }
