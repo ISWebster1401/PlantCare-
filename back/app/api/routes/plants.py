@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from typing import List, Optional
 from datetime import datetime
 import logging
+import json
 
 from pgdbtoolkit import AsyncPgDbToolkit
 
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
 from ..core.openai_config import identify_plant_with_vision
-from ..core.supabase_storage import upload_image
+from ..core.supabase_storage import upload_image, upload_file
 # Nota: La personalización de personajes se mantiene para cuando se suban los modelos 3D manualmente
 from ..core.character_customization import (
     add_accessory_to_character,
@@ -19,11 +20,25 @@ from ..schemas.plants import (
     PlantResponse,
     PlantIdentify,
     PlantHealth,
+    PlantModelResponse,
+    PlantModelUploadRequest,
+    PlantModelAssignRequest,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/plants", tags=["plants"])
+
+
+def require_admin(current_user: dict = Depends(get_current_active_user)):
+    """Middleware para verificar que el usuario sea administrador (role_id == 2)"""
+    role_id = current_user.get("role_id")
+    if role_id != 2:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado. Se requieren permisos de administrador para subir modelos 3D."
+        )
+    return current_user
 
 
 async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type: str) -> Optional[int]:
@@ -606,4 +621,203 @@ async def upload_plant_render(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error subiendo render: {str(e)}",
+        )
+
+
+@router.post("/models/upload", response_model=PlantModelResponse, status_code=status.HTTP_201_CREATED)
+async def upload_plant_model(
+    file: UploadFile = File(...),
+    plant_type: Optional[str] = Form(None),
+    name: Optional[str] = Form(None),
+    is_default: bool = Form(False),
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Sube un modelo 3D (.glb) a Supabase Storage y crea un registro en plant_models.
+    
+    Modelos 3D de prueba disponibles (CC0 - dominio público):
+    - Poly Pizza: https://poly.pizza/m/bTRzVhywtU (Zz Plant by Isa Lousberg)
+    - Poly Pizza: https://poly.pizza/m/4f6vwL8vo9 (Plant Small by Kenney)
+    - Poly Pizza: https://poly.pizza/m/xH5gNlQxAZ (Plant by Quaternius)
+    
+    Formatos aceptados: .glb
+    Tamaño máximo: 50MB
+    """
+    try:
+        # Validar extensión .glb
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo debe tener un nombre",
+            )
+        
+        file_extension = "." + file.filename.rsplit(".", 1)[-1].lower()
+        
+        if file_extension != ".glb":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de archivo no permitido. Solo se aceptan archivos .glb. Recibido: {file_extension}",
+            )
+        
+        # Validar tamaño (50MB máximo para modelos 3D)
+        file.file.seek(0, 2)  # Ir al final del archivo
+        file_size = file.file.tell()
+        file.file.seek(0)  # Volver al inicio
+        
+        max_size = 50 * 1024 * 1024  # 50MB
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El archivo es demasiado grande. Máximo: 50MB, recibido: {file_size / 1024 / 1024:.2f}MB",
+            )
+        
+        # Subir archivo a Supabase Storage en carpeta 3d_models/
+        logger.info(f"Subiendo modelo 3D: {file.filename} ({file_size} bytes)")
+        model_url = upload_file(file.file, folder="3d_models", max_size_mb=50)
+        
+        # Preparar datos para insertar en plant_models
+        model_plant_type = plant_type or "Planta"
+        model_name = name or f"Modelo 3D {file.filename}"
+        
+        # Insertar registro en plant_models
+        metadata_dict = {
+            "uploaded_by": "user",
+            "original_filename": file.filename
+        }
+        
+        insert_result = await db.execute_query("""
+            INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
+            VALUES (%s, %s, %s, %s, %s::jsonb)
+            RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+        """, (
+            model_plant_type,
+            model_name,
+            model_url,
+            is_default,
+            json.dumps(metadata_dict)
+        ))
+        
+        if insert_result is None or insert_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se pudo crear el registro del modelo en la base de datos",
+            )
+        
+        model_row = insert_result.iloc[0]
+        model_data = {
+            "id": int(model_row["id"]),
+            "plant_type": str(model_row["plant_type"]),
+            "name": str(model_row["name"]),
+            "model_3d_url": str(model_row["model_3d_url"]),
+            "default_render_url": model_row.get("default_render_url"),
+            "is_default": bool(model_row["is_default"]),
+            "metadata": model_row.get("metadata"),
+        }
+        
+        logger.info(f"✅ Modelo 3D subido exitosamente: {model_data['id']} - {model_data['name']}")
+        
+        return PlantModelResponse(**model_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error subiendo modelo 3D: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error subiendo modelo 3D: {str(e)}",
+        )
+
+
+@router.post("/{plant_id}/assign-model", status_code=status.HTTP_200_OK)
+async def assign_model_to_plant(
+    plant_id: int,
+    request: PlantModelAssignRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Asigna un modelo 3D existente a una planta específica.
+    
+    Crea o actualiza el registro en plant_model_assignments.
+    """
+    try:
+        # 1. Verificar que la planta existe y pertenece al usuario
+        plants_df = await db.execute_query("""
+            SELECT id FROM plants
+            WHERE id = %s AND user_id = %s
+            LIMIT 1
+        """, (plant_id, current_user["id"]))
+        
+        if plants_df is None or plants_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planta no encontrada",
+            )
+        
+        # 2. Verificar que el modelo existe
+        models_df = await db.execute_query("""
+            SELECT id, plant_type, name, model_3d_url
+            FROM plant_models
+            WHERE id = %s
+            LIMIT 1
+        """, (request.model_id,))
+        
+        if models_df is None or models_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Modelo 3D no encontrado",
+            )
+        
+        model_data = models_df.iloc[0]
+        
+        # 3. Verificar si ya existe un assignment para esta planta
+        existing_assignment_df = await db.execute_query("""
+            SELECT id FROM plant_model_assignments
+            WHERE plant_id = %s
+            LIMIT 1
+        """, (plant_id,))
+        
+        if existing_assignment_df is not None and not existing_assignment_df.empty:
+            # Actualizar assignment existente
+            assignment_id = existing_assignment_df.iloc[0]["id"]
+            await db.execute_query("""
+                UPDATE plant_model_assignments
+                SET model_id = %s, updated_at = NOW()
+                WHERE id = %s
+            """, (request.model_id, assignment_id))
+            
+            logger.info(f"✅ Modelo {request.model_id} actualizado para planta {plant_id}")
+        else:
+            # Crear nuevo assignment
+            insert_result = await db.execute_query("""
+                INSERT INTO plant_model_assignments (plant_id, model_id)
+                VALUES (%s, %s)
+                RETURNING id
+            """, (plant_id, request.model_id))
+            
+            if insert_result is None or insert_result.empty:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="No se pudo asignar el modelo a la planta",
+                )
+            
+            assignment_id = insert_result.iloc[0]["id"]
+            logger.info(f"✅ Modelo {request.model_id} asignado a planta {plant_id} (assignment_id: {assignment_id})")
+        
+        return {
+            "message": "Modelo 3D asignado exitosamente a la planta",
+            "plant_id": plant_id,
+            "model_id": request.model_id,
+            "model_name": str(model_data["name"]),
+            "model_url": str(model_data["model_3d_url"]),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error asignando modelo a planta: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error asignando modelo a planta: {str(e)}",
         )

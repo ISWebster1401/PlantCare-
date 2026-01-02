@@ -57,6 +57,18 @@ class PlantModelAssignmentResponse(BaseModel):
         from_attributes = True
 
 
+class PlantModelUploadRequest(BaseModel):
+    """Esquema para subir un modelo 3D (usado en Form data, no como JSON)"""
+    plant_type: Optional[str] = None  # Tipo de planta (ej: "Cactus", "Monstera")
+    name: Optional[str] = None  # Nombre del modelo
+    is_default: Optional[bool] = False  # Si es modelo predeterminado para ese tipo
+
+
+class PlantModelAssignRequest(BaseModel):
+    """Esquema para asignar un modelo 3D a una planta"""
+    model_id: int  # ID del modelo a asignar
+
+
 class PlantResponse(BaseModel):
     """Respuesta con información de una planta"""
     id: int

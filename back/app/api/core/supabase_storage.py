@@ -102,24 +102,31 @@ def _ensure_bucket_exists(client: Client, bucket_name: str) -> None:
         logger.debug(f"No se pudo verificar bucket: {e}")
 
 
-def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
+def upload_file(
+    file: BinaryIO, 
+    folder: str = "plantcare", 
+    content_type: Optional[str] = None,
+    max_size_mb: int = 50
+) -> str:
     """
-    Sube imagen binaria a Supabase Storage y retorna URL pública.
+    Sube un archivo binario genérico a Supabase Storage y retorna URL pública.
     
     Args:
         file: Archivo binario (BytesIO o file object)
-        folder: Carpeta dentro del bucket (ej: "plants/original")
+        folder: Carpeta dentro del bucket (ej: "plants/original", "3d_models")
                  NOTA: No incluyas el nombre del bucket aquí, solo la ruta dentro del bucket
+        content_type: Tipo MIME del archivo (ej: "model/gltf-binary", "image/jpeg")
+                     Si no se especifica, se detecta automáticamente por extensión
+        max_size_mb: Tamaño máximo permitido en MB (por defecto 50MB)
     
     Returns:
-        str: URL pública de la imagen
+        str: URL pública del archivo
     
     Raises:
         Exception: Si falla la subida
     """
     try:
         # Forzar reinicialización si tenemos SUPABASE_KEY pero el cliente podría estar usando anon_key
-        # Esto asegura que usemos service_role key si está disponible
         if settings.SUPABASE_KEY:
             client = init_supabase(force_reinit=True)
         else:
@@ -131,29 +138,27 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         
         bucket = settings.SUPABASE_STORAGE_BUCKET or "plantcare"
         
-        # Log de debug para ver qué key está usando
+        # Log de debug
         if settings.SUPABASE_KEY:
-            key_type_used = "service_role"
-            logger.info(f"📤 Subiendo imagen - Key: service_role ✅, Bucket: {bucket}, Folder: {folder}")
+            logger.info(f"📤 Subiendo archivo - Key: service_role ✅, Bucket: {bucket}, Folder: {folder}")
         elif settings.SUPABASE_ANON_KEY:
-            key_type_used = "anon"
-            logger.warning(f"⚠️ Subiendo imagen - Key: anon (puede fallar por RLS), Bucket: {bucket}, Folder: {folder}")
-        else:
-            key_type_used = "none"
+            logger.warning(f"⚠️ Subiendo archivo - Key: anon (puede fallar por RLS), Bucket: {bucket}, Folder: {folder}")
         
-        # Verificar bucket pasivamente (no intenta crear - el bucket debe existir en Supabase Dashboard)
+        # Verificar bucket pasivamente
         _ensure_bucket_exists(client, bucket)
         
         # Generar nombre único para el archivo
         import uuid
         from datetime import datetime
         
-        # Obtener extensión del archivo (si es posible)
-        file_extension = ".jpg"  # Por defecto
+        # Obtener extensión del archivo
+        file_extension = ""
         if hasattr(file, 'name') and file.name:
-            ext = os.path.splitext(file.name)[1].lower()
-            if ext in [".jpg", ".jpeg", ".png", ".heic", ".heif"]:
-                file_extension = ext
+            file_extension = os.path.splitext(file.name)[1].lower()
+        
+        # Si no hay extensión, usar .bin como fallback
+        if not file_extension:
+            file_extension = ".bin"
         
         # Nombre único: timestamp + uuid + extensión
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -167,38 +172,45 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
         file.seek(0)  # Asegurar que estamos al inicio
         file_content = file.read()
         
-        # Validar tipo de archivo (opcional, pero recomendado)
+        # Validar que el archivo no esté vacío
         if len(file_content) == 0:
             raise Exception("El archivo está vacío")
         
-        # Validar tamaño (opcional: máximo 10MB)
-        max_size = 10 * 1024 * 1024  # 10MB
+        # Validar tamaño
+        max_size = max_size_mb * 1024 * 1024
         if len(file_content) > max_size:
-            raise Exception(f"El archivo es demasiado grande. Máximo: {max_size / 1024 / 1024}MB")
+            raise Exception(f"El archivo es demasiado grande. Máximo: {max_size_mb}MB, recibido: {len(file_content) / 1024 / 1024:.2f}MB")
         
-        logger.info(f"Subiendo imagen a Supabase Storage: {file_path} ({len(file_content)} bytes)")
+        logger.info(f"Subiendo archivo a Supabase Storage: {file_path} ({len(file_content)} bytes)")
+        
+        # Detectar content-type si no se especificó
+        if not content_type:
+            content_type_map = {
+                # Imágenes
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".heic": "image/jpeg",
+                ".heif": "image/jpeg",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+                # Modelos 3D
+                ".glb": "model/gltf-binary",
+                ".gltf": "model/gltf+json",
+                # Otros
+                ".bin": "application/octet-stream",
+                ".zip": "application/zip",
+            }
+            content_type = content_type_map.get(file_extension, "application/octet-stream")
         
         # Subir a Supabase Storage
-        # content_type se infiere automáticamente, pero podemos especificarlo
-        content_type_map = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".heic": "image/jpeg",  # HEIC se maneja como JPEG en Supabase
-            ".heif": "image/jpeg"   # HEIF se maneja como JPEG en Supabase
-        }
-        content_type = content_type_map.get(file_extension, "image/jpeg")
-        
-        # Subir a Supabase Storage
-        # El método upload acepta bytes directamente
-        # upsert debe ir dentro de file_options como string "true", no como boolean
         try:
             response = client.storage.from_(bucket).upload(
                 path=file_path,
                 file=file_content,
                 file_options={
                     "content-type": content_type,
-                    "upsert": "true"  # Sobrescribir si existe (debe ser string, no boolean)
+                    "upsert": "true"
                 }
             )
         except Exception as upload_error:
@@ -206,7 +218,6 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
             if "already exists" in str(upload_error).lower() or "duplicate" in str(upload_error).lower():
                 logger.warning(f"Archivo ya existe, intentando eliminar y resubir: {file_path}")
                 try:
-                    # Intentar eliminar el archivo existente
                     client.storage.from_(bucket).remove([file_path])
                     logger.info(f"Archivo eliminado exitosamente: {file_path}")
                 except Exception as remove_error:
@@ -225,11 +236,9 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
                 raise
         
         # Obtener URL pública
-        # Supabase genera URLs públicas automáticamente si el bucket es público
         try:
             public_url_response = client.storage.from_(bucket).get_public_url(file_path)
             
-            # get_public_url puede retornar string directamente o dict
             if isinstance(public_url_response, str):
                 public_url = public_url_response
             elif isinstance(public_url_response, dict):
@@ -237,20 +246,38 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
             else:
                 public_url = str(public_url_response)
         except Exception:
-            # Si falla, construir URL manualmente
             public_url = None
         
         # Si no se obtuvo URL, construirla manualmente
         if not public_url:
-            # Formato: https://{project_ref}.supabase.co/storage/v1/object/public/{bucket}/{path}
             public_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{bucket}/{file_path}"
         
-        logger.info(f"✅ Imagen subida exitosamente: {public_url}")
+        logger.info(f"✅ Archivo subido exitosamente: {public_url}")
         return public_url
         
     except Exception as e:
-        logger.error(f"❌ Error subiendo imagen a Supabase Storage: {str(e)}", exc_info=True)
-        raise Exception(f"Error subiendo imagen a Supabase Storage: {str(e)}")
+        logger.error(f"❌ Error subiendo archivo a Supabase Storage: {str(e)}", exc_info=True)
+        raise Exception(f"Error subiendo archivo a Supabase Storage: {str(e)}")
+
+
+def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
+    """
+    Sube imagen binaria a Supabase Storage y retorna URL pública.
+    
+    Wrapper de upload_file() específico para imágenes (limita tamaño a 10MB).
+    
+    Args:
+        file: Archivo binario (BytesIO o file object)
+        folder: Carpeta dentro del bucket (ej: "plants/original")
+                 NOTA: No incluyas el nombre del bucket aquí, solo la ruta dentro del bucket
+    
+    Returns:
+        str: URL pública de la imagen
+    
+    Raises:
+        Exception: Si falla la subida
+    """
+    return upload_file(file, folder=folder, max_size_mb=10)
 
 
 def upload_image_from_url(image_url: str, folder: str = "plantcare/characters") -> str:
