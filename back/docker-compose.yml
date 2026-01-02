@@ -75,7 +75,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"  # Expuesto para desarrollo, comentar en producción
+      - "5433:5432"  # Puerto 5433 en host para evitar conflicto con PostgreSQL local
     networks:
       - app_network
     restart: unless-stopped
