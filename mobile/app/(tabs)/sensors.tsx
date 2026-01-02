@@ -3,8 +3,12 @@
  */
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function SensorsScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme.colors);
+  
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Pantalla de Dispositivos</Text>
@@ -13,20 +17,20 @@ export default function SensorsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
   text: {
     fontSize: 20,
-    color: '#fff',
+    color: colors.text,
     marginBottom: 8,
   },
   subtext: {
     fontSize: 14,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
 });

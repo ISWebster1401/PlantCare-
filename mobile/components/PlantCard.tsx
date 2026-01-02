@@ -11,6 +11,7 @@ import {
   ImageSourcePropType,
 } from 'react-native';
 import { PlantResponse } from '../types';
+import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 interface PlantCardProps {
@@ -19,6 +20,8 @@ interface PlantCardProps {
 }
 
 export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
+  const { theme } = useTheme();
+  const styles = createStyles(theme.colors);
   const getMoodEmoji = (mood: string) => {
     const moodMap: Record<string, string> = {
       happy: '😊',
@@ -49,7 +52,7 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
           />
         ) : (
           <View style={styles.placeholder}>
-            <Ionicons name="leaf-outline" size={48} color="#4caf50" />
+            <Ionicons name="leaf-outline" size={48} color={theme.colors.primary} />
           </View>
         )}
         <View style={[styles.moodBadge, { backgroundColor: getHealthColor(plant.health_status) }]}>
@@ -74,21 +77,21 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={24} color="#64748b" />
+      <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
     </TouchableOpacity>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   card: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   imageContainer: {
     position: 'relative',
@@ -98,13 +101,13 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   placeholder: {
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -118,7 +121,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#1e293b',
+    borderColor: colors.surface,
   },
   moodEmoji: {
     fontSize: 16,
@@ -129,12 +132,12 @@ const styles = StyleSheet.create({
   plantName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 4,
   },
   plantType: {
     fontSize: 14,
-    color: '#b0bec5',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   healthContainer: {
@@ -149,6 +152,6 @@ const styles = StyleSheet.create({
   },
   healthText: {
     fontSize: 12,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
 });
