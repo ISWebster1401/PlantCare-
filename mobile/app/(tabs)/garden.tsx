@@ -15,13 +15,17 @@ import { useRouter } from 'expo-router';
 import { plantsAPI } from '../../services/api';
 import { PlantResponse } from '../../types';
 import { PlantCard } from '../../components/PlantCard';
+import { useTheme } from '../../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function GardenScreen() {
+  const { theme } = useTheme();
   const [plants, setPlants] = useState<PlantResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  
+  const styles = createStyles(theme.colors);
 
   const loadPlants = async () => {
     try {
@@ -55,7 +59,7 @@ export default function GardenScreen() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="leaf-outline" size={64} color="#64748b" />
+      <Ionicons name="leaf-outline" size={64} color={theme.colors.iconSecondary} />
       <Text style={styles.emptyStateTitle}>No tienes plantas aún</Text>
       <Text style={styles.emptyStateText}>
         Comienza escaneando tu primera planta
@@ -72,7 +76,7 @@ export default function GardenScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#4caf50" style={styles.loader} />
+        <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
       </View>
     );
   }
@@ -91,7 +95,7 @@ export default function GardenScreen() {
         contentContainerStyle={plants.length === 0 ? styles.emptyList : styles.list}
         ListEmptyComponent={renderEmptyState}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4caf50" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
       />
 
@@ -99,16 +103,16 @@ export default function GardenScreen() {
         style={styles.fab}
         onPress={() => router.push('/scan-plant')}
       >
-        <Ionicons name="add" size={32} color="#fff" />
+        <Ionicons name="add" size={32} color={theme.colors.text} />
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     padding: 24,
@@ -117,12 +121,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
   list: {
     padding: 16,
@@ -140,24 +144,24 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#b0bec5',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
   },
   emptyStateButton: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
   emptyStateButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -168,7 +172,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
