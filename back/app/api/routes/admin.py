@@ -226,7 +226,7 @@ async def get_all_users(
                     "role_name": user.get("role_name"),
                     "created_at": user["created_at"],
                     "last_login": user.get("last_login"),
-                    "active": bool(user.get("active", True)),
+                    "active": bool(user.get("is_active", user.get("active", True))),  # Mapear is_active → active
                     "device_count": int(user.get("device_count", 0)) if user.get("device_count") is not None else 0
                 }
                 
@@ -265,6 +265,10 @@ async def get_user_by_id(
                 detail="Usuario no encontrado"
             )
         
+        # Mapear is_active → active para el schema
+        if "is_active" in user:
+            user["active"] = user.pop("is_active")
+        
         return UserAdminResponse(**user).model_dump()
         
     except HTTPException:
@@ -297,9 +301,16 @@ async def create_user(
         user_dict = user_data.model_dump()
         password = user_dict.pop("password")
         user_dict["password_hash"] = AuthService.get_password_hash(password)
+        # Mapear active → is_active para la base de datos
+        if "active" in user_dict:
+            user_dict["is_active"] = user_dict.pop("active")
         
         created_user = await create_user_admin(db, user_dict)
         logger.info(f"Usuario creado por admin {current_user['email']}: {user_data.email}")
+        
+        # Mapear is_active → active para el schema
+        if "is_active" in created_user:
+            created_user["active"] = created_user.pop("is_active")
         
         return UserAdminResponse(**created_user)
         
@@ -331,6 +342,10 @@ async def update_user(
             )
         
         update_data = user_data.model_dump(exclude_unset=True)
+        # Mapear active → is_active para la base de datos
+        if "active" in update_data:
+            update_data["is_active"] = update_data.pop("active")
+        
         updated_user = await update_user_admin(db, user_id, update_data)
         
         if not updated_user:
@@ -338,6 +353,10 @@ async def update_user(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="No se pudo actualizar el usuario"
             )
+        
+        # Mapear is_active → active para el schema
+        if "is_active" in updated_user:
+            updated_user["active"] = updated_user.pop("is_active")
         
         logger.info(f"Usuario {user_id} actualizado por admin {current_user['email']}")
         return UserAdminResponse(**updated_user)

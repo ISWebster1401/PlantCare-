@@ -307,7 +307,7 @@ async def deactivate_user(db, user_id: int) -> bool:
     """
     try:
         await db.execute_query(
-            "UPDATE users SET active = false WHERE id = %s",
+            "UPDATE users SET is_active = false WHERE id = %s",
             (user_id,)
         )
         return True
@@ -328,7 +328,7 @@ async def activate_user(db, user_id: int) -> bool:
     """
     try:
         await db.execute_query(
-            "UPDATE users SET active = true WHERE id = %s",
+            "UPDATE users SET is_active = true WHERE id = %s",
             (user_id,)
         )
         return True
@@ -393,7 +393,7 @@ async def get_users_by_region(db, region: str) -> List[Dict[str, Any]]:
             "users",
             conditions={
                 "region": region,
-                "active": True
+                "is_active": True
             },
             order_by=[("created_at", "DESC")]
         )
@@ -420,7 +420,7 @@ async def search_users(db, search_term: str, limit: int = 10) -> List[Dict[str, 
             "users",
             search_term,
             search_column="first_name,last_name,email,region",
-            additional_conditions={"active": True},
+            additional_conditions={"is_active": True},
             limit=limit
         )
         return result if result else []
@@ -784,7 +784,7 @@ async def get_all_users_admin(db, filters: dict = None) -> List[Dict[str, Any]]:
                 params.append(filters["role_id"])
             
             if filters.get("active") is not None:
-                conditions.append("u.active = %s")
+                conditions.append("u.is_active = %s")
                 params.append(filters["active"])
             
             if filters.get("region"):
@@ -1303,8 +1303,8 @@ async def get_admin_stats(db) -> Dict[str, Any]:
         users_stats = await db.execute_query("""
             SELECT 
                 COUNT(*) as total_users,
-                COUNT(CASE WHEN active = true THEN 1 END) as active_users,
-                COUNT(CASE WHEN active = false THEN 1 END) as inactive_users,
+                COUNT(CASE WHEN is_active = true THEN 1 END) as active_users,
+                COUNT(CASE WHEN is_active = false THEN 1 END) as inactive_users,
                 COUNT(CASE WHEN role_id = 2 THEN 1 END) as admin_users,
                 COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as new_users_today,
                 COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as new_users_week
@@ -1331,7 +1331,23 @@ async def get_admin_stats(db) -> Dict[str, Any]:
             FROM sensor_readings
         """)
         
-        stats = {}
+        # Valores por defecto
+        stats = {
+            "total_users": 0,
+            "active_users": 0,
+            "inactive_users": 0,
+            "admin_users": 0,
+            "total_devices": 0,
+            "connected_devices": 0,
+            "unconnected_devices": 0,
+            "active_devices": 0,
+            "total_readings_today": 0,
+            "total_readings_week": 0,
+            "new_users_today": 0,
+            "new_users_week": 0,
+            "new_devices_today": 0,
+            "new_devices_week": 0,
+        }
         
         if users_stats is not None and not users_stats.empty:
             stats.update(users_stats.iloc[0].to_dict())
@@ -1363,12 +1379,12 @@ async def bulk_update_users(db, user_ids: List[int], action: str) -> bool:
     try:
         if action == "activate":
             await db.execute_query(
-                f"UPDATE users SET active = true WHERE id = ANY(%s)",
+                f"UPDATE users SET is_active = true WHERE id = ANY(%s)",
                 (user_ids,)
             )
         elif action == "deactivate":
             await db.execute_query(
-                f"UPDATE users SET active = false WHERE id = ANY(%s)",
+                f"UPDATE users SET is_active = false WHERE id = ANY(%s)",
                 (user_ids,)
             )
         elif action == "delete":
