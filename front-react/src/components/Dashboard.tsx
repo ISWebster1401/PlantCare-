@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
               <AIIcon className="nav-icon" />
               IA Chat
             </button>
-            {user?.role === 'admin' && (
+            {(user?.role_id === 2 || user?.role === 'admin') && (
               <button 
                 className={`nav-btn ${activeView === 'admin' ? 'active' : ''}`}
                 onClick={() => setActiveView('admin')}
@@ -123,7 +123,7 @@ const Dashboard: React.FC = () => {
         {activeView === 'devices' && <DeviceManager />}
         {activeView === 'humidity' && <HumedadView />}
         {activeView === 'ai' && <AIChat />}
-        {activeView === 'admin' && user?.role === 'admin' && <AdminPanel />}
+        {activeView === 'admin' && (user?.role_id === 2 || user?.role === 'admin') && <AdminPanel />}
       </main>
 
       {/* Botón flotante azul para mini chat IA */}

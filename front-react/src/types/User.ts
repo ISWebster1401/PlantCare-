@@ -10,6 +10,7 @@ export interface UserResponse {
   full_name: string;
   email: string;
   role: string;
+  role_id?: number; // ID del rol (1=user, 2=admin)
   is_active: boolean;
   created_at: string;
   updated_at?: string | null;

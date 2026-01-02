@@ -4,12 +4,20 @@ import './AdminPanel.css';
 
 interface User {
   id: number;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  role: string;
-  is_active: boolean;
+  phone?: string | null;
+  region?: string | null;
+  vineyard_name?: string | null;
+  hectares?: number | null;
+  grape_type?: string | null;
+  role_id: number;
+  role_name?: string | null;
   created_at: string;
-  updated_at?: string;
+  last_login?: string | null;
+  active: boolean;
+  device_count: number;
 }
 
 interface Device {
@@ -64,7 +72,7 @@ const AdminPanel: React.FC = () => {
   // Estados para filtros
   const [userFilters, setUserFilters] = useState({
     search: '',
-    role: '',
+    role_id: '',
     active: '',
     region: ''
   });
@@ -134,7 +142,14 @@ const AdminPanel: React.FC = () => {
       setLoading(true);
       const params = new URLSearchParams();
       Object.entries(userFilters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
+        if (value) {
+          // Convertir role_id de string a número si es necesario
+          if (key === 'role_id') {
+            params.append(key, value);
+          } else {
+            params.append(key, value);
+          }
+        }
       });
       
       const data = await apiCall<User[]>(`/api/admin/users?${params}`);
@@ -185,7 +200,7 @@ const AdminPanel: React.FC = () => {
         method: 'PUT',
         body: JSON.stringify({ active: !currentStatus })
       });
-      loadUsers();
+      await loadUsers();
     } catch (err: any) {
       setError(err.message);
     }
@@ -206,8 +221,9 @@ const AdminPanel: React.FC = () => {
 
   // ✅ USEEFFECT ANTES DEL RETURN CONDICIONAL
   useEffect(() => {
-    // Solo ejecutar si el usuario es admin
-    if (!user || user.role !== 'admin') {
+    // Solo ejecutar si el usuario es admin (verificar role_id === 2 o role === 'admin')
+    const isAdmin = user && (user.role_id === 2 || user.role === 'admin');
+    if (!isAdmin) {
       return;
     }
 
@@ -221,7 +237,8 @@ const AdminPanel: React.FC = () => {
   }, [activeTab, user]);
 
   // ✅ RETURN CONDICIONAL AL FINAL (después del useEffect)
-  if (!user || user.role !== 'admin') {
+  const isAdmin = user && (user.role_id === 2 || user.role === 'admin');
+  if (!isAdmin) {
     return (
       <div className="admin-panel">
         <div className="access-denied">
@@ -346,12 +363,12 @@ const AdminPanel: React.FC = () => {
                   onChange={(e) => setUserFilters({...userFilters, search: e.target.value})}
                 />
                 <select
-                  value={userFilters.role}
-                  onChange={(e) => setUserFilters({...userFilters, role: e.target.value})}
+                  value={userFilters.role_id}
+                  onChange={(e) => setUserFilters({...userFilters, role_id: e.target.value})}
                 >
                   <option value="">Todos los roles</option>
-                  <option value="user">Usuario</option>
-                  <option value="admin">Administrador</option>
+                  <option value="1">Usuario</option>
+                  <option value="2">Administrador</option>
                 </select>
                 <select
                   value={userFilters.active}
@@ -385,29 +402,29 @@ const AdminPanel: React.FC = () => {
                   {users.map(userItem => (
                     <tr key={userItem.id}>
                       <td>{userItem.id}</td>
-                      <td>{userItem.full_name}</td>
+                      <td>{userItem.first_name} {userItem.last_name}</td>
                       <td>{userItem.email}</td>
                       <td>{userItem.created_at ? new Date(userItem.created_at).toLocaleDateString() : '-'}</td>
                       <td>
-                        <span className={`role-badge ${userItem.role === 'admin' ? 'admin' : 'user'}`}>
-                          {userItem.role === 'admin' ? 'Admin' : 'Usuario'}
+                        <span className={`role-badge ${userItem.role_id === 2 || userItem.role_name === 'admin' ? 'admin' : 'user'}`}>
+                          {userItem.role_name || (userItem.role_id === 2 ? 'Admin' : 'Usuario')}
                         </span>
                       </td>
-                      <td>-</td>
+                      <td>{userItem.device_count || 0}</td>
                       <td>
-                        <span className={`status-badge ${userItem.is_active ? 'active' : 'inactive'}`}>
-                          {userItem.is_active ? 'Activo' : 'Inactivo'}
+                        <span className={`status-badge ${userItem.active ? 'active' : 'inactive'}`}>
+                          {userItem.active ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
                       <td>
                         <div className="action-buttons">
                           <button
-                            onClick={() => toggleUserStatus(userItem.id, userItem.is_active)}
-                            className={`btn-sm ${userItem.is_active ? 'btn-warning' : 'btn-success'}`}
+                            onClick={() => toggleUserStatus(userItem.id, userItem.active)}
+                            className={`btn-sm ${userItem.active ? 'btn-warning' : 'btn-success'}`}
                           >
-                            {userItem.is_active ? '⏸️' : '▶️'}
+                            {userItem.active ? '⏸️' : '▶️'}
                           </button>
-                          {userItem.role !== 'admin' && (
+                          {(userItem.role_id !== 2 && userItem.role_name !== 'admin') && (
                             <button
                               onClick={() => deleteUser(userItem.id)}
                               className="btn-sm btn-danger"
