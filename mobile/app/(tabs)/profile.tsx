@@ -70,6 +70,17 @@ export default function ProfileScreen() {
           <Text style={styles.menuText}>Configuración</Text>
           <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
         </TouchableOpacity>
+
+        {user?.role_id === 2 && (
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push('/admin')}
+          >
+            <Ionicons name="shield-checkmark-outline" size={24} color={theme.colors.primary} />
+            <Text style={[styles.menuText, { color: theme.colors.primary }]}>Panel Admin</Text>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
