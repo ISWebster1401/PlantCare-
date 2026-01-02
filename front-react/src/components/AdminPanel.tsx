@@ -4,95 +4,41 @@ import './AdminPanel.css';
 
 interface User {
   id: number;
-  first_name: string;
-  last_name: string;
   email: string;
-  phone?: string | null;
-  region?: string | null;
-  vineyard_name?: string | null;
-  hectares?: number | null;
-  grape_type?: string | null;
-  role_id: number;
-  role_name?: string | null;
-  created_at: string;
-  last_login?: string | null;
-  active: boolean;
-  device_count: number;
+  full_name: string;
+  is_active: boolean;
+  plants_count: number;
+  sensors_count: number;
 }
 
-interface Device {
-  id: number;
-  device_code: string;
-  name?: string;
-  device_type: string;
-  location?: string;
-  plant_type?: string;
-  user_id?: number;
-  user_name?: string;
-  user_email?: string;
-  created_at: string;
-  last_seen?: string;
-  connected_at?: string;
-  active: boolean;
-  connected: boolean;
+interface Sensor {
+  id: string;
+  device_id: string;
+  name: string;
+  user_email?: string | null;
+  plant_name?: string | null;
+  status: string;
+  is_connected: boolean;
+  last_connection?: string | null;
 }
 
 interface AdminStats {
   total_users: number;
   active_users: number;
-  inactive_users: number;
-  admin_users: number;
-  total_devices: number;
-  connected_devices: number;
-  unconnected_devices: number;
-  active_devices: number;
-  total_readings_today: number;
-  total_readings_week: number;
-  new_users_today: number;
-  new_users_week: number;
-  new_devices_today: number;
-  new_devices_week: number;
-}
-
-interface DeviceCodeBatch {
-  device_type: string;
-  quantity: number;
-  prefix?: string;
+  total_sensors: number;
+  connected_sensors: number;
+  total_plants: number;
 }
 
 const AdminPanel: React.FC = () => {
   const { user, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'devices' | 'codes'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'sensors'>('dashboard');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [sensors, setSensors] = useState<Sensor[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
-  // Estados para filtros
-  const [userFilters, setUserFilters] = useState({
-    search: '',
-    role_id: '',
-    active: '',
-    region: ''
-  });
-
-  const [deviceFilters, setDeviceFilters] = useState({
-    search: '',
-    device_type: '',
-    connected: '',
-    active: ''
-  });
-
-  // Estado para generar códigos
-  const [codeGeneration, setCodeGeneration] = useState<DeviceCodeBatch>({
-    device_type: 'humidity_sensor',
-    quantity: 1
-  });
-
-  const [generatedCodes, setGeneratedCodes] = useState<any[]>([]);
-
-  // ✅ FUNCIÓN apiCall DEFINIDA AQUÍ (antes del useEffect)
   const apiCall = async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
     const response = await fetch(url, {
       ...options,
@@ -140,19 +86,7 @@ const AdminPanel: React.FC = () => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      Object.entries(userFilters).forEach(([key, value]) => {
-        if (value) {
-          // Convertir role_id de string a número si es necesario
-          if (key === 'role_id') {
-            params.append(key, value);
-          } else {
-            params.append(key, value);
-          }
-        }
-      });
-      
-      const data = await apiCall<User[]>(`/api/admin/users?${params}`);
+      const data = await apiCall<User[]>(`/api/admin/users`);
       setUsers(data);
     } catch (err: any) {
       setError(err.message);
@@ -161,16 +95,11 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const loadDevices = async () => {
+  const loadSensors = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      Object.entries(deviceFilters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-      });
-      
-      const data = await apiCall<Device[]>(`/api/admin/devices?${params}`);
-      setDevices(data);
+      const data = await apiCall<Sensor[]>(`/api/admin/sensors`);
+      setSensors(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -178,27 +107,10 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const generateDeviceCodes = async () => {
+  const toggleUserStatus = async (userId: number) => {
     try {
-      setLoading(true);
-      const data = await apiCall('/api/admin/devices/generate-codes', {
-        method: 'POST',
-        body: JSON.stringify(codeGeneration)
-      });
-      setGeneratedCodes(data);
-      setError('');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleUserStatus = async (userId: number, currentStatus: boolean) => {
-    try {
-      await apiCall(`/api/admin/users/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ active: !currentStatus })
+      await apiCall(`/api/admin/users/${userId}/toggle-status`, {
+        method: 'PUT'
       });
       await loadUsers();
     } catch (err: any) {
@@ -206,22 +118,7 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const deleteUser = async (userId: number) => {
-    if (!window.confirm('¿Estás seguro de que quieres eliminar este usuario?')) return;
-    
-    try {
-      await apiCall(`/api/admin/users/${userId}`, {
-        method: 'DELETE'
-      });
-      loadUsers();
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
-  // ✅ USEEFFECT ANTES DEL RETURN CONDICIONAL
   useEffect(() => {
-    // Solo ejecutar si el usuario es admin (verificar role_id === 2 o role === 'admin')
     const isAdmin = user && (user.role_id === 2 || user.role === 'admin');
     if (!isAdmin) {
       return;
@@ -231,12 +128,11 @@ const AdminPanel: React.FC = () => {
       loadStats();
     } else if (activeTab === 'users') {
       loadUsers();
-    } else if (activeTab === 'devices') {
-      loadDevices();
+    } else if (activeTab === 'sensors') {
+      loadSensors();
     }
   }, [activeTab, user]);
 
-  // ✅ RETURN CONDICIONAL AL FINAL (después del useEffect)
   const isAdmin = user && (user.role_id === 2 || user.role === 'admin');
   if (!isAdmin) {
     return (
@@ -270,16 +166,10 @@ const AdminPanel: React.FC = () => {
           👥 Usuarios
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'devices' ? 'active' : ''}`}
-          onClick={() => setActiveTab('devices')}
+          className={`tab-btn ${activeTab === 'sensors' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sensors')}
         >
           📡 Sensores
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'codes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('codes')}
-        >
-          🏷️ Generar Códigos
         </button>
       </div>
 
@@ -308,7 +198,6 @@ const AdminPanel: React.FC = () => {
                   <div className="stat-number">{stats.total_users}</div>
                   <div className="stat-details">
                     <span className="active">{stats.active_users} activos</span>
-                    <span className="inactive">{stats.inactive_users} inactivos</span>
                   </div>
                 </div>
               </div>
@@ -317,33 +206,20 @@ const AdminPanel: React.FC = () => {
                 <div className="stat-icon">📱</div>
                 <div className="stat-info">
                   <h3>Sensores</h3>
-                  <div className="stat-number">{stats.total_devices}</div>
+                  <div className="stat-number">{stats.total_sensors}</div>
                   <div className="stat-details">
-                    <span className="connected">{stats.connected_devices} conectados</span>
-                    <span className="unconnected">{stats.unconnected_devices} disponibles</span>
+                    <span className="connected">{stats.connected_sensors} conectados</span>
                   </div>
                 </div>
               </div>
 
-              <div className="stat-card readings">
-                <div className="stat-icon">📊</div>
+              <div className="stat-card plants">
+                <div className="stat-icon">🌱</div>
                 <div className="stat-info">
-                  <h3>Lecturas Hoy</h3>
-                  <div className="stat-number">{stats.total_readings_today}</div>
+                  <h3>Plantas</h3>
+                  <div className="stat-number">{stats.total_plants}</div>
                   <div className="stat-details">
-                    <span>{stats.total_readings_week} esta semana</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="stat-card growth">
-                <div className="stat-icon">📈</div>
-                <div className="stat-info">
-                  <h3>Crecimiento</h3>
-                  <div className="stat-number">+{stats.new_users_today}</div>
-                  <div className="stat-details">
-                    <span>usuarios hoy</span>
-                    <span>+{stats.new_devices_today} dispositivos</span>
+                    <span>Total registradas</span>
                   </div>
                 </div>
               </div>
@@ -355,33 +231,9 @@ const AdminPanel: React.FC = () => {
           <div className="users-section">
             <div className="section-header">
               <h2>Gestión de Usuarios</h2>
-              <div className="filters">
-                <input
-                  type="text"
-                  placeholder="Buscar usuarios..."
-                  value={userFilters.search}
-                  onChange={(e) => setUserFilters({...userFilters, search: e.target.value})}
-                />
-                <select
-                  value={userFilters.role_id}
-                  onChange={(e) => setUserFilters({...userFilters, role_id: e.target.value})}
-                >
-                  <option value="">Todos los roles</option>
-                  <option value="1">Usuario</option>
-                  <option value="2">Administrador</option>
-                </select>
-                <select
-                  value={userFilters.active}
-                  onChange={(e) => setUserFilters({...userFilters, active: e.target.value})}
-                >
-                  <option value="">Todos los estados</option>
-                  <option value="true">Activos</option>
-                  <option value="false">Inactivos</option>
-                </select>
-                <button onClick={loadUsers} className="btn-primary">
-                  🔍 Filtrar
-                </button>
-              </div>
+              <button onClick={loadUsers} className="btn-primary">
+                🔄 Actualizar
+              </button>
             </div>
 
             <div className="users-table">
@@ -391,80 +243,59 @@ const AdminPanel: React.FC = () => {
                     <th>ID</th>
                     <th>Nombre</th>
                     <th>Email</th>
-                    <th>Registrado</th>
-                    <th>Rol</th>
-                    <th>Plantas</th>
                     <th>Estado</th>
+                    <th>Plantas</th>
+                    <th>Sensores</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map(userItem => (
-                    <tr key={userItem.id}>
-                      <td>{userItem.id}</td>
-                      <td>{userItem.first_name} {userItem.last_name}</td>
-                      <td>{userItem.email}</td>
-                      <td>{userItem.created_at ? new Date(userItem.created_at).toLocaleDateString() : '-'}</td>
-                      <td>
-                        <span className={`role-badge ${userItem.role_id === 2 || userItem.role_name === 'admin' ? 'admin' : 'user'}`}>
-                          {userItem.role_name || (userItem.role_id === 2 ? 'Admin' : 'Usuario')}
-                        </span>
-                      </td>
-                      <td>{userItem.device_count || 0}</td>
-                      <td>
-                        <span className={`status-badge ${userItem.active ? 'active' : 'inactive'}`}>
-                          {userItem.active ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button
-                            onClick={() => toggleUserStatus(userItem.id, userItem.active)}
-                            className={`btn-sm ${userItem.active ? 'btn-warning' : 'btn-success'}`}
-                          >
-                            {userItem.active ? '⏸️' : '▶️'}
-                          </button>
-                          {(userItem.role_id !== 2 && userItem.role_name !== 'admin') && (
-                            <button
-                              onClick={() => deleteUser(userItem.id)}
-                              className="btn-sm btn-danger"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
+                  {users.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '20px' }}>
+                        No hay usuarios registrados
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    users.map(userItem => (
+                      <tr key={userItem.id}>
+                        <td>{userItem.id}</td>
+                        <td>{userItem.full_name}</td>
+                        <td>{userItem.email}</td>
+                        <td>
+                          <span className={`status-badge ${userItem.is_active ? 'active' : 'inactive'}`}>
+                            {userItem.is_active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td>{userItem.plants_count}</td>
+                        <td>{userItem.sensors_count}</td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              onClick={() => toggleUserStatus(userItem.id)}
+                              className={`btn-sm ${userItem.is_active ? 'btn-warning' : 'btn-success'}`}
+                              title={userItem.is_active ? 'Desactivar' : 'Activar'}
+                            >
+                              {userItem.is_active ? '⏸️' : '▶️'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {activeTab === 'devices' && (
+        {activeTab === 'sensors' && (
           <div className="devices-section">
             <div className="section-header">
               <h2>Gestión de Sensores</h2>
-              <div className="filters">
-                <input
-                  type="text"
-                  placeholder="Buscar dispositivos..."
-                  value={deviceFilters.search}
-                  onChange={(e) => setDeviceFilters({...deviceFilters, search: e.target.value})}
-                />
-                <select
-                  value={deviceFilters.connected}
-                  onChange={(e) => setDeviceFilters({...deviceFilters, connected: e.target.value})}
-                >
-                  <option value="">Todos</option>
-                  <option value="true">Conectados</option>
-                  <option value="false">Disponibles</option>
-                </select>
-                <button onClick={loadDevices} className="btn-primary">
-                  🔍 Filtrar
-                </button>
-              </div>
+              <button onClick={loadSensors} className="btn-primary">
+                🔄 Actualizar
+              </button>
             </div>
 
             <div className="devices-table">
@@ -474,105 +305,49 @@ const AdminPanel: React.FC = () => {
                     <th>ID</th>
                     <th>Código</th>
                     <th>Nombre</th>
-                    <th>Tipo</th>
                     <th>Usuario</th>
+                    <th>Planta</th>
                     <th>Estado</th>
+                    <th>Conexión</th>
                     <th>Última Conexión</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {devices.map(device => (
-                    <tr key={device.id}>
-                      <td>{device.id}</td>
-                      <td><code>{device.device_code}</code></td>
-                      <td>{device.name || '-'}</td>
-                      <td>{device.device_type}</td>
-                      <td>
-                        {device.user_name ? (
-                          <div>
-                            <div>{device.user_name}</div>
-                            <small>{device.user_email}</small>
-                          </div>
-                        ) : (
-                          <span className="unassigned">Sin asignar</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`status-badge ${device.connected ? 'connected' : 'available'}`}>
-                          {device.connected ? 'Conectado' : 'Disponible'}
-                        </span>
-                      </td>
-                      <td>
-                        {device.last_seen ? 
-                          new Date(device.last_seen).toLocaleString() : 
-                          'Nunca'
-                        }
+                  {sensors.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                        No hay sensores registrados
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    sensors.map(sensor => (
+                      <tr key={sensor.id}>
+                        <td>{sensor.id.substring(0, 8)}...</td>
+                        <td><code>{sensor.device_id}</code></td>
+                        <td>{sensor.name}</td>
+                        <td>{sensor.user_email || <span className="unassigned">Sin asignar</span>}</td>
+                        <td>{sensor.plant_name || '-'}</td>
+                        <td>
+                          <span className={`status-badge ${sensor.status === 'active' ? 'active' : 'inactive'}`}>
+                            {sensor.status}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${sensor.is_connected ? 'connected' : 'available'}`}>
+                            {sensor.is_connected ? 'Conectado' : 'Desconectado'}
+                          </span>
+                        </td>
+                        <td>
+                          {sensor.last_connection ? 
+                            new Date(sensor.last_connection).toLocaleString() : 
+                            'Nunca'
+                          }
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'codes' && (
-          <div className="codes-section">
-            <div className="section-header">
-              <h2>Generar Códigos de Sensores</h2>
-            </div>
-
-            <div className="code-generation">
-              <div className="generation-form">
-                <div className="form-group">
-                  <label>Tipo de Dispositivo:</label>
-                  <select
-                    value={codeGeneration.device_type}
-                    onChange={(e) => setCodeGeneration({...codeGeneration, device_type: e.target.value})}
-                  >
-                    <option value="humidity_sensor">Sensor de Humedad</option>
-                    <option value="temperature_sensor">Sensor de Temperatura</option>
-                    <option value="multi_sensor">Multi Sensor</option>
-                    <option value="irrigation_controller">Controlador de Riego</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Cantidad:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={codeGeneration.quantity}
-                    onChange={(e) => setCodeGeneration({...codeGeneration, quantity: parseInt(e.target.value)})}
-                  />
-                </div>
-
-                <button 
-                  onClick={generateDeviceCodes}
-                  className="btn-primary"
-                  disabled={loading}
-                >
-                  🏷️ Generar Códigos
-                </button>
-              </div>
-
-              {generatedCodes.length > 0 && (
-                <div className="generated-codes">
-                  <h3>Códigos Generados:</h3>
-                  <div className="codes-grid">
-                    {generatedCodes.map((code, index) => (
-                      <div key={index} className="code-card">
-                        <div className="code-value">{code.device_code}</div>
-                        <div className="code-type">{code.device_type}</div>
-                        <div className="code-date">
-                          {new Date(code.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

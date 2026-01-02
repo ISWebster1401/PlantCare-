@@ -98,10 +98,10 @@ export default function AdminPanelScreen() {
   const loadDevices = async () => {
     try {
       setError(null);
-      const data = await adminAPI.getDevices({ search: deviceSearch || undefined });
+      const data = await adminAPI.getSensors();
       setDevices(data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error cargando dispositivos');
+      setError(err.response?.data?.detail || 'Error cargando sensores');
     }
   };
 

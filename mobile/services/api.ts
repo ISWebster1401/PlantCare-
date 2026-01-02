@@ -287,14 +287,8 @@ export const adminAPI = {
   },
 
   // Obtener todos los usuarios
-  getUsers: async (params?: {
-    role_id?: number;
-    active?: boolean;
-    search?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<UserAdminResponse[]> => {
-    const response = await api.get('/admin/users', { params });
+  getUsers: async (): Promise<UserAdminResponse[]> => {
+    const response = await api.get('/admin/users');
     return response.data;
   },
 
@@ -304,39 +298,20 @@ export const adminAPI = {
     return response.data;
   },
 
-  // Actualizar usuario
-  updateUser: async (userId: number, data: Partial<UserAdminResponse>): Promise<UserAdminResponse> => {
-    const response = await api.put(`/admin/users/${userId}`, data);
-    return response.data;
-  },
-
-  // Eliminar usuario
-  deleteUser: async (userId: number): Promise<void> => {
-    await api.delete(`/admin/users/${userId}`);
-  },
-
   // Activar/desactivar usuario
-  toggleUserStatus: async (userId: number, active: boolean): Promise<UserAdminResponse> => {
-    const response = await api.put(`/admin/users/${userId}`, { active });
+  toggleUserStatus: async (userId: number): Promise<void> => {
+    await api.put(`/admin/users/${userId}/toggle-status`);
+  },
+
+  // Obtener todos los sensores
+  getSensors: async (): Promise<DeviceAdminResponse[]> => {
+    const response = await api.get('/admin/sensors');
     return response.data;
   },
 
-  // Obtener todos los dispositivos
-  getDevices: async (params?: {
-    device_type?: string;
-    connected?: boolean;
-    active?: boolean;
-    search?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<DeviceAdminResponse[]> => {
-    const response = await api.get('/admin/devices', { params });
-    return response.data;
-  },
-
-  // Generar códigos de dispositivos
-  generateDeviceCodes: async (batch: DeviceCodeBatch): Promise<DeviceCodeResponse[]> => {
-    const response = await api.post('/admin/devices/generate-codes', batch);
+  // Obtener sensor por ID
+  getSensorById: async (sensorId: string): Promise<DeviceAdminResponse> => {
+    const response = await api.get(`/admin/sensors/${sensorId}`);
     return response.data;
   },
 };
