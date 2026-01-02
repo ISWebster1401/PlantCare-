@@ -468,23 +468,27 @@ async def get_all_devices(
                 else:
                     user_id_clean = int(user_id_val)
                 
-                device_id = int(device["id"]) if device.get("id") is not None else 0
+                # Los IDs ahora son UUIDs (strings), pero DeviceAdminResponse espera int
+                # Usamos un hash simple para convertir UUID a int para compatibilidad
+                device_id_str = str(device.get("id", ""))
+                # Convertir UUID string a int usando hash (no ideal pero necesario para compatibilidad)
+                device_id = abs(hash(device_id_str)) % (10**9) if device_id_str else 0
                 
                 device_response = DeviceAdminResponse(
                     id=device_id,
-                    device_code=device["device_code"],
+                    device_code=device.get("device_code"),
                     name=device.get("name"),
-                    device_type=device["device_type"],
+                    device_type=device.get("device_type"),
                     location=device.get("location"),
                     plant_type=device.get("plant_type"),
                     user_id=user_id_clean,
                     user_name=device.get("user_name"),
                     user_email=device.get("user_email"),
-                    created_at=device["created_at"],
+                    created_at=device.get("created_at"),
                     last_seen=device.get("last_seen"),
                     connected_at=device.get("connected_at"),
-                    active=bool(device["active"]),
-                    connected=bool(device["connected"])
+                    active=bool(device.get("active", False)),
+                    connected=bool(device.get("connected", False))
                 )
                 device_responses.append(device_response.model_dump())
             except Exception as convert_error:

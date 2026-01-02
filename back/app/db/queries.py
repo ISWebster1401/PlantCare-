@@ -728,9 +728,9 @@ async def get_device_stats(db, user_id: int) -> Dict[str, int]:
             SELECT 
                 COUNT(*) as total,
                 COUNT(CASE WHEN connected = true THEN 1 END) as connected,
-                COUNT(CASE WHEN active = true THEN 1 END) as active,
-                COUNT(CASE WHEN last_seen < NOW() - INTERVAL '1 hour' OR last_seen IS NULL THEN 1 END) as offline
-            FROM devices 
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
+                COUNT(CASE WHEN last_connection < NOW() - INTERVAL '1 hour' OR last_connection IS NULL THEN 1 END) as offline
+            FROM sensors 
             WHERE user_id = %s
         """, (user_id,))
         
@@ -769,8 +769,8 @@ async def get_all_users_admin(db, filters: dict = None) -> List[Dict[str, Any]]:
             FROM users u
             LEFT JOIN (
                 SELECT user_id, COUNT(*) as device_count
-                FROM devices 
-                WHERE connected = true
+                FROM sensors 
+                WHERE status = 'active'
                 GROUP BY user_id
             ) device_counts ON u.id = device_counts.user_id
         """
@@ -843,8 +843,8 @@ async def get_user_by_id_admin(db, user_id: int) -> Optional[Dict[str, Any]]:
             FROM users u
             LEFT JOIN (
                 SELECT user_id, COUNT(*) as device_count
-                FROM devices 
-                WHERE connected = true AND user_id = %s
+                FROM sensors 
+                WHERE status = 'active' AND user_id = %s
                 GROUP BY user_id
             ) device_counts ON u.id = device_counts.user_id
             WHERE u.id = %s
@@ -1204,22 +1204,35 @@ async def verify_email_with_code(db, email: str, code: str) -> bool:
 
 async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]]:
     """
-    Obtiene todos los dispositivos para el panel de administración
+    Obtiene todos los sensores/dispositivos para el panel de administración
+    Usa la tabla sensors (v2 con UUID) en lugar de devices
     
     Args:
         db: Instancia de AsyncPgDbToolkit
         filters: Filtros opcionales
         
     Returns:
-        List[Dict]: Lista de dispositivos con información completa
+        List[Dict]: Lista de sensores con información completa
     """
     try:
         base_query = """
-            SELECT d.*, 
+            SELECT s.id::text as id,
+                   s.device_id as device_code,
+                   s.name,
+                   s.device_type,
+                   NULL as location,
+                   NULL as plant_type,
+                   s.user_id,
+                   s.plant_id,
                    u.first_name || ' ' || u.last_name as user_name,
-                   u.email as user_email
-            FROM devices d
-            LEFT JOIN users u ON d.user_id = u.id
+                   u.email as user_email,
+                   s.created_at,
+                   s.last_connection as last_seen,
+                   s.last_connection as connected_at,
+                   (s.status = 'active') as active,
+                   (s.last_connection > NOW() - INTERVAL '1 hour') as connected
+            FROM sensors s
+            LEFT JOIN users u ON s.user_id = u.id
         """
         
         conditions = []
@@ -1227,24 +1240,29 @@ async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]
         
         if filters:
             if filters.get("device_type"):
-                conditions.append("d.device_type = %s")
+                conditions.append("s.device_type = %s")
                 params.append(filters["device_type"])
             
             if filters.get("connected") is not None:
-                conditions.append("d.connected = %s")
-                params.append(filters["connected"])
+                # connected se determina por last_connection reciente
+                if filters["connected"]:
+                    conditions.append("s.last_connection > NOW() - INTERVAL '1 hour'")
+                else:
+                    conditions.append("(s.last_connection IS NULL OR s.last_connection <= NOW() - INTERVAL '1 hour')")
             
             if filters.get("active") is not None:
-                conditions.append("d.active = %s")
-                params.append(filters["active"])
+                if filters["active"]:
+                    conditions.append("s.status = 'active'")
+                else:
+                    conditions.append("s.status != 'active'")
             
             if filters.get("user_id"):
-                conditions.append("d.user_id = %s")
+                conditions.append("s.user_id = %s")
                 params.append(filters["user_id"])
             
             if filters.get("search"):
                 conditions.append("""
-                    (d.device_code ILIKE %s OR d.name ILIKE %s 
+                    (s.device_id ILIKE %s OR s.name ILIKE %s 
                      OR u.email ILIKE %s OR u.first_name ILIKE %s OR u.last_name ILIKE %s)
                 """)
                 search_term = f"%{filters['search']}%"
@@ -1253,7 +1271,7 @@ async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]
         if conditions:
             base_query += " WHERE " + " AND ".join(conditions)
         
-        base_query += " ORDER BY d.created_at DESC"
+        base_query += " ORDER BY s.created_at DESC"
         
         # Paginación
         if filters and filters.get("page") and filters.get("limit"):
@@ -1267,7 +1285,7 @@ async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]
         return []
         
     except Exception as e:
-        logger.error(f"Error obteniendo dispositivos para admin: {str(e)}")
+        logger.error(f"Error obteniendo sensores para admin: {str(e)}")
         return []
 
 async def get_admin_stats(db) -> Dict[str, Any]:
@@ -1293,24 +1311,24 @@ async def get_admin_stats(db) -> Dict[str, Any]:
             FROM users
         """)
         
-        # Estadísticas de dispositivos
+        # Estadísticas de sensores (usando tabla sensors v2)
         devices_stats = await db.execute_query("""
             SELECT 
                 COUNT(*) as total_devices,
-                COUNT(CASE WHEN connected = true THEN 1 END) as connected_devices,
-                COUNT(CASE WHEN connected = false THEN 1 END) as unconnected_devices,
-                COUNT(CASE WHEN active = true THEN 1 END) as active_devices,
+                COUNT(CASE WHEN last_connection > NOW() - INTERVAL '1 hour' THEN 1 END) as connected_devices,
+                COUNT(CASE WHEN last_connection IS NULL OR last_connection <= NOW() - INTERVAL '1 hour' THEN 1 END) as unconnected_devices,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_devices,
                 COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as new_devices_today,
                 COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as new_devices_week
-            FROM devices
+            FROM sensors
         """)
         
-        # Estadísticas de lecturas
+        # Estadísticas de lecturas (usando tabla sensor_readings v2)
         readings_stats = await db.execute_query("""
             SELECT 
-                COUNT(CASE WHEN fecha >= CURRENT_DATE THEN 1 END) as total_readings_today,
-                COUNT(CASE WHEN fecha >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as total_readings_week
-            FROM sensor_humedad_suelo
+                COUNT(CASE WHEN timestamp >= CURRENT_DATE THEN 1 END) as total_readings_today,
+                COUNT(CASE WHEN timestamp >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as total_readings_week
+            FROM sensor_readings
         """)
         
         stats = {}
@@ -1367,38 +1385,41 @@ async def bulk_update_users(db, user_ids: List[int], action: str) -> bool:
         logger.error(f"Error en acción en lote de usuarios: {str(e)}")
         return False
 
-async def bulk_update_devices(db, device_ids: List[int], action: str) -> bool:
+async def bulk_update_devices(db, device_ids: List[Any], action: str) -> bool:
     """
-    Realiza acciones en lote sobre dispositivos
+    Realiza acciones en lote sobre sensores (v2 con UUID)
     
     Args:
         db: Instancia de AsyncPgDbToolkit
-        device_ids: Lista de IDs de dispositivos
+        device_ids: Lista de IDs UUID de sensores (pueden ser strings o UUIDs)
         action: Acción a realizar (activate, deactivate, disconnect, delete)
         
     Returns:
         bool: True si se realizó correctamente
     """
     try:
+        # Convertir todos los IDs a strings para trabajar con UUIDs
+        device_ids_str = [str(did) for did in device_ids]
+        
         if action == "activate":
             await db.execute_query(
-                f"UPDATE devices SET active = true WHERE id = ANY(%s)",
-                (device_ids,)
+                "UPDATE sensors SET status = 'active' WHERE id::text = ANY(%s)",
+                (device_ids_str,)
             )
         elif action == "deactivate":
             await db.execute_query(
-                f"UPDATE devices SET active = false WHERE id = ANY(%s)",
-                (device_ids,)
+                "UPDATE sensors SET status = 'inactive' WHERE id::text = ANY(%s)",
+                (device_ids_str,)
             )
         elif action == "disconnect":
             await db.execute_query(
-                f"UPDATE devices SET user_id = NULL, connected = false WHERE id = ANY(%s)",
-                (device_ids,)
+                "UPDATE sensors SET user_id = NULL, plant_id = NULL WHERE id::text = ANY(%s)",
+                (device_ids_str,)
             )
         elif action == "delete":
             await db.execute_query(
-                f"DELETE FROM devices WHERE id = ANY(%s)",
-                (device_ids,)
+                "DELETE FROM sensors WHERE id::text = ANY(%s)",
+                (device_ids_str,)
             )
         else:
             return False
@@ -1406,5 +1427,5 @@ async def bulk_update_devices(db, device_ids: List[int], action: str) -> bool:
         return True
         
     except Exception as e:
-        logger.error(f"Error en acción en lote de dispositivos: {str(e)}")
+        logger.error(f"Error en acción en lote de sensores: {str(e)}")
         return False

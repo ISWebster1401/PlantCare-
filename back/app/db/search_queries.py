@@ -46,8 +46,8 @@ async def advanced_user_search(
             FROM users u
             LEFT JOIN (
                 SELECT user_id, COUNT(*) as device_count
-                FROM devices 
-                WHERE connected = true
+                FROM sensors 
+                WHERE status = 'active'
                 GROUP BY user_id
             ) device_counts ON u.id = device_counts.user_id
         """
@@ -162,12 +162,24 @@ async def advanced_device_search(
     try:
         offset = (page - 1) * limit
         
-        # Query principal con búsqueda
+        # Query principal con búsqueda (usando tabla sensors v2)
         base_query = """
-            SELECT d.*,
+            SELECT d.id::text as id,
+                   d.device_id as device_code,
+                   d.name,
+                   d.device_type,
+                   NULL as location,
+                   NULL as plant_type,
+                   d.user_id,
+                   d.plant_id,
                    u.first_name || ' ' || u.last_name as user_name,
-                   u.email as user_email
-            FROM devices d
+                   u.email as user_email,
+                   d.created_at,
+                   d.last_connection as last_seen,
+                   d.last_connection as connected_at,
+                   (d.status = 'active') as active,
+                   (d.last_connection > NOW() - INTERVAL '1 hour') as connected
+            FROM sensors d
             LEFT JOIN users u ON d.user_id = u.id
         """
         
@@ -177,7 +189,7 @@ async def advanced_device_search(
         # Condiciones de búsqueda
         if search_term:
             conditions.append("""
-                (d.device_code ILIKE %s OR d.name ILIKE %s 
+                (d.device_id ILIKE %s OR d.name ILIKE %s 
                  OR u.email ILIKE %s OR u.first_name ILIKE %s OR u.last_name ILIKE %s)
             """)
             search_pattern = f"%{search_term}%"
@@ -188,12 +200,17 @@ async def advanced_device_search(
             params.append(device_type)
         
         if connected is not None:
-            conditions.append("d.connected = %s")
-            params.append(connected)
+            # connected se determina por last_connection reciente
+            if connected:
+                conditions.append("d.last_connection > NOW() - INTERVAL '1 hour'")
+            else:
+                conditions.append("(d.last_connection IS NULL OR d.last_connection <= NOW() - INTERVAL '1 hour')")
         
         if active is not None:
-            conditions.append("d.active = %s")
-            params.append(active)
+            if active:
+                conditions.append("d.status = 'active'")
+            else:
+                conditions.append("d.status != 'active'")
         
         if user_id:
             conditions.append("d.user_id = %s")
@@ -206,7 +223,7 @@ async def advanced_device_search(
         # Query para contar totales
         count_query = """
             SELECT COUNT(*) as total
-            FROM devices d
+            FROM sensors d
             LEFT JOIN users u ON d.user_id = u.id
         """
         if conditions:
@@ -227,11 +244,11 @@ async def advanced_device_search(
         agg_query = """
             SELECT 
                 COUNT(*) as total_devices,
-                COUNT(*) FILTER (WHERE connected = true) as connected_devices,
-                COUNT(*) FILTER (WHERE active = true) as active_devices,
+                COUNT(*) FILTER (WHERE last_connection > NOW() - INTERVAL '1 hour') as connected_devices,
+                COUNT(*) FILTER (WHERE status = 'active') as active_devices,
                 COUNT(*) FILTER (WHERE device_type = 'humidity_sensor') as humidity_sensors,
-                AVG(CASE WHEN last_seen > NOW() - INTERVAL '24 hours' THEN 1 ELSE 0 END) as recent_activity_rate
-            FROM devices d
+                AVG(CASE WHEN last_connection > NOW() - INTERVAL '24 hours' THEN 1 ELSE 0 END) as recent_activity_rate
+            FROM sensors d
         """
         if conditions:
             agg_query += " LEFT JOIN users u ON d.user_id = u.id"
@@ -320,18 +337,18 @@ async def get_sensor_stats_by_device(
     try:
         query = """
             SELECT 
-                d.id as device_id,
-                d.device_code,
+                d.id::text as device_id,
+                d.device_id as device_code,
                 d.name,
-                COUNT(s.id) as reading_count,
-                AVG(s.valor) as avg_humidity,
-                MAX(s.valor) as max_humidity,
-                MIN(s.valor) as min_humidity,
-                MAX(s.fecha) as last_reading_date
-            FROM devices d
-            LEFT JOIN sensor_humedad_suelo s ON d.id = s.device_id
-            WHERE d.user_id = %s AND d.connected = true
-            GROUP BY d.id, d.device_code, d.name
+                COUNT(sr.id) as reading_count,
+                AVG(sr.soil_moisture) as avg_humidity,
+                MAX(sr.soil_moisture) as max_humidity,
+                MIN(sr.soil_moisture) as min_humidity,
+                MAX(sr.timestamp) as last_reading_date
+            FROM sensors d
+            LEFT JOIN sensor_readings sr ON d.id = sr.sensor_id
+            WHERE d.user_id = %s AND d.status = 'active'
+            GROUP BY d.id, d.device_id, d.name
             ORDER BY last_reading_date DESC NULLS LAST
         """
         
