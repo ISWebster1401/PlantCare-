@@ -33,11 +33,17 @@ def require_admin(current_user: dict = Depends(get_current_active_user)):
     """Middleware para verificar que el usuario sea administrador (role_id = 2)"""
     role_id = current_user.get("role_id")
     
+    # Log temporal para debug
+    logger.info(f"[DEBUG ADMIN] Usuario intentando acceder: email={current_user.get('email')}, role_id={role_id}, tipo={type(role_id)}, user_keys={list(current_user.keys())}")
+    
     if role_id != 2:
+        logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} (esperado: 2)")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acceso denegado. Se requieren permisos de administrador."
         )
+    
+    logger.info(f"[DEBUG ADMIN] Acceso permitido para usuario {current_user.get('email')}")
     return current_user
 
 # ===============================================
