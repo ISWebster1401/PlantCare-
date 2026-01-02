@@ -73,7 +73,7 @@ async def advanced_user_search(
             params.append(role_id)
         
         if active is not None:
-            conditions.append("u.active = %s")
+            conditions.append("u.is_active = %s")
             params.append(active)
         
         # Agregar WHERE si hay condiciones
@@ -103,7 +103,7 @@ async def advanced_user_search(
         agg_query = """
             SELECT 
                 COUNT(*) as total_users,
-                COUNT(*) FILTER (WHERE active = true) as active_users,
+                COUNT(*) FILTER (WHERE is_active = true) as active_users,
                 COUNT(*) FILTER (WHERE role_id = 2) as admin_users,
                 COUNT(*) FILTER (WHERE region IS NOT NULL) as users_with_region
             FROM users u
