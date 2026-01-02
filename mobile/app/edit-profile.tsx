@@ -17,15 +17,19 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { authAPI } from '../services/api';
 
 export default function EditProfileScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
   const { user, refreshUser } = useAuth();
   
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingEmail, setIsChangingEmail] = useState(false);
+  
+  const styles = createStyles(theme.colors);
 
   const handleSaveName = async () => {
     if (!fullName.trim() || fullName.trim() === user?.full_name) {
@@ -40,14 +44,29 @@ export default function EditProfileScreen() {
     setIsSaving(true);
     try {
       const updatedUser = await authAPI.updateMe(fullName.trim());
-      await refreshUser();
+      try {
+        await refreshUser();
+      } catch (refreshError) {
+        // Si refreshUser falla (puede ser por token expirado), no es crítico
+        // El usuario ya se actualizó en el backend
+        console.warn('No se pudo refrescar usuario, pero la actualización fue exitosa:', refreshError);
+      }
       Alert.alert('Éxito', 'Nombre actualizado correctamente');
     } catch (error: any) {
       console.error('Error actualizando nombre:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.detail || 'No se pudo actualizar el nombre'
-      );
+      // Si es 401, el interceptor ya limpió la sesión
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        Alert.alert(
+          'Sesión expirada',
+          'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.'
+        );
+        router.replace('/(auth)/login');
+      } else {
+        Alert.alert(
+          'Error',
+          error.response?.data?.detail || 'No se pudo actualizar el nombre'
+        );
+      }
     } finally {
       setIsSaving(false);
     }
@@ -112,7 +131,7 @@ export default function EditProfileScreen() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Editar Perfil</Text>
         <View style={styles.placeholder} />
@@ -125,7 +144,7 @@ export default function EditProfileScreen() {
           <TextInput
             style={styles.input}
             placeholder="Tu nombre completo"
-            placeholderTextColor="#64748b"
+            placeholderTextColor={theme.colors.textTertiary}
             value={fullName}
             onChangeText={setFullName}
             editable={!isSaving}
@@ -136,10 +155,10 @@ export default function EditProfileScreen() {
             disabled={isSaving || fullName.trim() === user?.full_name || !fullName.trim()}
           >
             {isSaving ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={theme.colors.text} />
             ) : (
               <>
-                <Ionicons name="checkmark" size={20} color="#fff" />
+                <Ionicons name="checkmark" size={20} color={theme.colors.text} />
                 <Text style={styles.saveButtonText}>Guardar Nombre</Text>
               </>
             )}
@@ -153,7 +172,7 @@ export default function EditProfileScreen() {
             <View style={styles.emailInfo}>
               <Text style={styles.emailText}>{user?.email}</Text>
               <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="#4caf50" />
+                <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
                 <Text style={styles.verifiedText}>Verificado</Text>
               </View>
             </View>
@@ -163,10 +182,10 @@ export default function EditProfileScreen() {
               disabled={isChangingEmail}
             >
               {isChangingEmail ? (
-                <ActivityIndicator color="#4caf50" />
+                <ActivityIndicator color={theme.colors.primary} />
               ) : (
                 <>
-                  <Ionicons name="mail-outline" size={20} color="#4caf50" />
+                  <Ionicons name="mail-outline" size={20} color={theme.colors.primary} />
                   <Text style={styles.changeEmailText}>Cambiar Email</Text>
                 </>
               )}
@@ -178,10 +197,10 @@ export default function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -191,7 +210,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: colors.border,
   },
   backButton: {
     padding: 8,
@@ -199,7 +218,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
   },
   placeholder: {
     width: 40,
@@ -211,40 +230,40 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   section: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 12,
   },
   input: {
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
+    color: colors.text,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 14,
     gap: 8,
   },
   saveButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -256,14 +275,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   emailText: {
     fontSize: 16,
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     flex: 1,
   },
   verifiedBadge: {
@@ -274,7 +293,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: 14,
-    color: '#4caf50',
+    color: colors.primary,
     fontWeight: '500',
   },
   changeEmailButton: {
@@ -285,11 +304,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 2,
-    borderColor: '#4caf50',
+    borderColor: colors.primary,
     gap: 8,
   },
   changeEmailText: {
-    color: '#4caf50',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },

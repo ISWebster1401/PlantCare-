@@ -15,14 +15,18 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { plantsAPI } from '../services/api';
 import { PlantResponse } from '../types';
+import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function PlantDetailScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const [plant, setPlant] = useState<PlantResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const styles = createStyles(theme.colors);
 
   useEffect(() => {
     loadPlant();
@@ -102,11 +106,11 @@ export default function PlantDetailScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
           </TouchableOpacity>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4caf50" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Cargando planta...</Text>
         </View>
       </View>
@@ -118,11 +122,11 @@ export default function PlantDetailScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
           </TouchableOpacity>
         </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color="#f44336" />
+          <Ionicons name="alert-circle-outline" size={64} color={theme.colors.error} />
           <Text style={styles.errorText}>{error || 'Planta no encontrada'}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadPlant}>
             <Text style={styles.retryButtonText}>Reintentar</Text>
@@ -137,7 +141,7 @@ export default function PlantDetailScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {plant.plant_name}
@@ -156,7 +160,7 @@ export default function PlantDetailScreen() {
             />
           ) : (
             <View style={styles.imagePlaceholder}>
-              <Ionicons name="cube-outline" size={64} color="#4caf50" />
+              <Ionicons name="cube-outline" size={64} color={theme.colors.primary} />
               <Text style={styles.placeholderText}>Render 3D</Text>
               <Text style={styles.placeholderSubtext}>Próximamente</Text>
             </View>
@@ -207,9 +211,9 @@ export default function PlantDetailScreen() {
         {plant.sensor_id && (
           <View style={styles.actionSection}>
             <TouchableOpacity style={styles.sensorButton} onPress={handleGoToSensor}>
-              <Ionicons name="hardware-chip" size={24} color="#fff" />
+              <Ionicons name="hardware-chip" size={24} color={theme.colors.text} />
               <Text style={styles.sensorButtonText}>Ir al Sensor</Text>
-              <Ionicons name="chevron-forward" size={20} color="#fff" />
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
         )}
@@ -221,10 +225,10 @@ export default function PlantDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -233,7 +237,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: colors.border,
   },
   backButton: {
     padding: 8,
@@ -243,7 +247,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 20,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
   },
   headerSpacer: {
     width: 40,
@@ -256,7 +260,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
@@ -267,18 +271,18 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#f44336',
+    color: colors.error,
     textAlign: 'center',
     marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
   retryButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -294,29 +298,29 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 16,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
   },
   imagePlaceholder: {
     width: 200,
     height: 200,
     borderRadius: 16,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#334155',
+    borderColor: colors.border,
     borderStyle: 'dashed',
   },
   placeholderText: {
     marginTop: 16,
     fontSize: 16,
     fontWeight: '600',
-    color: '#4caf50',
+    color: colors.primary,
   },
   placeholderSubtext: {
     marginTop: 4,
     fontSize: 12,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
   infoSection: {
     paddingHorizontal: 24,
@@ -325,12 +329,12 @@ const styles = StyleSheet.create({
   plantType: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 8,
   },
   careLevel: {
     fontSize: 14,
-    color: '#b0bec5',
+    color: colors.textSecondary,
   },
   statusSection: {
     flexDirection: 'row',
@@ -340,11 +344,11 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   statusHeader: {
     flexDirection: 'row',
@@ -363,14 +367,14 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     fontSize: 12,
-    color: '#b0bec5',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   statusValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
   },
   tipsSection: {
     paddingHorizontal: 24,
@@ -379,27 +383,27 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 12,
   },
   tipsCard: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   tipsText: {
     fontSize: 15,
     lineHeight: 24,
-    color: '#e2e8f0',
+    color: colors.textSecondary,
   },
   actionSection: {
     paddingHorizontal: 24,
     marginBottom: 24,
   },
   sensorButton: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -407,7 +411,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sensorButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
