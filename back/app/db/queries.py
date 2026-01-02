@@ -254,13 +254,14 @@ async def update_user(db, user_id: int, user_data: Dict[str, Any]) -> Optional[D
 async def update_user_last_login(db, user_id: int) -> bool:
     """
     Actualiza el último login de un usuario usando pgdbtoolkit
+    Nota: La columna last_login puede no existir en todas las versiones de la BD
     
     Args:
         db: Instancia de AsyncPgDbToolkit
         user_id: ID del usuario
         
     Returns:
-        bool: True si se actualizó correctamente
+        bool: True si se actualizó correctamente, False si la columna no existe
     """
     try:
         await db.execute_query(
@@ -269,6 +270,11 @@ async def update_user_last_login(db, user_id: int) -> bool:
         )
         return True
     except Exception as e:
+        # Si la columna no existe, simplemente retornar False sin loggear error
+        error_msg = str(e).lower()
+        if "last_login" in error_msg and "does not exist" in error_msg:
+            logger.debug(f"Columna last_login no existe, omitiendo actualización para usuario {user_id}")
+            return False
         logger.error(f"Error actualizando último login: {str(e)}")
         return False
 
@@ -1288,6 +1294,221 @@ async def get_all_devices_admin(db, filters: dict = None) -> List[Dict[str, Any]
         logger.error(f"Error obteniendo sensores para admin: {str(e)}")
         return []
 
+# ===============================================
+# FUNCIONES SIMPLIFICADAS PARA ADMIN
+# ===============================================
+
+async def get_users_admin_simple(db) -> List[Dict[str, Any]]:
+    """
+    Obtiene lista simplificada de usuarios para admin
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        
+    Returns:
+        List[Dict]: Lista de usuarios con conteos de plantas y sensores
+    """
+    try:
+        result = await db.execute_query("""
+            SELECT 
+                u.id,
+                u.email,
+                u.full_name,
+                u.is_active,
+                COUNT(DISTINCT p.id) as plants_count,
+                COUNT(DISTINCT s.id) as sensors_count
+            FROM users u
+            LEFT JOIN plants p ON p.user_id = u.id
+            LEFT JOIN sensors s ON s.user_id = u.id
+            GROUP BY u.id, u.email, u.full_name, u.is_active
+            ORDER BY u.created_at DESC
+        """)
+        
+        if result is not None and not result.empty:
+            return result.to_dict('records')
+        return []
+    except Exception as e:
+        logger.error(f"Error obteniendo usuarios para admin: {str(e)}")
+        return []
+
+async def get_plants_admin_simple(db) -> List[Dict[str, Any]]:
+    """
+    Obtiene lista simplificada de plantas para admin
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        
+    Returns:
+        List[Dict]: Lista de plantas con info de usuario y sensor
+    """
+    try:
+        result = await db.execute_query("""
+            SELECT 
+                p.id,
+                p.plant_name,
+                p.plant_type,
+                u.email as user_email,
+                CASE WHEN p.sensor_id IS NOT NULL THEN true ELSE false END as sensor_connected,
+                s.device_id as sensor_device_id
+            FROM plants p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN sensors s ON p.sensor_id = s.id
+            ORDER BY p.created_at DESC
+        """)
+        
+        if result is not None and not result.empty:
+            return result.to_dict('records')
+        return []
+    except Exception as e:
+        logger.error(f"Error obteniendo plantas para admin: {str(e)}")
+        return []
+
+async def get_sensors_admin_simple(db) -> List[Dict[str, Any]]:
+    """
+    Obtiene lista simplificada de sensores para admin
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        
+    Returns:
+        List[Dict]: Lista de sensores con info de usuario y planta
+    """
+    try:
+        result = await db.execute_query("""
+            SELECT 
+                s.id::text as id,
+                s.device_id,
+                s.name,
+                u.email as user_email,
+                p.plant_name,
+                s.status,
+                s.last_connection,
+                CASE WHEN s.last_connection > NOW() - INTERVAL '1 hour' THEN true ELSE false END as is_connected
+            FROM sensors s
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN plants p ON s.plant_id = p.id
+            ORDER BY s.created_at DESC
+        """)
+        
+        if result is not None and not result.empty:
+            return result.to_dict('records')
+        return []
+    except Exception as e:
+        logger.error(f"Error obteniendo sensores para admin: {str(e)}")
+        return []
+
+async def get_user_detail_admin(db, user_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene detalle de usuario para admin
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        user_id: ID del usuario
+        
+    Returns:
+        Dict: Detalle del usuario o None
+    """
+    try:
+        result = await db.execute_query("""
+            SELECT 
+                u.id,
+                u.email,
+                u.full_name,
+                u.is_active,
+                u.is_verified,
+                u.created_at,
+                COUNT(DISTINCT p.id) as plants_count,
+                COUNT(DISTINCT s.id) as sensors_count
+            FROM users u
+            LEFT JOIN plants p ON p.user_id = u.id
+            LEFT JOIN sensors s ON s.user_id = u.id
+            WHERE u.id = %s
+            GROUP BY u.id, u.email, u.full_name, u.is_active, u.is_verified, u.created_at
+        """, (user_id,))
+        
+        if result is not None and not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+    except Exception as e:
+        logger.error(f"Error obteniendo detalle de usuario para admin: {str(e)}")
+        return None
+
+async def get_plant_detail_admin(db, plant_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene detalle de planta para admin
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        plant_id: ID de la planta
+        
+    Returns:
+        Dict: Detalle de la planta o None
+    """
+    try:
+        result = await db.execute_query("""
+            SELECT 
+                p.id,
+                p.plant_name,
+                p.plant_type,
+                p.scientific_name,
+                p.health_status,
+                u.email as user_email,
+                u.id as user_id,
+                p.sensor_id::text as sensor_id,
+                s.device_id as sensor_device_id,
+                p.created_at
+            FROM plants p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN sensors s ON p.sensor_id = s.id
+            WHERE p.id = %s
+        """, (plant_id,))
+        
+        if result is not None and not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+    except Exception as e:
+        logger.error(f"Error obteniendo detalle de planta para admin: {str(e)}")
+        return None
+
+async def get_sensor_detail_admin(db, sensor_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene detalle de sensor para admin
+    
+    Args:
+        db: Instancia de AsyncPgDbToolkit
+        sensor_id: ID del sensor (UUID como string)
+        
+    Returns:
+        Dict: Detalle del sensor o None
+    """
+    try:
+        result = await db.execute_query("""
+            SELECT 
+                s.id::text as id,
+                s.device_id,
+                s.name,
+                s.device_type,
+                s.status,
+                s.user_id,
+                u.email as user_email,
+                s.plant_id,
+                p.plant_name,
+                CASE WHEN s.last_connection > NOW() - INTERVAL '1 hour' THEN true ELSE false END as is_connected,
+                s.last_connection,
+                s.created_at
+            FROM sensors s
+            LEFT JOIN users u ON s.user_id = u.id
+            LEFT JOIN plants p ON s.plant_id = p.id
+            WHERE s.id::text = %s
+        """, (sensor_id,))
+        
+        if result is not None and not result.empty:
+            return result.iloc[0].to_dict()
+        return None
+    except Exception as e:
+        logger.error(f"Error obteniendo detalle de sensor para admin: {str(e)}")
+        return None
+
 async def get_admin_stats(db) -> Dict[str, Any]:
     """
     Obtiene estadísticas generales para el panel de administración
@@ -1299,66 +1520,26 @@ async def get_admin_stats(db) -> Dict[str, Any]:
         Dict: Estadísticas del sistema
     """
     try:
-        # Estadísticas de usuarios
-        users_stats = await db.execute_query("""
+        # Estadísticas simplificadas
+        stats_query = await db.execute_query("""
             SELECT 
-                COUNT(*) as total_users,
-                COUNT(CASE WHEN is_active = true THEN 1 END) as active_users,
-                COUNT(CASE WHEN is_active = false THEN 1 END) as inactive_users,
-                COUNT(CASE WHEN role_id = 2 THEN 1 END) as admin_users,
-                COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as new_users_today,
-                COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as new_users_week
-            FROM users
+                (SELECT COUNT(*) FROM users) as total_users,
+                (SELECT COUNT(*) FROM users WHERE is_active = true) as active_users,
+                (SELECT COUNT(*) FROM sensors) as total_sensors,
+                (SELECT COUNT(*) FROM sensors WHERE last_connection > NOW() - INTERVAL '1 hour') as connected_sensors,
+                (SELECT COUNT(*) FROM plants) as total_plants
         """)
         
-        # Estadísticas de sensores (usando tabla sensors v2)
-        devices_stats = await db.execute_query("""
-            SELECT 
-                COUNT(*) as total_devices,
-                COUNT(CASE WHEN last_connection > NOW() - INTERVAL '1 hour' THEN 1 END) as connected_devices,
-                COUNT(CASE WHEN last_connection IS NULL OR last_connection <= NOW() - INTERVAL '1 hour' THEN 1 END) as unconnected_devices,
-                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_devices,
-                COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as new_devices_today,
-                COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as new_devices_week
-            FROM sensors
-        """)
+        if stats_query is not None and not stats_query.empty:
+            return stats_query.iloc[0].to_dict()
         
-        # Estadísticas de lecturas (usando tabla sensor_readings v2)
-        readings_stats = await db.execute_query("""
-            SELECT 
-                COUNT(CASE WHEN timestamp >= CURRENT_DATE THEN 1 END) as total_readings_today,
-                COUNT(CASE WHEN timestamp >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as total_readings_week
-            FROM sensor_readings
-        """)
-        
-        # Valores por defecto
-        stats = {
+        return {
             "total_users": 0,
             "active_users": 0,
-            "inactive_users": 0,
-            "admin_users": 0,
-            "total_devices": 0,
-            "connected_devices": 0,
-            "unconnected_devices": 0,
-            "active_devices": 0,
-            "total_readings_today": 0,
-            "total_readings_week": 0,
-            "new_users_today": 0,
-            "new_users_week": 0,
-            "new_devices_today": 0,
-            "new_devices_week": 0,
+            "total_sensors": 0,
+            "connected_sensors": 0,
+            "total_plants": 0
         }
-        
-        if users_stats is not None and not users_stats.empty:
-            stats.update(users_stats.iloc[0].to_dict())
-        
-        if devices_stats is not None and not devices_stats.empty:
-            stats.update(devices_stats.iloc[0].to_dict())
-        
-        if readings_stats is not None and not readings_stats.empty:
-            stats.update(readings_stats.iloc[0].to_dict())
-        
-        return stats
         
     except Exception as e:
         logger.error(f"Error obteniendo estadísticas de admin: {str(e)}")
