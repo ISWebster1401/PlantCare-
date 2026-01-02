@@ -373,6 +373,9 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
+        # Log temporal para debug
+        logger.info(f"[DEBUG AUTH] Usuario obtenido de BD: email={user.get('email')}, role_id={user.get('role_id')}, keys={list(user.keys())}")
+        
         return user
         
     except HTTPException:
