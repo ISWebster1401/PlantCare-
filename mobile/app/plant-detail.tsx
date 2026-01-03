@@ -158,6 +158,14 @@ export default function PlantDetailScreen() {
               style={styles.plantImage}
               resizeMode="contain"
             />
+          ) : plant.model_3d_url ? (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="cube" size={64} color={theme.colors.primary} />
+              <Text style={styles.placeholderText}>Modelo 3D Asignado</Text>
+              <Text style={styles.placeholderSubtext}>
+                {plant.model_3d_url.includes('box') ? 'Box.glb' : 'Modelo 3D'}
+              </Text>
+            </View>
           ) : (
             <View style={styles.imagePlaceholder}>
               <Ionicons name="cube-outline" size={64} color={theme.colors.primary} />

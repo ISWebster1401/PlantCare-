@@ -64,6 +64,8 @@ export interface PlantResponse {
   optimal_temp_max: number | null;
   created_at: string;
   updated_at: string | null;
+  assigned_model_id?: number | null;
+  model_3d_url?: string | null;
 }
 
 export interface PlantIdentify {

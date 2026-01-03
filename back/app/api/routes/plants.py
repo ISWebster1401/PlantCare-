@@ -102,6 +102,7 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
         logger.info(f"✅ Registro creado en plant_model_assignments (id: {assignment_id})")
         
         # 4. Si el modelo tiene default_render_url y no es placeholder, actualizar character_image_url
+        # Si no hay default_render_url pero hay model_3d_url, usar una imagen placeholder genérica
         if default_render_url and not default_render_url.startswith("PLACEHOLDER_"):
             await db.execute_query("""
                 UPDATE plants
@@ -109,6 +110,11 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
                 WHERE id = %s
             """, (default_render_url, plant_id))
             logger.info(f"✅ character_image_url actualizado con default_render_url del modelo")
+        else:
+            # Si no hay render, obtener el model_3d_url para referencia futura
+            # Por ahora dejamos character_image_url como NULL y el frontend mostrará el placeholder
+            # En el futuro se podría generar un render automático o usar un viewer 3D
+            logger.info(f"⚠️ Modelo asignado pero no tiene default_render_url, character_image_url no se actualizará")
         
         return model_id
         

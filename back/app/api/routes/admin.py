@@ -256,6 +256,70 @@ async def get_sensor_detail(
         )
 
 # ===============================================
+# ENDPOINT PARA CONFIGURAR MODELO PREDETERMINADO
+# ===============================================
+
+@router.post("/models/set-box-default")
+async def set_box_as_default(
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Configura box.glb como modelo predeterminado para todas las plantas"""
+    try:
+        # 1. Buscar el modelo box.glb
+        result = await db.execute_query("""
+            SELECT id, name, plant_type, model_3d_url, is_default
+            FROM plant_models
+            WHERE name ILIKE '%box%' OR model_3d_url ILIKE '%box%'
+            ORDER BY id DESC
+            LIMIT 1
+        """)
+        
+        if result is None or result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se encontró ningún modelo con 'box' en el nombre o URL"
+            )
+        
+        model_id = result.iloc[0]["id"]
+        model_name = result.iloc[0]["name"]
+        model_url = result.iloc[0]["model_3d_url"]
+        
+        # 2. Desactivar otros modelos predeterminados
+        await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = FALSE
+            WHERE id != %s AND is_default = TRUE
+        """, (model_id,))
+        
+        # 3. Configurar box.glb como predeterminado con plant_type = 'Planta'
+        await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = TRUE, plant_type = 'Planta'
+            WHERE id = %s
+        """, (model_id,))
+        
+        logger.info(f"✅ Modelo box.glb (ID: {model_id}) configurado como predeterminado")
+        
+        return {
+            "message": "Modelo box.glb configurado como predeterminado exitosamente",
+            "model_id": int(model_id),
+            "model_name": str(model_name),
+            "model_url": str(model_url),
+            "plant_type": "Planta",
+            "is_default": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error configurando box.glb como predeterminado: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor: {str(e)}"
+        )
+
+# ===============================================
 # ENDPOINT DE DEBUG TEMPORAL
 # ===============================================
 
