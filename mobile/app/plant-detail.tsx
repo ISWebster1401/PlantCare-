@@ -17,6 +17,7 @@ import { plantsAPI } from '../services/api';
 import { PlantResponse } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { Model3DViewer } from '../components/Model3DViewer';
 
 export default function PlantDetailScreen() {
   const { theme } = useTheme();
@@ -159,12 +160,12 @@ export default function PlantDetailScreen() {
               resizeMode="contain"
             />
           ) : plant.model_3d_url ? (
-            <View style={styles.imagePlaceholder}>
-              <Ionicons name="cube" size={64} color={theme.colors.primary} />
-              <Text style={styles.placeholderText}>Modelo 3D Asignado</Text>
-              <Text style={styles.placeholderSubtext}>
-                {plant.model_3d_url.includes('box') ? 'Box.glb' : 'Modelo 3D'}
-              </Text>
+            <View style={styles.model3dContainer}>
+              <Model3DViewer 
+                modelUrl={plant.model_3d_url} 
+                style={styles.model3dViewer}
+                autoRotate={true}
+              />
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
@@ -307,6 +308,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 200,
     borderRadius: 16,
     backgroundColor: colors.surface,
+  },
+  model3dContainer: {
+    width: 200,
+    height: 200,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  model3dViewer: {
+    flex: 1,
   },
   imagePlaceholder: {
     width: 200,
