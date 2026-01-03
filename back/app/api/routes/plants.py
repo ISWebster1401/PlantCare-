@@ -413,7 +413,8 @@ async def list_plants(
                 p.*,
                 pma.id as assignment_id,
                 pma.model_id as assigned_model_id,
-                pm.model_3d_url
+                pm.model_3d_url,
+                pm.default_render_url
             FROM plants p
             LEFT JOIN plant_model_assignments pma ON p.id = pma.plant_id
             LEFT JOIN plant_models pm ON pma.model_id = pm.id
@@ -463,7 +464,8 @@ async def get_plant(
                 p.*,
                 pma.id as assignment_id,
                 pma.model_id as assigned_model_id,
-                pm.model_3d_url
+                pm.model_3d_url,
+                pm.default_render_url
             FROM plants p
             LEFT JOIN plant_model_assignments pma ON p.id = pma.plant_id
             LEFT JOIN plant_models pm ON pma.model_id = pm.id

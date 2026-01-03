@@ -93,7 +93,8 @@ class PlantResponse(BaseModel):
     updated_at: Optional[datetime]
     # Campos de modelo 3D
     assigned_model_id: Optional[int] = None
-    model_3d_url: Optional[str] = None  # URL del modelo 3D asignado
+    model_3d_url: Optional[str] = None
+    default_render_url: Optional[str] = None  # URL del modelo 3D asignado
     
     class Config:
         from_attributes = True
