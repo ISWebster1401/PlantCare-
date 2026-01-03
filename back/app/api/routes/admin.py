@@ -322,6 +322,80 @@ async def set_box_as_default(
 
 
 # ===============================================
+# ENDPOINT PARA MARCAR MODELO COMO DEFAULT
+# ===============================================
+
+@router.post("/models/{model_id}/set-default")
+async def set_model_as_default(
+    model_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Marca un modelo como default para su tipo de planta.
+    Desactiva otros modelos default del mismo tipo.
+    """
+    try:
+        # 1. Verificar que el modelo existe
+        model_result = await db.execute_query("""
+            SELECT id, plant_type, name, model_3d_url
+            FROM plant_models
+            WHERE id = %s
+        """, (model_id,))
+        
+        if model_result is None or model_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Modelo con id {model_id} no encontrado"
+            )
+        
+        model_plant_type = model_result.iloc[0]["plant_type"]
+        
+        # 2. Desactivar otros modelos default del mismo tipo
+        await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = FALSE
+            WHERE plant_type = %s AND id != %s AND is_default = TRUE
+        """, (model_plant_type, model_id))
+        
+        # 3. Activar este modelo como default
+        update_result = await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = TRUE, updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, plant_type, name, model_3d_url, is_default
+        """, (model_id,))
+        
+        if update_result is None or update_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se pudo actualizar el modelo"
+            )
+        
+        updated_model = update_result.iloc[0]
+        
+        logger.info(f"✅ Modelo {model_id} marcado como default para tipo '{model_plant_type}'")
+        
+        return {
+            "message": f"Modelo marcado como default para tipo '{model_plant_type}'",
+            "model_id": int(updated_model["id"]),
+            "plant_type": str(updated_model["plant_type"]),
+            "name": str(updated_model["name"]),
+            "model_3d_url": str(updated_model["model_3d_url"]),
+            "is_default": bool(updated_model["is_default"])
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marcando modelo como default: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor: {str(e)}"
+        )
+
+
+# ===============================================
 # ENDPOINT PARA INICIALIZAR MODELOS DEFAULT
 # ===============================================
 
@@ -332,7 +406,12 @@ async def init_default_plant_models(
 ):
     """
     Inicializa 10 modelos 3D predeterminados para tipos de plantas comunes.
-    Usa box.glb como placeholder temporal hasta que se suban los modelos específicos.
+    
+    NOTA: Este endpoint es temporal y crea placeholders. Para modelos 3D reales y únicos:
+    - Sube cada modelo 3D individualmente usando POST /api/plants/models/upload
+    - Especifica el plant_type correspondiente (ej: "Monstera", "Suculenta", etc.)
+    - Usa is_default=true para que reemplace automáticamente el placeholder
+    - Cada tipo de planta tendrá su propio modelo 3D único
     """
     try:
         # Obtener la URL de box.glb existente

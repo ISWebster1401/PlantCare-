@@ -769,27 +769,92 @@ async def upload_plant_model(
         logger.info(f"Subiendo modelo 3D: {file.filename} ({file_size} bytes)")
         model_url = upload_file(file.file, folder="3d_models", max_size_mb=50)
         
-        # Preparar datos para insertar en plant_models
+        # Preparar datos para insertar/actualizar en plant_models
         model_plant_type = plant_type or "Planta"
         model_name = name or f"Modelo 3D {file.filename}"
         
-        # Insertar registro en plant_models
         metadata_dict = {
             "uploaded_by": "user",
             "original_filename": file.filename
         }
         
-        insert_result = await db.execute_query("""
-            INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
-            VALUES (%s, %s, %s, %s, %s::jsonb)
-            RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
-        """, (
-            model_plant_type,
-            model_name,
-            model_url,
-            is_default,
-            json.dumps(metadata_dict)
-        ))
+        # Si hay plant_type, verificar si ya existe un modelo default de ese tipo
+        # Si existe y is_default=True, actualizar ese modelo
+        # Si existe y is_default=False, crear nuevo (no reemplazar)
+        # Si no existe, crear nuevo
+        if model_plant_type:
+            existing_default_model = await db.execute_query("""
+                SELECT id FROM plant_models
+                WHERE plant_type = %s AND is_default = TRUE
+                LIMIT 1
+            """, (model_plant_type,))
+            
+            if existing_default_model is not None and not existing_default_model.empty:
+                # Existe un modelo default para este tipo
+                if is_default:
+                    # Reemplazar el modelo existente
+                    model_id = existing_default_model.iloc[0]["id"]
+                    update_result = await db.execute_query("""
+                        UPDATE plant_models
+                        SET model_3d_url = %s, name = %s, metadata = %s::jsonb, updated_at = NOW()
+                        WHERE id = %s
+                        RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+                    """, (
+                        model_url,
+                        model_name,
+                        json.dumps(metadata_dict),
+                        model_id
+                    ))
+                    
+                    if update_result is not None and not update_result.empty:
+                        insert_result = update_result
+                        logger.info(f"✅ Modelo existente actualizado para tipo '{model_plant_type}' (id: {model_id})")
+                    else:
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="No se pudo actualizar el modelo existente",
+                        )
+                else:
+                    # is_default=False, crear nuevo modelo sin reemplazar el default
+                    insert_result = await db.execute_query("""
+                        INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
+                        VALUES (%s, %s, %s, %s, %s::jsonb)
+                        RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+                    """, (
+                        model_plant_type,
+                        model_name,
+                        model_url,
+                        is_default,
+                        json.dumps(metadata_dict)
+                    ))
+                    logger.info(f"✅ Nuevo modelo creado para tipo '{model_plant_type}' (no reemplaza default)")
+            else:
+                # No existe modelo default para este tipo, crear nuevo
+                insert_result = await db.execute_query("""
+                    INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
+                    VALUES (%s, %s, %s, %s, %s::jsonb)
+                    RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+                """, (
+                    model_plant_type,
+                    model_name,
+                    model_url,
+                    is_default,
+                    json.dumps(metadata_dict)
+                ))
+                logger.info(f"✅ Nuevo modelo creado para tipo '{model_plant_type}' (primera vez)")
+        else:
+            # No hay plant_type específico, crear nuevo modelo
+            insert_result = await db.execute_query("""
+                INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
+                VALUES (%s, %s, %s, %s, %s::jsonb)
+                RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+            """, (
+                model_plant_type,
+                model_name,
+                model_url,
+                is_default,
+                json.dumps(metadata_dict)
+            ))
         
         if insert_result is None or insert_result.empty:
             raise HTTPException(
