@@ -50,6 +50,12 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
             style={styles.image}
             resizeMode="cover"
           />
+        ) : plant.default_render_url ? (
+          <Image
+            source={{ uri: plant.default_render_url }}
+            style={styles.image}
+            resizeMode="cover"
+          />
         ) : (
           <View style={styles.placeholder}>
             <Ionicons name="leaf-outline" size={48} color={theme.colors.primary} />

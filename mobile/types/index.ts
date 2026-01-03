@@ -66,6 +66,7 @@ export interface PlantResponse {
   updated_at: string | null;
   assigned_model_id?: number | null;
   model_3d_url?: string | null;
+  default_render_url?: string | null;
 }
 
 export interface PlantIdentify {
