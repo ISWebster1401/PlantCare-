@@ -52,9 +52,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (storedToken[1] && storedUser[1]) {
         setToken(storedToken[1]);
         setUser(JSON.parse(storedUser[1]));
+      } else {
+        setToken(null);
+        setUser(null);
       }
     } catch (error) {
       console.error('Error cargando sesión:', error);
+      setToken(null);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -62,8 +67,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const persistSession = async (response: AuthResponse, rememberMe: boolean = false) => {
     try {
-      const cookieExpires = rememberMe ? 30 : 7; // Días para AsyncStorage (no tiene expiración real)
-      
       await AsyncStorage.multiSet([
         ['access_token', response.access_token],
         ['refresh_token', response.refresh_token],
@@ -123,8 +126,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(updatedUser);
     } catch (error) {
       console.error('Error actualizando usuario:', error);
+      // Si falla, podría ser que el token expiró, así que limpiar sesión
+      await logout();
     }
   };
+
+  // Verificar periódicamente si el token sigue existiendo (por si fue limpiado por el interceptor)
+  useEffect(() => {
+    if (!isLoading && (user || token)) {
+      const checkToken = async () => {
+        try {
+          const storedToken = await AsyncStorage.getItem('access_token');
+          if (!storedToken && (user || token)) {
+            // Token fue eliminado (probablemente por el interceptor de axios)
+            setUser(null);
+            setToken(null);
+          }
+        } catch (error) {
+          // Ignorar errores de verificación
+        }
+      };
+      
+      // Verificar cada 1 segundo si hay token (solo cuando está autenticado)
+      const interval = setInterval(checkToken, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isLoading, user, token]);
 
   const value: AuthContextType = {
     user,
