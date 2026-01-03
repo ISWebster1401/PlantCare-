@@ -13,6 +13,7 @@ from app.db.queries import (
 from pgdbtoolkit import AsyncPgDbToolkit
 from typing import List
 import logging
+import json
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -314,6 +315,118 @@ async def set_box_as_default(
         raise
     except Exception as e:
         logger.error(f"Error configurando box.glb como predeterminado: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor: {str(e)}"
+        )
+
+
+# ===============================================
+# ENDPOINT PARA INICIALIZAR MODELOS DEFAULT
+# ===============================================
+
+@router.post("/models/init-defaults")
+async def init_default_plant_models(
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """
+    Inicializa 10 modelos 3D predeterminados para tipos de plantas comunes.
+    Usa box.glb como placeholder temporal hasta que se suban los modelos específicos.
+    """
+    try:
+        # Obtener la URL de box.glb existente
+        box_model_result = await db.execute_query("""
+            SELECT model_3d_url
+            FROM plant_models
+            WHERE name ILIKE '%box%' OR model_3d_url ILIKE '%box%'
+            ORDER BY id DESC
+            LIMIT 1
+        """)
+        
+        if box_model_result is None or box_model_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se encontró el modelo box.glb. Por favor, súbelo primero usando /api/plants/models/upload"
+            )
+        
+        box_model_url = box_model_result.iloc[0]["model_3d_url"]
+        logger.info(f"📦 Usando box.glb como placeholder: {box_model_url}")
+        
+        # Definir los 10 tipos de plantas con sus modelos
+        default_models = [
+            {"plant_type": "Suculenta", "name": "Suculenta Default"},
+            {"plant_type": "Monstera", "name": "Monstera Default"},
+            {"plant_type": "Pothos", "name": "Pothos Default"},
+            {"plant_type": "Sansevieria", "name": "Sansevieria Default"},
+            {"plant_type": "Ficus", "name": "Ficus Default"},
+            {"plant_type": "Cactus", "name": "Cactus Default"},
+            {"plant_type": "Aloe", "name": "Aloe Default"},
+            {"plant_type": "Helecho", "name": "Helecho Default"},
+            {"plant_type": "Dólar", "name": "Dólar Default"},
+            {"plant_type": "Planta", "name": "Planta Genérica"},
+        ]
+        
+        created_count = 0
+        updated_count = 0
+        
+        for model_data in default_models:
+            plant_type = model_data["plant_type"]
+            name = model_data["name"]
+            
+            # Verificar si ya existe un modelo para este tipo
+            existing = await db.execute_query("""
+                SELECT id FROM plant_models
+                WHERE plant_type = %s AND is_default = TRUE
+                LIMIT 1
+            """, (plant_type,))
+            
+            if existing is not None and not existing.empty:
+                # Actualizar modelo existente
+                await db.execute_query("""
+                    UPDATE plant_models
+                    SET model_3d_url = %s, name = %s, is_default = TRUE
+                    WHERE plant_type = %s AND is_default = TRUE
+                """, (box_model_url, name, plant_type))
+                updated_count += 1
+                logger.info(f"✅ Modelo actualizado: {plant_type}")
+            else:
+                # Crear nuevo modelo
+                await db.execute_query("""
+                    INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
+                    VALUES (%s, %s, %s, TRUE, %s::jsonb)
+                """, (
+                    plant_type,
+                    name,
+                    box_model_url,
+                    json.dumps({"category": plant_type.lower(), "scale": 1.0, "placeholder": True})
+                ))
+                created_count += 1
+                logger.info(f"✅ Modelo creado: {plant_type}")
+        
+        # Asegurar que solo estos 10 modelos tengan is_default = TRUE
+        # Desactivar otros modelos que no sean de los tipos default
+        plant_types_list = [m["plant_type"] for m in default_models]
+        placeholders = ", ".join(["%s"] * len(plant_types_list))
+        await db.execute_query(f"""
+            UPDATE plant_models
+            SET is_default = FALSE
+            WHERE plant_type NOT IN ({placeholders})
+        """, tuple(plant_types_list))
+        
+        return {
+            "message": f"Modelos inicializados exitosamente",
+            "created": created_count,
+            "updated": updated_count,
+            "total": len(default_models),
+            "models": default_models,
+            "placeholder_url": box_model_url
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error inicializando modelos default: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error interno del servidor: {str(e)}"

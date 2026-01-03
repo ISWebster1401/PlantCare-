@@ -41,6 +41,89 @@ def require_admin(current_user: dict = Depends(get_current_active_user)):
     return current_user
 
 
+def _normalize_plant_type(plant_type: str) -> str:
+    """
+    Normaliza el nombre del tipo de planta a un tipo base estándar.
+    Mapea variaciones de nombres a tipos base para mejor matching.
+    
+    Args:
+        plant_type: Nombre del tipo de planta (ej: "Monstera Deliciosa", "Costilla de Adán")
+    
+    Returns:
+        str: Tipo base normalizado (ej: "Monstera", "Planta")
+    """
+    if not plant_type:
+        return "Planta"
+    
+    # Convertir a minúsculas para comparación case-insensitive
+    plant_type_lower = plant_type.lower().strip()
+    
+    # Diccionario de mapeo: palabras clave -> tipo base
+    type_mapping = {
+        # Monstera / Costilla de Adán
+        "monstera": "Monstera",
+        "costilla": "Monstera",
+        "costilla de adán": "Monstera",
+        
+        # Pothos / Potus / Epipremnum
+        "pothos": "Pothos",
+        "potus": "Pothos",
+        "epipremnum": "Pothos",
+        "pothos dorado": "Pothos",
+        
+        # Sansevieria / Lengua de suegra
+        "sansevieria": "Sansevieria",
+        "lengua": "Sansevieria",
+        "lengua de suegra": "Sansevieria",
+        "espada": "Sansevieria",
+        "espada de san jorge": "Sansevieria",
+        "snake plant": "Sansevieria",
+        
+        # Ficus
+        "ficus": "Ficus",
+        "higuera": "Ficus",
+        
+        # Cactus
+        "cactus": "Cactus",
+        "cacto": "Cactus",
+        "cáctus": "Cactus",
+        
+        # Aloe
+        "aloe": "Aloe",
+        "sábila": "Aloe",
+        "aloe vera": "Aloe",
+        
+        # Suculenta
+        "suculenta": "Suculenta",
+        "echeveria": "Suculenta",
+        "crassula": "Suculenta",
+        "haworthia": "Suculenta",
+        "sedum": "Suculenta",
+        
+        # Helecho
+        "helecho": "Helecho",
+        "fern": "Helecho",
+        
+        # Dólar
+        "dólar": "Dólar",
+        "dolar": "Dólar",
+        "plectranthus": "Dólar",
+        "planta del dólar": "Dólar",
+    }
+    
+    # Buscar match exacto primero
+    if plant_type_lower in type_mapping:
+        return type_mapping[plant_type_lower]
+    
+    # Buscar por palabras clave (si contiene alguna palabra clave)
+    for keyword, base_type in type_mapping.items():
+        if keyword in plant_type_lower:
+            return base_type
+    
+    # Si no hay match, retornar tipo genérico
+    return "Planta"
+
+
 async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type: str) -> Optional[int]:
     """
     Asigna automáticamente un modelo 3D predeterminado a una planta según su tipo.
@@ -54,20 +137,24 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
         Optional[int]: ID del modelo asignado, o None si no se pudo asignar
     """
     try:
-        # 1. Buscar modelo predeterminado para el tipo de planta específico
+        # 1. Normalizar el tipo de planta para mejor matching
+        normalized_type = _normalize_plant_type(plant_type)
+        logger.info(f"🔄 Tipo de planta normalizado: '{plant_type}' → '{normalized_type}'")
+        
+        # 2. Buscar modelo predeterminado para el tipo de planta normalizado
         model_df = await db.execute_query("""
             SELECT id, default_render_url
             FROM plant_models
             WHERE plant_type = %s AND is_default = TRUE
             LIMIT 1
-        """, (plant_type,))
+        """, (normalized_type,))
         
         model_id = None
         default_render_url = None
         
-        # 2. Si no encuentra modelo específico, buscar modelo genérico ("Planta")
+        # 3. Si no encuentra modelo específico, buscar modelo genérico ("Planta")
         if model_df is None or model_df.empty:
-            logger.info(f"⚠️ No se encontró modelo específico para '{plant_type}', buscando modelo genérico...")
+            logger.info(f"⚠️ No se encontró modelo específico para '{normalized_type}', buscando modelo genérico...")
             generic_model_df = await db.execute_query("""
                 SELECT id, default_render_url
                 FROM plant_models
@@ -85,7 +172,7 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
         else:
             model_id = model_df.iloc[0]["id"]
             default_render_url = model_df.iloc[0].get("default_render_url")
-            logger.info(f"✅ Modelo específico encontrado para '{plant_type}' (id: {model_id})")
+            logger.info(f"✅ Modelo específico encontrado para '{normalized_type}' (id: {model_id})")
         
         # 3. Crear registro en plant_model_assignments
         assignment_result = await db.execute_query("""
