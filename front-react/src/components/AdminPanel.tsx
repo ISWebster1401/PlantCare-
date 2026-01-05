@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { adminAPI } from '../services/api';
 import './AdminPanel.css';
 
 interface User {
@@ -31,7 +32,7 @@ interface AdminStats {
 }
 
 const AdminPanel: React.FC = () => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'sensors'>('dashboard');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,50 +43,13 @@ const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [sensors, setSensors] = useState<Sensor[]>([]);
 
-  const apiCall = async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
-      });
-    
-      const text = await response.text();
-    
-      if (!response.ok) {
-        try {
-          const errorData = text ? JSON.parse(text) : { detail: 'Error desconocido' };
-          throw new Error(errorData.detail || `Error ${response.status}`);
-        } catch (parseError) {
-          throw new Error(`Error ${response.status}. Respuesta del servidor: ${text || 'sin contenido'}`);
-        }
-      }
-    
-      if (!text) {
-        return null as T;
-      }
-    
-      try {
-        return JSON.parse(text);
-      } catch (parseError) {
-        return text as unknown as T;
-      }
-    } catch (err: any) {
-      console.error('API Error:', err);
-      throw err;
-    }
-  };
-
   const loadStats = async () => {
     try {
       setError(null);
-      const data = await apiCall<AdminStats>('/api/admin/stats');
+      const data = await adminAPI.getStats();
       setStats(data);
     } catch (err: any) {
-      setError(err.message || 'Error cargando estadísticas');
+      setError(err.response?.data?.detail || err.message || 'Error cargando estadísticas');
       console.error('Error loading stats:', err);
     }
   };
@@ -93,10 +57,10 @@ const AdminPanel: React.FC = () => {
   const loadUsers = async () => {
     try {
       setError(null);
-      const data = await apiCall<User[]>(`/api/admin/users`);
+      const data = await adminAPI.getUsers();
       setUsers(data);
     } catch (err: any) {
-      setError(err.message || 'Error cargando usuarios');
+      setError(err.response?.data?.detail || err.message || 'Error cargando usuarios');
       console.error('Error loading users:', err);
     }
   };
@@ -104,10 +68,10 @@ const AdminPanel: React.FC = () => {
   const loadSensors = async () => {
     try {
       setError(null);
-      const data = await apiCall<Sensor[]>(`/api/admin/sensors`);
+      const data = await adminAPI.getSensors();
       setSensors(data);
     } catch (err: any) {
-      setError(err.message || 'Error cargando sensores');
+      setError(err.response?.data?.detail || err.message || 'Error cargando sensores');
       console.error('Error loading sensors:', err);
     }
   };
@@ -134,12 +98,10 @@ const AdminPanel: React.FC = () => {
 
     try {
       setError(null);
-      await apiCall(`/api/admin/users/${userId}/toggle-status`, {
-        method: 'PUT'
-      });
+      await adminAPI.toggleUserStatus(userId);
       await loadUsers();
     } catch (err: any) {
-      setError(err.message || 'No se pudo actualizar el usuario');
+      setError(err.response?.data?.detail || err.message || 'No se pudo actualizar el usuario');
       console.error('Error toggling user status:', err);
     }
   };
