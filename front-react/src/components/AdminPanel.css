@@ -276,7 +276,8 @@
 
 /* Tables */
 .users-table,
-.devices-table {
+.devices-table,
+.plants-table {
   background: rgba(255, 255, 255, 0.02);
   border-radius: 12px;
   overflow: hidden;
@@ -284,22 +285,26 @@
 }
 
 .users-table table,
-.devices-table table {
+.devices-table table,
+.plants-table table {
   width: 100%;
   border-collapse: collapse;
 }
 
 .users-table th,
 .devices-table th,
+.plants-table th,
 .users-table td,
-.devices-table td {
+.devices-table td,
+.plants-table td {
   padding: 15px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .users-table th,
-.devices-table th {
+.devices-table th,
+.plants-table th {
   background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
   color: #94a3b8;
@@ -592,7 +597,8 @@
   }
   
   .users-table,
-  .devices-table {
+  .devices-table,
+  .plants-table {
     overflow-x: auto;
   }
   

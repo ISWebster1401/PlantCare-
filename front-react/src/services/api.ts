@@ -298,6 +298,23 @@ export const adminAPI = {
     const response = await api.get(`/admin/sensors/${sensorId}`);
     return response.data;
   },
+
+  // Obtener todas las plantas
+  getPlants: async (): Promise<any[]> => {
+    const response = await api.get('/admin/plants');
+    return response.data;
+  },
+
+  // Obtener planta por ID
+  getPlantById: async (plantId: number): Promise<any> => {
+    const response = await api.get(`/admin/plants/${plantId}`);
+    return response.data;
+  },
+
+  // Eliminar planta
+  deletePlant: async (plantId: number): Promise<void> => {
+    await api.delete(`/admin/plants/${plantId}`);
+  },
 };
 
 export const sensorsAPI = {
