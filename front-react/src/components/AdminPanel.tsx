@@ -23,6 +23,15 @@ interface Sensor {
   last_connection?: string | null;
 }
 
+interface Plant {
+  id: number;
+  plant_name: string;
+  plant_type: string | null;
+  user_email: string;
+  sensor_connected: boolean;
+  sensor_device_id: string | null;
+}
+
 interface AdminStats {
   total_users: number;
   active_users: number;
@@ -33,7 +42,7 @@ interface AdminStats {
 
 const AdminPanel: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'sensors'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'sensors' | 'plants'>('dashboard');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +51,7 @@ const AdminPanel: React.FC = () => {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [sensors, setSensors] = useState<Sensor[]>([]);
+  const [plants, setPlants] = useState<Plant[]>([]);
 
   const loadStats = async () => {
     try {
@@ -76,6 +86,17 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const loadPlants = async () => {
+    try {
+      setError(null);
+      const data = await adminAPI.getPlants();
+      setPlants(data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error cargando plantas');
+      console.error('Error loading plants:', err);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -85,6 +106,8 @@ const AdminPanel: React.FC = () => {
         await loadUsers();
       } else if (activeTab === 'sensors') {
         await loadSensors();
+      } else if (activeTab === 'plants') {
+        await loadPlants();
       }
     } finally {
       setRefreshing(false);
@@ -106,8 +129,23 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const deletePlant = async (plantId: number, plantName: string) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la planta "${plantName}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      setError(null);
+      await adminAPI.deletePlant(plantId);
+      await loadPlants();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'No se pudo eliminar la planta');
+      console.error('Error deleting plant:', err);
+    }
+  };
+
   useEffect(() => {
-    const isAdmin = user && (user.role_id === 2 || user.role === 'admin');
+    const isAdmin = user && (user.role_id === 2 || user.role_id === 3 || user.role === 'admin');
     if (!isAdmin) {
       return;
     }
@@ -121,6 +159,8 @@ const AdminPanel: React.FC = () => {
           await loadUsers();
         } else if (activeTab === 'sensors') {
           await loadSensors();
+        } else if (activeTab === 'plants') {
+          await loadPlants();
         }
       } finally {
         setLoading(false);
@@ -129,7 +169,7 @@ const AdminPanel: React.FC = () => {
     loadData();
   }, [activeTab, user]);
 
-  const isAdmin = user && (user.role_id === 2 || user.role === 'admin');
+  const isAdmin = user && (user.role_id === 2 || user.role_id === 3 || user.role === 'admin');
   if (!isAdmin) {
     return (
       <div className="admin-panel">
@@ -309,6 +349,70 @@ const AdminPanel: React.FC = () => {
     );
   };
 
+  const renderPlants = () => {
+    return (
+      <div className="plants-section">
+        <div className="section-header">
+          <h2>Gestión de Plantas</h2>
+          <button onClick={handleRefresh} className="btn-primary" disabled={refreshing}>
+            {refreshing ? '🔄' : '🔄'} Actualizar
+          </button>
+        </div>
+
+        {plants.length === 0 ? (
+          <div className="empty-state">
+            <p>No hay plantas registradas</p>
+          </div>
+        ) : (
+          <div className="plants-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>Usuario</th>
+                  <th>Sensor</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plants.map(plant => (
+                  <tr key={plant.id}>
+                    <td>{plant.id}</td>
+                    <td>{plant.plant_name}</td>
+                    <td>{plant.plant_type || '-'}</td>
+                    <td>{plant.user_email}</td>
+                    <td>
+                      {plant.sensor_connected ? (
+                        <span className="status-badge connected">
+                          {plant.sensor_device_id || 'Conectado'}
+                        </span>
+                      ) : (
+                        <span className="unassigned">Sin sensor</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => deletePlant(plant.id, plant.plant_name)}
+                          className="btn-sm btn-danger"
+                          title="Eliminar planta"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="admin-panel">
       <div className="admin-header">
@@ -335,6 +439,12 @@ const AdminPanel: React.FC = () => {
         >
           📡 Sensores
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'plants' ? 'active' : ''}`}
+          onClick={() => setActiveTab('plants')}
+        >
+          🌱 Plantas
+        </button>
       </div>
 
       {error && (
@@ -355,6 +465,7 @@ const AdminPanel: React.FC = () => {
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'users' && renderUsers()}
             {activeTab === 'sensors' && renderSensors()}
+            {activeTab === 'plants' && renderPlants()}
           </>
         )}
       </div>

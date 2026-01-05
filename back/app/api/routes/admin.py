@@ -31,31 +31,26 @@ router = APIRouter(
 )
 
 def require_admin(current_user: dict = Depends(get_current_active_user)):
-    """Middleware para verificar que el usuario sea administrador (role_id = 2)"""
+    """Middleware para verificar que el usuario sea administrador (role_id = 2) o superadmin (role_id = 3)"""
     role_id = current_user.get("role_id")
     
-    # Log temporal para debug
-    logger.info(f"[DEBUG ADMIN] Usuario intentando acceder: email={current_user.get('email')}, role_id={role_id}, tipo={type(role_id)}, user_keys={list(current_user.keys()) if isinstance(current_user, dict) else 'not_dict'}")
-    
-    # Aceptar role_id como int o como string "2"
-    if role_id != 2 and role_id != "2":
-        # Intentar convertir a int si es string numérico
-        try:
-            role_id_int = int(role_id) if role_id is not None else None
-            if role_id_int != 2:
-                logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} (esperado: 2)")
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Acceso denegado. Se requieren permisos de administrador."
-                )
-        except (ValueError, TypeError):
-            logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} no es válido (esperado: 2)")
+    # Intentar convertir a int si es string numérico
+    try:
+        role_id_int = int(role_id) if role_id is not None else None
+        if role_id_int not in [2, 3]:
+            logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} (esperado: 2 o 3)")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Acceso denegado. Se requieren permisos de administrador."
+                detail="Acceso denegado. Se requieren permisos de administrador o superadministrador."
             )
+    except (ValueError, TypeError):
+        logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} no es válido (esperado: 2 o 3)")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado. Se requieren permisos de administrador o superadministrador."
+        )
     
-    logger.info(f"[DEBUG ADMIN] Acceso permitido para usuario {current_user.get('email')}")
+    logger.info(f"[DEBUG ADMIN] Acceso permitido para usuario {current_user.get('email')} (role_id={role_id_int})")
     return current_user
 
 # ===============================================
@@ -210,6 +205,48 @@ async def get_plant_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
+        )
+
+@router.delete("/plants/{plant_id}")
+async def delete_plant(
+    plant_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Elimina una planta (solo admin/superadmin)"""
+    try:
+        # Verificar que la planta existe
+        plant_check = await db.execute_query("""
+            SELECT id, plant_name FROM plants WHERE id = %s
+        """, (plant_id,))
+        
+        if plant_check is None or plant_check.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planta no encontrada"
+            )
+        
+        plant_name = plant_check.iloc[0]["plant_name"]
+        
+        # Eliminar planta (ON DELETE CASCADE maneja plant_model_assignments, etc.)
+        await db.execute_query("""
+            DELETE FROM plants WHERE id = %s
+        """, (plant_id,))
+        
+        logger.info(f"✅ Planta {plant_id} ({plant_name}) eliminada por admin {current_user.get('email')}")
+        
+        return {
+            "message": f"Planta '{plant_name}' eliminada exitosamente",
+            "plant_id": plant_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error eliminando planta: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor: {str(e)}"
         )
 
 # ===============================================
