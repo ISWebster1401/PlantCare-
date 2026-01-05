@@ -14,5 +14,5 @@ export const Config = {
   // Obtén el Client ID desde Google Cloud Console: https://console.cloud.google.com/
   // IMPORTANTE: En Expo, las variables de entorno deben empezar con EXPO_PUBLIC_
   // Si tienes GOOGLE_CLIENT_ID en .env, cámbialo a EXPO_PUBLIC_GOOGLE_CLIENT_ID
-  GOOGLE_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '182590782549-euls1rea3jcd5d7rj3quagukhkcbrch9.apps.googleusercontent.com',
+  GOOGLE_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '873045856404-ccvsiag0i9reie03n4ic12pcgs28dq1u.apps.googleusercontent.com'
 };
