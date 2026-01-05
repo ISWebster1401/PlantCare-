@@ -259,6 +259,47 @@ export const plantsAPI = {
   },
 };
 
+// ============================================
+// ADMIN API
+// ============================================
+
+export const adminAPI = {
+  // Obtener estadísticas del sistema
+  getStats: async (): Promise<any> => {
+    const response = await api.get('/admin/stats');
+    return response.data;
+  },
+
+  // Obtener todos los usuarios
+  getUsers: async (): Promise<any[]> => {
+    const response = await api.get('/admin/users');
+    return response.data;
+  },
+
+  // Obtener usuario por ID
+  getUserById: async (userId: number): Promise<any> => {
+    const response = await api.get(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  // Activar/desactivar usuario
+  toggleUserStatus: async (userId: number): Promise<void> => {
+    await api.put(`/admin/users/${userId}/toggle-status`);
+  },
+
+  // Obtener todos los sensores
+  getSensors: async (): Promise<any[]> => {
+    const response = await api.get('/admin/sensors');
+    return response.data;
+  },
+
+  // Obtener sensor por ID
+  getSensorById: async (sensorId: string): Promise<any> => {
+    const response = await api.get(`/admin/sensors/${sensorId}`);
+    return response.data;
+  },
+};
+
 export const sensorsAPI = {
   // Registrar nuevo sensor
   registerSensor: async (deviceKey: string, deviceType: string = 'esp8266') => {
