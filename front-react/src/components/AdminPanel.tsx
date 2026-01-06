@@ -32,6 +32,16 @@ interface Plant {
   sensor_device_id: string | null;
 }
 
+interface PlantModel {
+  id: number;
+  plant_type: string;
+  name: string;
+  model_3d_url: string;
+  default_render_url: string | null;
+  is_default: boolean;
+  metadata?: any;
+}
+
 interface AdminStats {
   total_users: number;
   active_users: number;
@@ -42,7 +52,7 @@ interface AdminStats {
 
 const AdminPanel: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'sensors' | 'plants'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'sensors' | 'plants' | 'models'>('dashboard');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +62,14 @@ const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
+  const [models, setModels] = useState<PlantModel[]>([]);
+
+  // Estados para formulario de subida de modelo
+  const [uploadingModel, setUploadingModel] = useState(false);
+  const [modelFile, setModelFile] = useState<File | null>(null);
+  const [modelPlantType, setModelPlantType] = useState('');
+  const [modelName, setModelName] = useState('');
+  const [modelIsDefault, setModelIsDefault] = useState(false);
 
   const loadStats = async () => {
     try {
@@ -96,6 +114,53 @@ const AdminPanel: React.FC = () => {
       console.error('Error loading plants:', err);
     }
   };
+
+  const loadModels = async () => {
+    try {
+      setError(null);
+      const data = await adminAPI.getModels();
+      setModels(data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error cargando modelos 3D');
+      console.error('Error loading models:', err);
+    }
+  };
+
+  const handleUploadModel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modelFile) {
+      setError('Por favor selecciona un archivo .glb');
+      return;
+    }
+
+    try {
+      setUploadingModel(true);
+      setError(null);
+      await adminAPI.uploadModel(modelFile, modelPlantType || undefined, modelName || undefined, modelIsDefault);
+      
+      // Limpiar formulario
+      setModelFile(null);
+      setModelPlantType('');
+      setModelName('');
+      setModelIsDefault(false);
+      
+      // Recargar modelos
+      await loadModels();
+      
+      alert('✅ Modelo 3D subido exitosamente');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error subiendo modelo 3D');
+      console.error('Error uploading model:', err);
+    } finally {
+      setUploadingModel(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'models') {
+      loadModels();
+    }
+  }, [activeTab]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -413,6 +478,118 @@ const AdminPanel: React.FC = () => {
     );
   };
 
+  const renderModels = () => {
+    return (
+      <div className="models-section">
+        <div className="section-header">
+          <h2>Gestión de Modelos 3D</h2>
+          <button onClick={handleRefresh} className="btn-primary" disabled={refreshing}>
+            {refreshing ? '🔄' : '🔄'} Actualizar
+          </button>
+        </div>
+
+        {/* Formulario de subida */}
+        <div className="models-upload-form">
+          <h3>Subir Nuevo Modelo 3D</h3>
+          <form onSubmit={handleUploadModel}>
+            <div className="form-group">
+              <label htmlFor="model-file">Archivo .glb *</label>
+              <input
+                type="file"
+                id="model-file"
+                accept=".glb"
+                onChange={(e) => setModelFile(e.target.files?.[0] || null)}
+                required
+                disabled={uploadingModel}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="model-plant-type">Tipo de Planta (opcional)</label>
+              <input
+                type="text"
+                id="model-plant-type"
+                value={modelPlantType}
+                onChange={(e) => setModelPlantType(e.target.value)}
+                placeholder="Ej: Cactus, Monstera, Suculenta..."
+                disabled={uploadingModel}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="model-name">Nombre del Modelo (opcional)</label>
+              <input
+                type="text"
+                id="model-name"
+                value={modelName}
+                onChange={(e) => setModelName(e.target.value)}
+                placeholder="Ej: Cactus Default, Monstera Model..."
+                disabled={uploadingModel}
+              />
+            </div>
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={modelIsDefault}
+                  onChange={(e) => setModelIsDefault(e.target.checked)}
+                  disabled={uploadingModel}
+                />
+                Marcar como modelo predeterminado
+              </label>
+            </div>
+            <button type="submit" className="btn-primary" disabled={uploadingModel || !modelFile}>
+              {uploadingModel ? 'Subiendo...' : '📤 Subir Modelo'}
+            </button>
+          </form>
+        </div>
+
+        {/* Lista de modelos */}
+        <div className="models-list">
+          <h3>Modelos Existentes</h3>
+          {models.length === 0 ? (
+            <div className="empty-state">
+              <p>No hay modelos 3D registrados</p>
+            </div>
+          ) : (
+            <div className="models-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Tipo de Planta</th>
+                    <th>Nombre</th>
+                    <th>URL del Modelo</th>
+                    <th>Predeterminado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map(model => (
+                    <tr key={model.id}>
+                      <td>{model.id}</td>
+                      <td>{model.plant_type}</td>
+                      <td>{model.name}</td>
+                      <td>
+                        <a href={model.model_3d_url} target="_blank" rel="noopener noreferrer" className="link">
+                          Ver modelo
+                        </a>
+                      </td>
+                      <td>
+                        {model.is_default ? (
+                          <span className="status-badge connected">Sí</span>
+                        ) : (
+                          <span className="unassigned">No</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="admin-panel">
       <div className="admin-header">
@@ -445,6 +622,12 @@ const AdminPanel: React.FC = () => {
         >
           🌱 Plantas
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'models' ? 'active' : ''}`}
+          onClick={() => setActiveTab('models')}
+        >
+          🎨 Modelos 3D
+        </button>
       </div>
 
       {error && (
@@ -466,6 +649,7 @@ const AdminPanel: React.FC = () => {
             {activeTab === 'users' && renderUsers()}
             {activeTab === 'sensors' && renderSensors()}
             {activeTab === 'plants' && renderPlants()}
+            {activeTab === 'models' && renderModels()}
           </>
         )}
       </div>
