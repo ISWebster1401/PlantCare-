@@ -34,6 +34,31 @@
   margin-bottom: 1rem;
 }
 
+.model-3d-hero {
+  width: 100%;
+  max-width: 400px;
+  height: 400px;
+  margin: 0 auto 1rem;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  background: #f0f0f0;
+}
+
+.plant-placeholder-large {
+  width: 100%;
+  max-width: 400px;
+  height: 400px;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8rem;
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(34, 197, 94, 0.1));
+  border-radius: 16px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
 .character-hero h1 {
   color: #10b981;
   margin: 0.5rem 0;

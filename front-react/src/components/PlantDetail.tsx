@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { plantsAPI } from '../services/api';
+import { Model3DViewer } from './Model3DViewer';
 import './PlantDetail.css';
 
 export const PlantDetail: React.FC = () => {
@@ -65,7 +66,21 @@ export const PlantDetail: React.FC = () => {
 
       {/* Personaje grande */}
       <div className="character-hero">
-        <img src={plant.character_image_url} alt={plant.plant_name} />
+        {plant.character_image_url ? (
+          <img src={plant.character_image_url} alt={plant.plant_name} />
+        ) : plant.model_3d_url ? (
+          <div className="model-3d-hero">
+            <Model3DViewer 
+              modelUrl={plant.model_3d_url} 
+              autoRotate={true}
+              style={{ width: '100%', height: '400px' }}
+            />
+          </div>
+        ) : plant.default_render_url ? (
+          <img src={plant.default_render_url} alt={plant.plant_name} />
+        ) : (
+          <div className="plant-placeholder-large">🌱</div>
+        )}
         <h1>{plant.plant_name}</h1>
         <p className="plant-type">{plant.plant_type}</p>
         {plant.scientific_name && (
