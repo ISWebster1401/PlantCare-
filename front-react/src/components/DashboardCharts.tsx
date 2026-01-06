@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { plantsAPI, sensorsAPI } from '../services/api';
 import {
   Chart as ChartJS,
@@ -15,7 +14,7 @@ import {
 } from 'chart.js';
 import type { ChartOptions } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { ChartIcon, HumidityIcon, AlertIcon, BellIcon, RefreshIcon, LineChartIcon } from './Icons';
+// Icons removidos - no se usan actualmente
 import './DashboardCharts.css';
 
 // Registrar componentes de Chart.js
@@ -69,7 +68,6 @@ const TIMEFRAME_OPTIONS: { key: Timeframe; label: string }[] = [
 ];
 
 const DashboardCharts: React.FC = () => {
-  const { user } = useAuth();
   const [plants, setPlants] = useState<Plant[]>([]);
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [chartData, setChartData] = useState<ChartEntry[]>([]);
@@ -80,12 +78,14 @@ const DashboardCharts: React.FC = () => {
 
   useEffect(() => {
     loadPlants();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (selectedPlant) {
       loadPlantData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlant, timeframe]);
 
   const loadPlants = async () => {
