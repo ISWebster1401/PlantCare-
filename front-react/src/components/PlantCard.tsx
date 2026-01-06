@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Model3DViewer } from './Model3DViewer';
 import './PlantCard.css';
 
 interface PlantCardProps {
@@ -6,7 +7,9 @@ interface PlantCardProps {
     id: number;
     plant_name: string;
     plant_type: string;
-    character_image_url: string;
+    character_image_url?: string | null;
+    model_3d_url?: string | null;
+    default_render_url?: string | null;
     character_mood: string;
     health_status: string;
   };
@@ -57,26 +60,73 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPlantClick }) => 
         onClick={handleClick}
         style={{ borderColor: getHealthColor(plant.health_status) }}
       >
-        {/* Imagen del personaje */}
+        {/* Imagen del personaje o modelo 3D */}
         <div className="character-image">
           {plant.character_image_url ? (
             <img 
               src={plant.character_image_url} 
               alt={plant.plant_name}
               onError={(e) => {
-                // Si la imagen falla al cargar, mostrar placeholder
+                // Si la imagen falla al cargar, intentar modelo 3D o placeholder
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
-                const placeholder = target.parentElement?.querySelector('.character-placeholder');
-                if (placeholder) {
-                  (placeholder as HTMLElement).style.display = 'flex';
+                if (plant.model_3d_url) {
+                  const modelContainer = target.parentElement?.querySelector('.model-3d-container');
+                  if (modelContainer) {
+                    (modelContainer as HTMLElement).style.display = 'block';
+                  }
+                } else {
+                  const placeholder = target.parentElement?.querySelector('.character-placeholder');
+                  if (placeholder) {
+                    (placeholder as HTMLElement).style.display = 'flex';
+                  }
+                }
+              }}
+            />
+          ) : plant.default_render_url ? (
+            <img 
+              src={plant.default_render_url} 
+              alt={plant.plant_name}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                if (plant.model_3d_url) {
+                  const modelContainer = target.parentElement?.querySelector('.model-3d-container');
+                  if (modelContainer) {
+                    (modelContainer as HTMLElement).style.display = 'block';
+                  }
+                } else {
+                  const placeholder = target.parentElement?.querySelector('.character-placeholder');
+                  if (placeholder) {
+                    (placeholder as HTMLElement).style.display = 'flex';
+                  }
                 }
               }}
             />
           ) : null}
+          {plant.model_3d_url && !plant.character_image_url && !plant.default_render_url && (
+            <div className="model-3d-container" style={{ display: 'block' }}>
+              <Model3DViewer 
+                modelUrl={plant.model_3d_url} 
+                autoRotate={true}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
+          )}
+          {plant.model_3d_url && (plant.character_image_url || plant.default_render_url) && (
+            <div className="model-3d-container" style={{ display: 'none' }}>
+              <Model3DViewer 
+                modelUrl={plant.model_3d_url} 
+                autoRotate={true}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
+          )}
           <div 
             className="character-placeholder"
-            style={{ display: plant.character_image_url ? 'none' : 'flex' }}
+            style={{ 
+              display: (plant.character_image_url || plant.default_render_url || plant.model_3d_url) ? 'none' : 'flex' 
+            }}
           >
             <span className="placeholder-icon">🌱</span>
             <span className="placeholder-text">Generando personaje...</span>
@@ -107,7 +157,21 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPlantClick }) => 
             </div>
             <div className="modal-content">
               <div className="plant-image-large">
-                <img src={plant.character_image_url} alt={plant.plant_name} />
+                {plant.character_image_url ? (
+                  <img src={plant.character_image_url} alt={plant.plant_name} />
+                ) : plant.model_3d_url ? (
+                  <div className="model-3d-modal">
+                    <Model3DViewer 
+                      modelUrl={plant.model_3d_url} 
+                      autoRotate={true}
+                      style={{ width: '100%', height: '300px' }}
+                    />
+                  </div>
+                ) : plant.default_render_url ? (
+                  <img src={plant.default_render_url} alt={plant.plant_name} />
+                ) : (
+                  <div className="plant-placeholder-modal">🌱</div>
+                )}
                 <span className="mood-large">{getMoodEmoji(plant.character_mood)}</span>
               </div>
               <div className="plant-info-detailed">
