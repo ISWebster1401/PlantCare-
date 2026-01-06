@@ -15,6 +15,7 @@ from pgdbtoolkit import AsyncPgDbToolkit
 from typing import List
 import logging
 import json
+import pandas as pd
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -567,24 +568,31 @@ async def get_all_models(
         """)
         
         if models_df is None or models_df.empty:
+            logger.info("✅ No hay modelos 3D registrados (lista vacía)")
             return []
         
         models = []
         for _, row in models_df.iterrows():
-            model_data = {
-                "id": int(row["id"]),
-                "plant_type": str(row["plant_type"]),
-                "name": str(row["name"]),
-                "model_3d_url": str(row["model_3d_url"]),
-                "default_render_url": row.get("default_render_url"),
-                "is_default": bool(row["is_default"]),
-                "metadata": row.get("metadata"),
-            }
-            models.append(PlantModelResponse(**model_data))
+            try:
+                model_data = {
+                    "id": int(row["id"]),
+                    "plant_type": str(row["plant_type"]),
+                    "name": str(row["name"]),
+                    "model_3d_url": str(row["model_3d_url"]),
+                    "default_render_url": row.get("default_render_url") if pd.notna(row.get("default_render_url")) else None,
+                    "is_default": bool(row["is_default"]),
+                    "metadata": row.get("metadata") if pd.notna(row.get("metadata")) else None,
+                }
+                models.append(PlantModelResponse(**model_data))
+            except Exception as model_error:
+                logger.warning(f"Error procesando modelo {row.get('id', 'unknown')}: {model_error}")
+                continue
         
         logger.info(f"✅ {len(models)} modelos 3D obtenidos")
         return models
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error obteniendo modelos 3D: {str(e)}", exc_info=True)
         raise HTTPException(

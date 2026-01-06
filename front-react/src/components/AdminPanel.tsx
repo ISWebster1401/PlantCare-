@@ -71,6 +71,39 @@ const AdminPanel: React.FC = () => {
   const [modelName, setModelName] = useState('');
   const [modelIsDefault, setModelIsDefault] = useState(false);
 
+  // Tipos de plantas comunes
+  const commonPlantTypes = [
+    'Suculenta',
+    'Monstera',
+    'Pothos',
+    'Sansevieria',
+    'Ficus',
+    'Cactus',
+    'Aloe',
+    'Helecho',
+    'Dólar',
+    'Planta'
+  ];
+
+  // Nombres de modelos comunes (basados en el tipo seleccionado)
+  const getModelNameOptions = (plantType: string) => {
+    if (!plantType) {
+      return [
+        'Suculenta Default',
+        'Monstera Default',
+        'Pothos Default',
+        'Sansevieria Default',
+        'Ficus Default',
+        'Cactus Default',
+        'Aloe Default',
+        'Helecho Default',
+        'Dólar Default',
+        'Planta Genérica'
+      ];
+    }
+    return [`${plantType} Default`, `${plantType} Model`, `${plantType} Variant`];
+  };
+
   const loadStats = async () => {
     try {
       setError(null);
@@ -119,9 +152,14 @@ const AdminPanel: React.FC = () => {
     try {
       setError(null);
       const data = await adminAPI.getModels();
-      setModels(data);
+      setModels(data || []);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Error cargando modelos 3D');
+      const errorMessage = err.response?.data?.detail || err.message || 'Error cargando modelos 3D';
+      // Solo mostrar error si no es un 404 o lista vacía
+      if (err.response?.status !== 404) {
+        setError(errorMessage);
+      }
+      setModels([]);
       console.error('Error loading models:', err);
     }
   };
@@ -505,25 +543,43 @@ const AdminPanel: React.FC = () => {
             </div>
             <div className="form-group">
               <label htmlFor="model-plant-type">Tipo de Planta (opcional)</label>
-              <input
-                type="text"
+              <select
                 id="model-plant-type"
                 value={modelPlantType}
-                onChange={(e) => setModelPlantType(e.target.value)}
-                placeholder="Ej: Cactus, Monstera, Suculenta..."
+                onChange={(e) => {
+                  setModelPlantType(e.target.value);
+                  // Auto-completar nombre del modelo si está vacío
+                  if (!modelName && e.target.value) {
+                    setModelName(`${e.target.value} Default`);
+                  }
+                }}
                 disabled={uploadingModel}
-              />
+                className="form-select"
+              >
+                <option value="">Seleccionar tipo de planta...</option>
+                {commonPlantTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label htmlFor="model-name">Nombre del Modelo (opcional)</label>
-              <input
-                type="text"
+              <select
                 id="model-name"
                 value={modelName}
                 onChange={(e) => setModelName(e.target.value)}
-                placeholder="Ej: Cactus Default, Monstera Model..."
                 disabled={uploadingModel}
-              />
+                className="form-select"
+              >
+                <option value="">Seleccionar nombre del modelo...</option>
+                {getModelNameOptions(modelPlantType).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label>
