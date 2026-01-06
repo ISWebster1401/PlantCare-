@@ -113,7 +113,7 @@ const Dashboard: React.FC = () => {
                       👑 Superadmin
                     </span>
                   )}
-                  {user?.role_id === 2 && user?.role_id !== 3 && (
+                  {user?.role_id === 2 && (
                     <span className="role-badge admin-badge" title="Administrador">
                       🛠️ Admin
                     </span>
