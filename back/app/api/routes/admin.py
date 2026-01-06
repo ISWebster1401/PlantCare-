@@ -5,6 +5,7 @@ from app.api.schemas.admin import (
     UserSimpleAdmin, PlantSimpleAdmin, SensorSimpleAdmin, AdminStats,
     UserDetailAdmin, PlantDetailAdmin, SensorDetailAdmin
 )
+from app.api.schemas.plants import PlantModelResponse
 from app.db.queries import (
     get_users_admin_simple, get_plants_admin_simple, get_sensors_admin_simple,
     get_admin_stats, get_user_detail_admin, get_plant_detail_admin, get_sensor_detail_admin,
@@ -547,6 +548,98 @@ async def init_default_plant_models(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error interno del servidor: {str(e)}"
         )
+
+# ===============================================
+# ENDPOINTS DE MODELOS 3D
+# ===============================================
+
+@router.get("/models", response_model=List[PlantModelResponse])
+async def get_all_models(
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Obtiene todos los modelos 3D disponibles"""
+    try:
+        models_df = await db.execute_query("""
+            SELECT id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+            FROM plant_models
+            ORDER BY plant_type, name
+        """)
+        
+        if models_df is None or models_df.empty:
+            return []
+        
+        models = []
+        for _, row in models_df.iterrows():
+            model_data = {
+                "id": int(row["id"]),
+                "plant_type": str(row["plant_type"]),
+                "name": str(row["name"]),
+                "model_3d_url": str(row["model_3d_url"]),
+                "default_render_url": row.get("default_render_url"),
+                "is_default": bool(row["is_default"]),
+                "metadata": row.get("metadata"),
+            }
+            models.append(PlantModelResponse(**model_data))
+        
+        logger.info(f"✅ {len(models)} modelos 3D obtenidos")
+        return models
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo modelos 3D: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo modelos 3D: {str(e)}"
+        )
+
+
+@router.get("/models/in-use", response_model=List[PlantModelResponse])
+async def get_models_in_use(
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Obtiene solo los modelos 3D que ya están asignados a plantas (para evitar duplicados)"""
+    try:
+        models_df = await db.execute_query("""
+            SELECT DISTINCT 
+                pm.id, 
+                pm.plant_type, 
+                pm.name, 
+                pm.model_3d_url, 
+                pm.default_render_url, 
+                pm.is_default,
+                pm.metadata
+            FROM plant_models pm
+            INNER JOIN plant_model_assignments pma ON pm.id = pma.model_id
+            ORDER BY pm.plant_type, pm.name
+        """)
+        
+        if models_df is None or models_df.empty:
+            return []
+        
+        models = []
+        for _, row in models_df.iterrows():
+            model_data = {
+                "id": int(row["id"]),
+                "plant_type": str(row["plant_type"]),
+                "name": str(row["name"]),
+                "model_3d_url": str(row["model_3d_url"]),
+                "default_render_url": row.get("default_render_url"),
+                "is_default": bool(row["is_default"]),
+                "metadata": row.get("metadata"),
+            }
+            models.append(PlantModelResponse(**model_data))
+        
+        logger.info(f"✅ {len(models)} modelos 3D en uso obtenidos")
+        return models
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo modelos 3D en uso: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo modelos 3D en uso: {str(e)}"
+        )
+
 
 # ===============================================
 # ENDPOINT DE DEBUG TEMPORAL
