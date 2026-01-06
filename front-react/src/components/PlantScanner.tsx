@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { plantsAPI } from '../services/api';
 import './PlantScanner.css';
 
 interface PlantScannerProps {
   onPlantCreated: (plant: any) => void;
+}
+
+interface PlantModel {
+  id: number;
+  plant_type: string;
+  name: string;
+  model_3d_url: string;
+  default_render_url: string | null;
+  is_default: boolean;
 }
 
 export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) => {
@@ -13,6 +22,9 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
   const [plantName, setPlantName] = useState('');
   const [identifiedData, setIdentifiedData] = useState<any>(null);
   const [error, setError] = useState<string>('');
+  const [availableModels, setAvailableModels] = useState<PlantModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,12 +69,24 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
     setError('');
     try {
       const plant = await plantsAPI.createPlant(image, plantName);
+      
+      // Si se seleccionó un modelo, asignarlo a la planta
+      if (selectedModelId && plant.id) {
+        try {
+          await plantsAPI.assignModelToPlant(plant.id, selectedModelId);
+        } catch (modelError: any) {
+          console.error('Error assigning model to plant:', modelError);
+          // No fallar la creación si falla la asignación del modelo
+        }
+      }
+      
       onPlantCreated(plant);
       // Reset form
       setImage(null);
       setPreview('');
       setPlantName('');
       setIdentifiedData(null);
+      setSelectedModelId(null);
       setStep('name');
     } catch (error: any) {
       console.error('Error creating plant:', error);
@@ -70,6 +94,23 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
       setStep('identified');
     }
   };
+
+  useEffect(() => {
+    // Cargar modelos disponibles al montar el componente
+    const loadAvailableModels = async () => {
+      try {
+        setLoadingModels(true);
+        const models = await plantsAPI.getAvailableModels();
+        setAvailableModels(models);
+      } catch (error: any) {
+        console.error('Error loading available models:', error);
+        // No mostrar error al usuario, simplemente no mostrar modelos
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+    loadAvailableModels();
+  }, []);
 
   const handleBack = () => {
     if (step === 'photo') {
@@ -79,6 +120,7 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
     } else if (step === 'identified') {
       setStep('photo');
       setIdentifiedData(null);
+      setSelectedModelId(null);
     }
   };
 
@@ -190,6 +232,28 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
                   : <p>{identifiedData.care_tips}</p>
                 }
               </div>
+            </div>
+          )}
+
+          {/* Selector de modelo 3D */}
+          {availableModels.length > 0 && (
+            <div className="model-selector-card">
+              <h4>🎨 Seleccionar Modelo 3D (opcional)</h4>
+              <p className="model-selector-description">
+                Elige un modelo 3D para tu planta. Si no seleccionas uno, se asignará automáticamente según el tipo.
+              </p>
+              <select
+                value={selectedModelId || ''}
+                onChange={(e) => setSelectedModelId(e.target.value ? parseInt(e.target.value) : null)}
+                className="model-select"
+              >
+                <option value="">Asignación automática</option>
+                {availableModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.plant_type} - {model.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

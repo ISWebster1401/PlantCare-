@@ -257,6 +257,20 @@ export const plantsAPI = {
     const response = await api.put(`/plants/${plantId}`, data);
     return response.data;
   },
+
+  // Obtener modelos disponibles para asignar
+  getAvailableModels: async (): Promise<any[]> => {
+    const response = await api.get('/admin/models/in-use');
+    return response.data;
+  },
+
+  // Asignar modelo 3D a una planta
+  assignModelToPlant: async (plantId: number, modelId: number): Promise<any> => {
+    const response = await api.post(`/plants/${plantId}/assign-model`, {
+      model_id: modelId
+    });
+    return response.data;
+  },
 };
 
 // ============================================
@@ -314,6 +328,31 @@ export const adminAPI = {
   // Eliminar planta
   deletePlant: async (plantId: number): Promise<void> => {
     await api.delete(`/admin/plants/${plantId}`);
+  },
+
+  // Obtener todos los modelos 3D
+  getModels: async (): Promise<any[]> => {
+    const response = await api.get('/admin/models');
+    return response.data;
+  },
+
+  // Obtener solo modelos en uso
+  getModelsInUse: async (): Promise<any[]> => {
+    const response = await api.get('/admin/models/in-use');
+    return response.data;
+  },
+
+  // Subir modelo 3D
+  uploadModel: async (file: File, plantType?: string, name?: string, isDefault: boolean = false): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (plantType) formData.append('plant_type', plantType);
+    if (name) formData.append('name', name);
+    formData.append('is_default', isDefault.toString());
+    const response = await api.post('/plants/models/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
   },
 };
 
