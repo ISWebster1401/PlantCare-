@@ -3,7 +3,8 @@
  */
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-// GLTFLoader se carga dinámicamente para evitar problemas con create-react-app
+// Usar importación estática con ruta completa para evitar problemas de webpack
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import './Model3DViewer.css';
 
 interface Model3DViewerProps {
@@ -66,62 +67,52 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
     directionalLight2.position.set(-5, -5, -5);
     scene.add(directionalLight2);
 
-    // Cargar modelo GLB usando importación dinámica
-    const loadModel = async () => {
-      try {
-        // Importación dinámica de GLTFLoader para evitar problemas con create-react-app
-        const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
-        const loader = new GLTFLoader();
+    // Cargar modelo GLB
+    const loader = new GLTFLoader();
+    
+    loader.load(
+      modelUrl,
+      (gltf) => {
+        // Agregar modelo a la escena
+        const model = gltf.scene;
         
-        loader.load(
-          modelUrl,
-          (gltf) => {
-            // Agregar modelo a la escena
-            const model = gltf.scene;
-            
-            // Calcular bounding box para centrar el modelo
-            const box = new THREE.Box3().setFromObject(model);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-            
-            // Centrar modelo
-            model.position.sub(center);
-            
-            // Escalar modelo para que quepa en la vista
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = maxDim > 0 ? 2 / maxDim : 1;
-            model.scale.multiplyScalar(scale);
-            
-            scene.add(model);
-            modelRef.current = model;
+        // Calcular bounding box para centrar el modelo
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        // Centrar modelo
+        model.position.sub(center);
+        
+        // Escalar modelo para que quepa en la vista
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = maxDim > 0 ? 2 / maxDim : 1;
+        model.scale.multiplyScalar(scale);
+        
+        scene.add(model);
+        modelRef.current = model;
 
-            // Configurar animaciones si existen
-            if (gltf.animations && gltf.animations.length > 0) {
-              mixerRef.current = new THREE.AnimationMixer(model);
-              gltf.animations.forEach((clip) => {
-                mixerRef.current?.clipAction(clip).play();
-              });
-            }
+        // Configurar animaciones si existen
+        if (gltf.animations && gltf.animations.length > 0) {
+          mixerRef.current = new THREE.AnimationMixer(model);
+          gltf.animations.forEach((clip) => {
+            mixerRef.current?.clipAction(clip).play();
+          });
+        }
 
-            console.log('✅ Modelo 3D cargado exitosamente');
-          },
-          (progress) => {
-            // Progreso de carga (opcional)
-            if (progress.total > 0) {
-              const percent = (progress.loaded / progress.total) * 100;
-              console.log(`Cargando modelo: ${percent.toFixed(0)}%`);
-            }
-          },
-          (error) => {
-            console.error('❌ Error cargando modelo 3D:', error);
-          }
-        );
-      } catch (error) {
-        console.error('❌ Error importando GLTFLoader:', error);
+        console.log('✅ Modelo 3D cargado exitosamente');
+      },
+      (progress) => {
+        // Progreso de carga (opcional)
+        if (progress.total > 0) {
+          const percent = (progress.loaded / progress.total) * 100;
+          console.log(`Cargando modelo: ${percent.toFixed(0)}%`);
+        }
+      },
+      (error) => {
+        console.error('❌ Error cargando modelo 3D:', error);
       }
-    };
-
-    loadModel();
+    );
 
     // Loop de renderizado
     let lastTime = Date.now();
