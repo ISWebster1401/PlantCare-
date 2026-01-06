@@ -82,13 +82,13 @@ const Dashboard: React.FC = () => {
               <AIIcon className="nav-icon" />
               IA Chat
             </button>
-            {(user?.role_id === 2 || user?.role === 'admin') && (
+            {(user?.role_id === 2 || user?.role_id === 3 || user?.role === 'admin') && (
               <button 
                 className={`nav-btn ${activeView === 'admin' ? 'active' : ''}`}
                 onClick={() => setActiveView('admin')}
               >
                 <AdminIcon className="nav-icon" />
-                Admin
+                {user?.role_id === 3 ? 'Superadmin' : 'Admin'}
               </button>
             )}
             <button 
@@ -106,7 +106,19 @@ const Dashboard: React.FC = () => {
                 title="Mi Perfil"
               >
                 <UserIcon className="nav-icon" />
-                {user?.full_name}
+                <span className="user-name-text">
+                  {user?.full_name}
+                  {user?.role_id === 3 && (
+                    <span className="role-badge superadmin-badge" title="Superadministrador">
+                      👑 Superadmin
+                    </span>
+                  )}
+                  {user?.role_id === 2 && user?.role_id !== 3 && (
+                    <span className="role-badge admin-badge" title="Administrador">
+                      🛠️ Admin
+                    </span>
+                  )}
+                </span>
               </button>
               <button className="logout-btn" onClick={logout}>
                 Cerrar Sesión
