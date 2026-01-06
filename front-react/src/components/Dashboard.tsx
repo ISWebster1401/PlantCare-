@@ -135,7 +135,7 @@ const Dashboard: React.FC = () => {
         {activeView === 'devices' && <DeviceManager />}
         {activeView === 'humidity' && <HumedadView />}
         {activeView === 'ai' && <AIChat />}
-        {activeView === 'admin' && (user?.role_id === 2 || user?.role === 'admin') && <AdminPanel />}
+        {activeView === 'admin' && (user?.role_id === 2 || user?.role_id === 3 || user?.role === 'admin') && <AdminPanel />}
       </main>
 
       {/* Botón flotante azul para mini chat IA */}
