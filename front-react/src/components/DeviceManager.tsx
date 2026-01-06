@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+// useAuth removido - no se usa actualmente
 import { deviceAPI, plantsAPI } from '../services/api';
 import './DeviceManager.css';
 
@@ -30,7 +30,7 @@ interface DeviceListResponse {
 }
 
 const DeviceManager: React.FC = () => {
-  const { token } = useAuth();
+  // Token no se usa actualmente pero se mantiene para futuras funcionalidades
   const [devices, setDevices] = useState<Device[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
   const [loading, setLoading] = useState(true);
