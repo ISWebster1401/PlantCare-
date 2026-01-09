@@ -116,6 +116,10 @@ class PasswordReset(BaseModel):
     """Esquema para reset de contraseña"""
     email: EmailStr = Field(..., description="Email del usuario")
 
+class ResendCodeRequest(BaseModel):
+    """Esquema para reenviar código de verificación"""
+    email: EmailStr = Field(..., description="Email del usuario")
+
 class PasswordResetConfirm(BaseModel):
     """Esquema para confirmar reset de contraseña"""
     token: str = Field(..., description="Token de reset")

@@ -6,7 +6,7 @@ from app.api.core.database import get_db, get_role_by_id
 from app.api.schemas.user import (
     UserCreate, UserLogin, UserResponse, Token, 
     UserUpdate, PasswordChange, GoogleAuthRequest,
-    EmailChangeRequest, EmailChangeConfirm
+    EmailChangeRequest, EmailChangeConfirm, ResendCodeRequest
 )
 from app.db.queries import (
     get_user_by_email, get_user_by_id, update_user_password, update_user, deactivate_user,
@@ -322,13 +322,10 @@ async def verify_code(payload: dict, db: AsyncPgDbToolkit = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/resend-code")
-async def resend_verification(user_credentials: UserLogin, db: AsyncPgDbToolkit = Depends(get_db)):
+async def resend_verification(request: ResendCodeRequest, db: AsyncPgDbToolkit = Depends(get_db)):
     """Reenvía el código de verificación a un usuario no verificado."""
     try:
-        if user_credentials and user_credentials.email:
-            user = await get_user_by_email(db, user_credentials.email)
-        else:
-            raise HTTPException(status_code=400, detail="Email requerido")
+        user = await get_user_by_email(db, request.email)
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         if bool(user.get("is_verified", False)):

@@ -31,13 +31,26 @@ router = APIRouter(prefix="/plants", tags=["plants"])
 
 
 def require_admin(current_user: dict = Depends(get_current_active_user)):
-    """Middleware para verificar que el usuario sea administrador (role_id == 2)"""
+    """Middleware para verificar que el usuario sea administrador (role_id = 2) o superadmin (role_id = 3)"""
     role_id = current_user.get("role_id")
-    if role_id != 2:
+    
+    # Intentar convertir a int si es string numérico
+    try:
+        role_id_int = int(role_id) if role_id is not None else None
+        if role_id_int not in [2, 3]:
+            logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} (esperado: 2 o 3)")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso denegado. Se requieren permisos de administrador o superadministrador."
+            )
+    except (ValueError, TypeError):
+        logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} no es válido (esperado: 2 o 3)")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado. Se requieren permisos de administrador para subir modelos 3D."
+            detail="Acceso denegado. Se requieren permisos de administrador o superadministrador."
         )
+    
+    logger.info(f"[DEBUG ADMIN] Acceso permitido para usuario {current_user.get('email')} (role_id={role_id_int})")
     return current_user
 
 
@@ -82,6 +95,8 @@ def _normalize_plant_type(plant_type: str) -> str:
         # Ficus
         "ficus": "Ficus",
         "higuera": "Ficus",
+        "ficus lira": "Ficus",
+        "ficus lyrata": "Ficus",
         
         # Cactus
         "cactus": "Cactus",
@@ -142,10 +157,12 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
         logger.info(f"🔄 Tipo de planta normalizado: '{plant_type}' → '{normalized_type}'")
         
         # 2. Buscar modelo predeterminado para el tipo de planta normalizado
+        # Buscar el más reciente con is_default = TRUE (el más reciente es el último subido)
         model_df = await db.execute_query("""
-            SELECT id, default_render_url
+            SELECT id, default_render_url, model_3d_url
             FROM plant_models
             WHERE plant_type = %s AND is_default = TRUE
+            ORDER BY updated_at DESC NULLS LAST, created_at DESC, id DESC
             LIMIT 1
         """, (normalized_type,))
         
@@ -364,7 +381,8 @@ async def create_plant(
                 p.*,
                 pma.id as assignment_id,
                 pma.model_id as assigned_model_id,
-                pm.model_3d_url
+                pm.model_3d_url,
+                pm.default_render_url
             FROM plants p
             LEFT JOIN plant_model_assignments pma ON p.id = pma.plant_id
             LEFT JOIN plant_models pm ON pma.model_id = pm.id
@@ -724,7 +742,7 @@ async def upload_plant_model(
     file: UploadFile = File(...),
     plant_type: Optional[str] = Form(None),
     name: Optional[str] = Form(None),
-    is_default: bool = Form(False),
+    is_default: Optional[bool] = Form(None),
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
@@ -780,21 +798,33 @@ async def upload_plant_model(
             "original_filename": file.filename
         }
         
-        # Si hay plant_type, verificar si ya existe un modelo default de ese tipo
-        # Si existe y is_default=True, actualizar ese modelo
-        # Si existe y is_default=False, crear nuevo (no reemplazar)
-        # Si no existe, crear nuevo
+        # Lógica mejorada para determinar si debe ser default:
+        # 1. Si is_default es explícitamente True, marcar como default (y reemplazar si existe)
+        # 2. Si is_default es None/False pero es el PRIMER modelo del tipo, marcarlo como default automáticamente
+        # 3. Si ya existe un default y is_default es False, crear sin marcar como default
         if model_plant_type:
+            # Verificar si ya existe algún modelo para este tipo
+            any_model_for_type = await db.execute_query("""
+                SELECT id FROM plant_models
+                WHERE plant_type = %s
+                LIMIT 1
+            """, (model_plant_type,))
+            
             existing_default_model = await db.execute_query("""
                 SELECT id FROM plant_models
                 WHERE plant_type = %s AND is_default = TRUE
                 LIMIT 1
             """, (model_plant_type,))
             
-            if existing_default_model is not None and not existing_default_model.empty:
-                # Existe un modelo default para este tipo
-                if is_default:
-                    # Reemplazar el modelo existente
+            is_first_model = (any_model_for_type is None or any_model_for_type.empty)
+            has_existing_default = (existing_default_model is not None and not existing_default_model.empty)
+            
+            # Determinar si debe ser default
+            if is_default is True:
+                # Usuario marcó explícitamente como default
+                should_be_default = True
+                if has_existing_default:
+                    # Reemplazar el modelo default existente
                     model_id = existing_default_model.iloc[0]["id"]
                     update_result = await db.execute_query("""
                         UPDATE plant_models
@@ -810,14 +840,14 @@ async def upload_plant_model(
                     
                     if update_result is not None and not update_result.empty:
                         insert_result = update_result
-                        logger.info(f"✅ Modelo existente actualizado para tipo '{model_plant_type}' (id: {model_id})")
+                        logger.info(f"✅ Modelo default actualizado para tipo '{model_plant_type}' (id: {model_id})")
                     else:
                         raise HTTPException(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="No se pudo actualizar el modelo existente",
                         )
                 else:
-                    # is_default=False, crear nuevo modelo sin reemplazar el default
+                    # No hay default, crear nuevo como default
                     insert_result = await db.execute_query("""
                         INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
                         VALUES (%s, %s, %s, %s, %s::jsonb)
@@ -826,12 +856,21 @@ async def upload_plant_model(
                         model_plant_type,
                         model_name,
                         model_url,
-                        is_default,
+                        True,
                         json.dumps(metadata_dict)
                     ))
-                    logger.info(f"✅ Nuevo modelo creado para tipo '{model_plant_type}' (no reemplaza default)")
+                    logger.info(f"✅ Nuevo modelo creado para tipo '{model_plant_type}' como default")
             else:
-                # No existe modelo default para este tipo, crear nuevo
+                # is_default es None o False
+                if is_first_model:
+                    # Es el primer modelo de este tipo, marcarlo como default automáticamente
+                    should_be_default = True
+                    logger.info(f"✅ Primer modelo para tipo '{model_plant_type}', marcado como default automáticamente")
+                else:
+                    # Ya existe un modelo, no marcar como default a menos que sea explícito
+                    should_be_default = False
+                    logger.info(f"✅ Modelo adicional para tipo '{model_plant_type}', no marcado como default")
+                
                 insert_result = await db.execute_query("""
                     INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
                     VALUES (%s, %s, %s, %s, %s::jsonb)
@@ -840,10 +879,9 @@ async def upload_plant_model(
                     model_plant_type,
                     model_name,
                     model_url,
-                    is_default,
+                    should_be_default,
                     json.dumps(metadata_dict)
                 ))
-                logger.info(f"✅ Nuevo modelo creado para tipo '{model_plant_type}' (primera vez)")
         else:
             # No hay plant_type específico, crear nuevo modelo
             insert_result = await db.execute_query("""
