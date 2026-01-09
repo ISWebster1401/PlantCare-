@@ -174,7 +174,16 @@ const AdminPanel: React.FC = () => {
     try {
       setUploadingModel(true);
       setError(null);
-      await adminAPI.uploadModel(modelFile, modelPlantType || undefined, modelName || undefined, modelIsDefault);
+      // Si se seleccionó un tipo de planta, marcar como default automáticamente si es el primero
+      // El backend manejará esto automáticamente si is_default no se especifica
+      const isFirstOfType = modelPlantType ? !models.some(m => m.plant_type === modelPlantType) : false;
+      const shouldBeDefault: boolean = Boolean(modelIsDefault) || isFirstOfType;
+      await adminAPI.uploadModel(
+        modelFile, 
+        modelPlantType || undefined, 
+        modelName || undefined, 
+        shouldBeDefault
+      );
       
       // Limpiar formulario
       setModelFile(null);
