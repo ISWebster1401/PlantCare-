@@ -109,6 +109,7 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPlantClick }) => 
               <Model3DViewer 
                 modelUrl={plant.model_3d_url} 
                 autoRotate={true}
+                characterMood={plant.character_mood}
                 style={{ width: '100%', height: '100%' }}
               />
             </div>
@@ -118,6 +119,7 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPlantClick }) => 
               <Model3DViewer 
                 modelUrl={plant.model_3d_url} 
                 autoRotate={true}
+                characterMood={plant.character_mood}
                 style={{ width: '100%', height: '100%' }}
               />
             </div>
@@ -164,6 +166,7 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPlantClick }) => 
                     <Model3DViewer 
                       modelUrl={plant.model_3d_url} 
                       autoRotate={true}
+                      characterMood={plant.character_mood}
                       style={{ width: '100%', height: '300px' }}
                     />
                   </div>
