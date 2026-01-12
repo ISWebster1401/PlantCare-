@@ -12,12 +12,14 @@ interface Model3DViewerProps {
   modelUrl: string;
   style?: any;
   autoRotate?: boolean;
+  characterMood?: string;
 }
 
 export const Model3DViewer: React.FC<Model3DViewerProps> = ({ 
   modelUrl, 
   style,
-  autoRotate = true 
+  autoRotate = true,
+  characterMood
 }) => {
   const frameRef = useRef<number | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -25,8 +27,20 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   const rendererRef = useRef<Renderer | null>(null);
   const modelRef = useRef<THREE.Group | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const currentActionRef = useRef<THREE.AnimationAction | null>(null);
+  
+  // Mapeo de character_mood a nombres de animación
+  const animationMap: Record<string, string> = {
+    'happy': 'Happy',
+    'sad': 'Sad',
+    'thirsty': 'Sad',
+    'overwatered': 'Sick',
+    'sick': 'Sick'
+  };
 
   const onContextCreate = async (gl: any) => {
+    // Capturar characterMood al momento de crear el contexto
+    const currentMood = characterMood;
     try {
       // Crear escena
       const scene = new THREE.Scene();
@@ -91,9 +105,48 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
           // Configurar animaciones si existen
           if (gltf.animations && gltf.animations.length > 0) {
             mixerRef.current = new THREE.AnimationMixer(model);
-            gltf.animations.forEach((clip) => {
-              mixerRef.current?.clipAction(clip).play();
-            });
+            
+            // Si hay characterMood, seleccionar animación específica
+            const mood = currentMood;
+            if (mood && mixerRef.current) {
+              const animationName = animationMap[mood.toLowerCase()] || 'Idle';
+              
+              // Buscar la animación por nombre (case-insensitive)
+              const targetAnimation = gltf.animations.find((clip) => 
+                clip.name.toLowerCase() === animationName.toLowerCase()
+              );
+              
+              if (targetAnimation) {
+                // Reproducir la animación seleccionada
+                const action = mixerRef.current.clipAction(targetAnimation);
+                action.play();
+                currentActionRef.current = action;
+                console.log(`✅ Animación '${animationName}' reproducida para mood '${mood}'`);
+              } else {
+                // Si no se encuentra la animación, intentar con 'Idle'
+                const idleAnimation = gltf.animations.find((clip) => 
+                  clip.name.toLowerCase() === 'idle'
+                );
+                
+                if (idleAnimation) {
+                  const action = mixerRef.current.clipAction(idleAnimation);
+                  action.play();
+                  currentActionRef.current = action;
+                  console.log(`⚠️ Animación '${animationName}' no encontrada, usando 'Idle'`);
+                } else {
+                  // Si no hay Idle, reproducir todas las animaciones (fallback)
+                  gltf.animations.forEach((clip) => {
+                    mixerRef.current?.clipAction(clip).play();
+                  });
+                  console.log(`⚠️ No se encontró animación específica, reproduciendo todas`);
+                }
+              }
+            } else {
+              // Si no hay characterMood, reproducir todas las animaciones (comportamiento original)
+              gltf.animations.forEach((clip) => {
+                mixerRef.current?.clipAction(clip).play();
+              });
+            }
           }
 
           console.log('✅ Modelo 3D cargado exitosamente');
