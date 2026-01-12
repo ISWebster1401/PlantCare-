@@ -165,6 +165,7 @@ export default function PlantDetailScreen() {
                 modelUrl={plant.model_3d_url} 
                 style={styles.model3dViewer}
                 autoRotate={true}
+                characterMood={plant.character_mood}
               />
             </View>
           ) : (
