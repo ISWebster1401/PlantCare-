@@ -70,6 +70,14 @@ const AdminPanel: React.FC = () => {
   const [modelPlantType, setModelPlantType] = useState('');
   const [modelName, setModelName] = useState('');
   const [modelIsDefault, setModelIsDefault] = useState(false);
+  
+  // Estados para edición de modelo
+  const [editingModel, setEditingModel] = useState<PlantModel | null>(null);
+  const [editModelFile, setEditModelFile] = useState<File | null>(null);
+  const [editModelPlantType, setEditModelPlantType] = useState('');
+  const [editModelName, setEditModelName] = useState('');
+  const [editModelIsDefault, setEditModelIsDefault] = useState(false);
+  const [updatingModel, setUpdatingModel] = useState(false);
 
   // Tipos de plantas comunes
   const commonPlantTypes = [
@@ -200,6 +208,53 @@ const AdminPanel: React.FC = () => {
       console.error('Error uploading model:', err);
     } finally {
       setUploadingModel(false);
+    }
+  };
+
+  const handleEditModel = (model: PlantModel) => {
+    setEditingModel(model);
+    setEditModelPlantType(model.plant_type);
+    setEditModelName(model.name);
+    setEditModelIsDefault(model.is_default);
+    setEditModelFile(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingModel(null);
+    setEditModelPlantType('');
+    setEditModelName('');
+    setEditModelIsDefault(false);
+    setEditModelFile(null);
+  };
+
+  const handleUpdateModel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingModel) return;
+
+    try {
+      setUpdatingModel(true);
+      setError(null);
+      
+      await adminAPI.updateModel(
+        editingModel.id,
+        editModelFile || undefined,
+        editModelPlantType || undefined,
+        editModelName || undefined,
+        editModelIsDefault
+      );
+      
+      // Limpiar formulario
+      handleCancelEdit();
+      
+      // Recargar modelos
+      await loadModels();
+      
+      alert('✅ Modelo 3D actualizado exitosamente');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error actualizando modelo 3D');
+      console.error('Error updating model:', err);
+    } finally {
+      setUpdatingModel(false);
     }
   };
 
@@ -624,27 +679,112 @@ const AdminPanel: React.FC = () => {
                     <th>Nombre</th>
                     <th>URL del Modelo</th>
                     <th>Predeterminado</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {models.map(model => (
-                    <tr key={model.id}>
-                      <td>{model.id}</td>
-                      <td>{model.plant_type}</td>
-                      <td>{model.name}</td>
-                      <td>
-                        <a href={model.model_3d_url} target="_blank" rel="noopener noreferrer" className="link">
-                          Ver modelo
-                        </a>
-                      </td>
-                      <td>
-                        {model.is_default ? (
-                          <span className="status-badge connected">Sí</span>
-                        ) : (
-                          <span className="unassigned">No</span>
-                        )}
-                      </td>
-                    </tr>
+                    <React.Fragment key={model.id}>
+                      <tr>
+                        <td>{model.id}</td>
+                        <td>{model.plant_type}</td>
+                        <td>{model.name}</td>
+                        <td>
+                          <a href={model.model_3d_url} target="_blank" rel="noopener noreferrer" className="link">
+                            Ver modelo
+                          </a>
+                        </td>
+                        <td>
+                          {model.is_default ? (
+                            <span className="status-badge connected">Sí</span>
+                          ) : (
+                            <span className="unassigned">No</span>
+                          )}
+                        </td>
+                        <td>
+                          <button 
+                            onClick={() => handleEditModel(model)}
+                            className="btn-secondary btn-sm"
+                            disabled={updatingModel}
+                          >
+                            ✏️ Editar
+                          </button>
+                        </td>
+                      </tr>
+                      {editingModel?.id === model.id && (
+                        <tr>
+                          <td colSpan={6}>
+                            <div className="model-edit-form">
+                              <h4>Editar Modelo {model.id}</h4>
+                              <form onSubmit={handleUpdateModel}>
+                                <div className="form-group">
+                                  <label htmlFor="edit-model-file">Nuevo archivo .glb (opcional)</label>
+                                  <input
+                                    type="file"
+                                    id="edit-model-file"
+                                    accept=".glb"
+                                    onChange={(e) => setEditModelFile(e.target.files?.[0] || null)}
+                                    disabled={updatingModel}
+                                  />
+                                  <small>Dejar vacío para mantener el archivo actual</small>
+                                </div>
+                                <div className="form-group">
+                                  <label htmlFor="edit-model-plant-type">Tipo de Planta</label>
+                                  <select
+                                    id="edit-model-plant-type"
+                                    value={editModelPlantType}
+                                    onChange={(e) => setEditModelPlantType(e.target.value)}
+                                    disabled={updatingModel}
+                                    className="form-select"
+                                  >
+                                    {commonPlantTypes.map((type) => (
+                                      <option key={type} value={type}>
+                                        {type}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="form-group">
+                                  <label htmlFor="edit-model-name">Nombre del Modelo</label>
+                                  <input
+                                    type="text"
+                                    id="edit-model-name"
+                                    value={editModelName}
+                                    onChange={(e) => setEditModelName(e.target.value)}
+                                    disabled={updatingModel}
+                                    className="form-input"
+                                  />
+                                </div>
+                                <div className="form-group">
+                                  <label>
+                                    <input
+                                      type="checkbox"
+                                      checked={editModelIsDefault}
+                                      onChange={(e) => setEditModelIsDefault(e.target.checked)}
+                                      disabled={updatingModel}
+                                    />
+                                    Marcar como modelo predeterminado
+                                  </label>
+                                </div>
+                                <div className="form-actions">
+                                  <button type="submit" className="btn-primary" disabled={updatingModel}>
+                                    {updatingModel ? 'Actualizando...' : '💾 Guardar Cambios'}
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    onClick={handleCancelEdit}
+                                    className="btn-secondary"
+                                    disabled={updatingModel}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </form>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

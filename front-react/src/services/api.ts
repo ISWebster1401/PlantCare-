@@ -32,11 +32,21 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expirado: limpia cookies y redirige
-      Cookies.remove('access_token');
-      Cookies.remove('refresh_token');
-      Cookies.remove('user_data');
-      window.location.href = '/login';
+      // No redirigir si el error viene de endpoints de autenticación (login, google)
+      // Estos errores deben manejarse en el componente de login
+      const isAuthEndpoint = error.config?.url?.includes('/auth/login') || 
+                             error.config?.url?.includes('/auth/google');
+      
+      if (!isAuthEndpoint) {
+        // Token expirado en otras peticiones: limpia cookies y redirige
+        Cookies.remove('access_token');
+        Cookies.remove('refresh_token');
+        Cookies.remove('user_data');
+        // Solo redirigir si no estamos ya en la landing page
+        if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
+          window.location.href = '/';
+        }
+      }
     }
     return Promise.reject(error);
   }
@@ -350,6 +360,25 @@ export const adminAPI = {
     if (name) formData.append('name', name);
     formData.append('is_default', isDefault.toString());
     const response = await api.post('/plants/models/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Actualizar modelo 3D existente
+  updateModel: async (
+    modelId: number, 
+    file?: File, 
+    plantType?: string, 
+    name?: string, 
+    isDefault?: boolean
+  ): Promise<any> => {
+    const formData = new FormData();
+    if (file) formData.append('file', file);
+    if (plantType) formData.append('plant_type', plantType);
+    if (name) formData.append('name', name);
+    if (isDefault !== undefined) formData.append('is_default', isDefault.toString());
+    const response = await api.put(`/plants/models/${modelId}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;

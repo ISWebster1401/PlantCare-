@@ -38,7 +38,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onClose }) =>
       await login(formData);
       onClose(); // Cerrar modal después del login exitoso
     } catch (error: any) {
-      setError(error.message);
+      // Mostrar mensaje específico para credenciales incorrectas
+      const errorMessage = error.message || 'Error al iniciar sesión';
+      if (errorMessage.toLowerCase().includes('incorrect') || 
+          errorMessage.toLowerCase().includes('credenciales') ||
+          errorMessage.toLowerCase().includes('invalid') ||
+          error.response?.status === 401) {
+        setError('Inicio de sesión o contraseña incorrectos, por favor verifique');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +83,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onClose }) =>
             await loginWithGoogle(response.credential);
             onClose();
           } catch (err: any) {
-            setGoogleError(err.message || 'No se pudo iniciar sesión con Google');
+            const errorMessage = err.message || 'No se pudo iniciar sesión con Google';
+            if (err.response?.status === 401 || errorMessage.toLowerCase().includes('incorrect')) {
+              setGoogleError('Inicio de sesión o contraseña incorrectos, por favor verifique');
+            } else {
+              setGoogleError(errorMessage);
+            }
           } finally {
             setGoogleLoading(false);
           }
