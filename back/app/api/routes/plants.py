@@ -124,6 +124,10 @@ def _normalize_plant_type(plant_type: str) -> str:
         "dolar": "Dólar",
         "plectranthus": "Dólar",
         "planta del dólar": "Dólar",
+        "planta del dinero": "Dólar",
+        "pilea": "Dólar",
+        "pilea peperomioides": "Dólar",
+        "money plant": "Dólar",
     }
     
     # Buscar match exacto primero
@@ -156,10 +160,24 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
         normalized_type = _normalize_plant_type(plant_type)
         logger.info(f"🔄 Tipo de planta normalizado: '{plant_type}' → '{normalized_type}'")
         
+        # DEBUG: Verificar qué modelos existen para este tipo
+        debug_models = await db.execute_query("""
+            SELECT id, plant_type, name, is_default, created_at, updated_at
+            FROM plant_models
+            WHERE plant_type = %s
+            ORDER BY is_default DESC, created_at DESC
+        """, (normalized_type,))
+        if debug_models is not None and not debug_models.empty:
+            logger.info(f"🔍 DEBUG: Encontrados {len(debug_models)} modelos para tipo '{normalized_type}':")
+            for _, row in debug_models.iterrows():
+                logger.info(f"   - ID: {row['id']}, Nombre: {row['name']}, is_default: {row['is_default']}, Creado: {row.get('created_at')}")
+        else:
+            logger.warning(f"🔍 DEBUG: No se encontraron modelos para tipo '{normalized_type}'")
+        
         # 2. Buscar modelo predeterminado para el tipo de planta normalizado
         # Buscar el más reciente con is_default = TRUE (el más reciente es el último subido)
         model_df = await db.execute_query("""
-            SELECT id, default_render_url, model_3d_url
+            SELECT id, default_render_url, model_3d_url, name, plant_type
             FROM plant_models
             WHERE plant_type = %s AND is_default = TRUE
             ORDER BY updated_at DESC NULLS LAST, created_at DESC, id DESC
@@ -189,7 +207,8 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
         else:
             model_id = model_df.iloc[0]["id"]
             default_render_url = model_df.iloc[0].get("default_render_url")
-            logger.info(f"✅ Modelo específico encontrado para '{normalized_type}' (id: {model_id})")
+            model_name = model_df.iloc[0].get("name", "Unknown")
+            logger.info(f"✅ Modelo específico encontrado para '{normalized_type}' (id: {model_id}, nombre: {model_name})")
         
         # 3. Crear registro en plant_model_assignments
         assignment_result = await db.execute_query("""
@@ -742,7 +761,7 @@ async def upload_plant_model(
     file: UploadFile = File(...),
     plant_type: Optional[str] = Form(None),
     name: Optional[str] = Form(None),
-    is_default: Optional[bool] = Form(None),
+    is_default: Optional[str] = Form(None),  # Cambiar a str para manejar "true"/"false" desde FormData
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
@@ -798,6 +817,16 @@ async def upload_plant_model(
             "original_filename": file.filename
         }
         
+        # Convertir is_default de string a bool si viene como string
+        is_default_bool = None
+        if is_default is not None:
+            if isinstance(is_default, str):
+                is_default_bool = is_default.lower() in ('true', '1', 'yes', 'on')
+            else:
+                is_default_bool = bool(is_default)
+        
+        logger.info(f"📤 Subiendo modelo: tipo='{model_plant_type}', nombre='{model_name}', is_default={is_default_bool}")
+        
         # Lógica mejorada para determinar si debe ser default:
         # 1. Si is_default es explícitamente True, marcar como default (y reemplazar si existe)
         # 2. Si is_default es None/False pero es el PRIMER modelo del tipo, marcarlo como default automáticamente
@@ -820,7 +849,7 @@ async def upload_plant_model(
             has_existing_default = (existing_default_model is not None and not existing_default_model.empty)
             
             # Determinar si debe ser default
-            if is_default is True:
+            if is_default_bool is True:
                 # Usuario marcó explícitamente como default
                 should_be_default = True
                 if has_existing_default:
@@ -874,7 +903,7 @@ async def upload_plant_model(
                 insert_result = await db.execute_query("""
                     INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
                     VALUES (%s, %s, %s, %s, %s::jsonb)
-                    RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+                    RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata, created_at
                 """, (
                     model_plant_type,
                     model_name,
@@ -882,6 +911,11 @@ async def upload_plant_model(
                     should_be_default,
                     json.dumps(metadata_dict)
                 ))
+                
+                if insert_result is not None and not insert_result.empty:
+                    inserted_model = insert_result.iloc[0]
+                    logger.info(f"✅ Modelo creado: ID={inserted_model['id']}, Tipo={inserted_model['plant_type']}, "
+                              f"Nombre={inserted_model['name']}, is_default={inserted_model['is_default']}")
         else:
             # No hay plant_type específico, crear nuevo modelo
             insert_result = await db.execute_query("""
@@ -892,7 +926,7 @@ async def upload_plant_model(
                 model_plant_type,
                 model_name,
                 model_url,
-                is_default,
+                is_default_bool if is_default_bool is not None else False,
                 json.dumps(metadata_dict)
             ))
         
@@ -924,6 +958,136 @@ async def upload_plant_model(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error subiendo modelo 3D: {str(e)}",
+        )
+
+
+@router.put("/models/{model_id}", response_model=PlantModelResponse, status_code=status.HTTP_200_OK)
+async def update_plant_model(
+    model_id: int,
+    file: Optional[UploadFile] = File(None),
+    plant_type: Optional[str] = Form(None),
+    name: Optional[str] = Form(None),
+    is_default: Optional[str] = Form(None),
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Actualiza un modelo 3D existente.
+    
+    Permite actualizar:
+    - El archivo .glb (opcional)
+    - El nombre del modelo (opcional)
+    - El tipo de planta (opcional)
+    - Si es modelo default (opcional)
+    
+    Si se marca como default, desmarca otros defaults del mismo tipo.
+    """
+    try:
+        # 1. Verificar que el modelo existe
+        existing_model_df = await db.execute_query("""
+            SELECT id, plant_type, name, model_3d_url, is_default, metadata
+            FROM plant_models
+            WHERE id = %s
+            LIMIT 1
+        """, (model_id,))
+        
+        if existing_model_df is None or existing_model_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Modelo 3D con ID {model_id} no encontrado"
+            )
+        
+        existing_model = existing_model_df.iloc[0]
+        current_plant_type = existing_model["plant_type"]
+        current_name = existing_model["name"]
+        current_model_url = existing_model["model_3d_url"]
+        current_is_default = existing_model["is_default"]
+        current_metadata = existing_model.get("metadata") or {}
+        
+        # 2. Convertir is_default de string a bool si viene como string
+        is_default_bool = None
+        if is_default is not None:
+            if isinstance(is_default, str):
+                is_default_bool = is_default.lower() in ('true', '1', 'yes', 'on')
+            else:
+                is_default_bool = bool(is_default)
+        
+        # 3. Determinar valores a actualizar
+        new_plant_type = plant_type if plant_type else current_plant_type
+        new_name = name if name else current_name
+        new_model_url = current_model_url
+        new_is_default = is_default_bool if is_default_bool is not None else current_is_default
+        
+        # 4. Si se subió un nuevo archivo, reemplazarlo
+        if file:
+            logger.info(f"📤 Actualizando archivo del modelo {model_id}")
+            new_model_url = upload_file(file.file, folder="3d_models", max_size_mb=50)
+            
+            # Actualizar metadata con información del nuevo archivo
+            current_metadata["last_file_update"] = datetime.now().isoformat()
+            current_metadata["original_filename"] = file.filename
+            current_metadata["updated_by"] = "user"
+        
+        # 5. Si se cambió el tipo de planta o se marcó como default, manejar defaults
+        if new_plant_type != current_plant_type or (is_default_bool is True and not current_is_default):
+            # Si se marca como default, desmarcar otros defaults del mismo tipo
+            if new_is_default:
+                await db.execute_query("""
+                    UPDATE plant_models
+                    SET is_default = FALSE, updated_at = NOW()
+                    WHERE plant_type = %s AND is_default = TRUE AND id != %s
+                """, (new_plant_type, model_id))
+                logger.info(f"✅ Otros modelos default de tipo '{new_plant_type}' desmarcados")
+        
+        # 6. Actualizar el modelo
+        update_result = await db.execute_query("""
+            UPDATE plant_models
+            SET 
+                plant_type = %s,
+                name = %s,
+                model_3d_url = %s,
+                is_default = %s,
+                metadata = %s::jsonb,
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+        """, (
+            new_plant_type,
+            new_name,
+            new_model_url,
+            new_is_default,
+            json.dumps(current_metadata),
+            model_id
+        ))
+        
+        if update_result is None or update_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se pudo actualizar el modelo en la base de datos"
+            )
+        
+        model_row = update_result.iloc[0]
+        model_data = {
+            "id": int(model_row["id"]),
+            "plant_type": str(model_row["plant_type"]),
+            "name": str(model_row["name"]),
+            "model_3d_url": str(model_row["model_3d_url"]),
+            "default_render_url": model_row.get("default_render_url"),
+            "is_default": bool(model_row["is_default"]),
+            "metadata": model_row.get("metadata"),
+        }
+        
+        logger.info(f"✅ Modelo 3D actualizado exitosamente: {model_data['id']} - {model_data['name']}")
+        
+        return PlantModelResponse(**model_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error actualizando modelo 3D: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error actualizando modelo 3D: {str(e)}",
         )
 
 
