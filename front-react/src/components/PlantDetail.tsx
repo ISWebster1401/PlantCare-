@@ -73,6 +73,7 @@ export const PlantDetail: React.FC = () => {
             <Model3DViewer 
               modelUrl={plant.model_3d_url} 
               autoRotate={true}
+              characterMood={plant.character_mood}
               style={{ width: '100%', height: '400px' }}
             />
           </div>
