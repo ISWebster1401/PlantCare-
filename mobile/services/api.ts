@@ -395,11 +395,18 @@ export const aiAPI = {
   ): Promise<void> => {
     try {
       const token = await AsyncStorage.getItem('access_token');
+      
+      // Verificar token antes de hacer la petición
+      if (!token) {
+        onError('No hay token de autenticación. Por favor, inicia sesión nuevamente.');
+        return;
+      }
+
       const response = await fetch(`${Config.API_URL}/ai/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           message,
@@ -409,23 +416,57 @@ export const aiAPI = {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 401) {
+          // Token expirado - limpiar y pedir re-login
+          await AsyncStorage.multiRemove(['access_token', 'refresh_token', 'user_data']);
+          onError('Tu sesión expiró. Por favor, inicia sesión nuevamente.');
+          return;
+        }
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, ${errorText}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      // En React Native, response.body puede no tener getReader()
+      // Usar una alternativa: leer el stream como texto directamente
+      if (response.body && typeof response.body.getReader === 'function') {
+        // Navegador o entorno que soporta ReadableStream
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-      if (!reader) {
-        throw new Error('No reader available');
-      }
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.error) {
+                  onError(data.error);
+                  return;
+                }
+                if (data.done) {
+                  onDone();
+                  return;
+                }
+                if (data.content) {
+                  onChunk(data.content);
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete chunks
+              }
+            }
+          }
+        }
+      } else {
+        // Fallback: leer todo el stream como texto (no ideal pero funciona)
+        // Nota: Esto no es streaming real, pero funciona en React Native
+        const text = await response.text();
+        const lines = text.split('\n');
+        
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
@@ -442,13 +483,20 @@ export const aiAPI = {
                 onChunk(data.content);
               }
             } catch (e) {
-              // Ignore parse errors for incomplete chunks
+              // Ignore parse errors
             }
           }
         }
+        onDone();
       }
     } catch (error: any) {
-      onError(error.message || 'Error en streaming');
+      console.error('Error en chatStream:', error);
+      if (error.message?.includes('401') || error.message?.includes('expired')) {
+        await AsyncStorage.multiRemove(['access_token', 'refresh_token', 'user_data']);
+        onError('Tu sesión expiró. Por favor, inicia sesión nuevamente.');
+      } else {
+        onError(error.message || 'Error en streaming');
+      }
     }
   },
 
