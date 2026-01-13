@@ -513,6 +513,18 @@ export const aiAPI = {
     return response.data;
   },
 
+  getConversationByPlant: async (plantId: number): Promise<any | null> => {
+    try {
+      const response = await api.get(`/ai/conversations/plant/${plantId}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null; // No existe conversación para esta planta
+      }
+      throw error;
+    }
+  },
+
   deleteConversation: async (conversationId: number): Promise<void> => {
     await api.delete(`/ai/conversations/${conversationId}`);
   },

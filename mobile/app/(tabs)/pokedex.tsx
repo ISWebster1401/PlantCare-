@@ -149,9 +149,10 @@ export default function PokedexScreen() {
         <FlatList
           key={`flatlist-${viewMode}`}
           data={entries}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <PokedexCard 
               entry={item} 
+              index={index}
               onPress={() => handleEntryPress(item)}
               viewMode={viewMode}
             />

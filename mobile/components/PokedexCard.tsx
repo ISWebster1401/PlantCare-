@@ -1,7 +1,7 @@
 /**
  * Componente para mostrar una tarjeta de entrada de pokedex
  */
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { PokedexEntryResponse } from '../types';
 import { useTheme } from '../context/ThemeContext';
@@ -18,11 +19,14 @@ interface PokedexCardProps {
   entry: PokedexEntryResponse;
   onPress?: () => void;
   viewMode?: 'list' | 'grid';
+  index?: number;
 }
 
-export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMode = 'list' }) => {
+export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMode = 'list', index = 0 }) => {
   const { theme } = useTheme();
   const styles = createStyles(theme.colors);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const entranceAnim = useRef(new Animated.Value(0)).current;
 
   const getCareLevelColor = (level: string | null) => {
     if (!level) return '#b0bec5';
@@ -43,13 +47,56 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
     });
   };
 
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  useEffect(() => {
+    // Animación de entrada escalonada
+    Animated.spring(entranceAnim, {
+      toValue: 1,
+      delay: index * 50,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 8,
+    }).start();
+  }, []);
+
+  const opacity = entranceAnim;
+  const translateY = entranceAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+
   if (viewMode === 'grid') {
     return (
-      <TouchableOpacity 
-        style={styles.gridCard} 
-        onPress={onPress} 
-        activeOpacity={0.8}
+      <Animated.View
+        style={{
+          transform: [{ scale: scaleAnim }, { translateY }],
+          opacity,
+        }}
       >
+        <TouchableOpacity 
+          style={styles.gridCard} 
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={1}
+        >
         <View style={styles.gridImageContainer}>
           {entry.is_unlocked && entry.discovered_photo_url ? (
             <Image
@@ -97,16 +144,25 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
             </>
           )}
         </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
   return (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={onPress} 
-      activeOpacity={0.8}
+    <Animated.View
+      style={{
+        transform: [{ scale: scaleAnim }, { translateY }],
+        opacity,
+      }}
     >
+      <TouchableOpacity 
+        style={styles.card} 
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+      >
       <View style={styles.imageContainer}>
         {entry.is_unlocked && entry.discovered_photo_url ? (
           <Image
@@ -183,7 +239,8 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
       <View style={styles.chevronContainer}>
         <Ionicons name="chevron-forward" size={18} color={theme.colors.iconSecondary} />
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 

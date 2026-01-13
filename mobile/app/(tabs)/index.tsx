@@ -1,7 +1,7 @@
 /**
  * Pantalla Home/Dashboard
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
@@ -26,6 +27,13 @@ export default function HomeScreen() {
   const [plantCount, setPlantCount] = useState(0);
   const [activeSensors, setActiveSensors] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Animaciones de entrada para stat cards y quick actions
+  const statCard1Anim = useRef(new Animated.Value(0)).current;
+  const statCard2Anim = useRef(new Animated.Value(0)).current;
+  const action1Anim = useRef(new Animated.Value(0)).current;
+  const action2Anim = useRef(new Animated.Value(0)).current;
+  const action3Anim = useRef(new Animated.Value(0)).current;
 
   const loadData = async () => {
     try {
@@ -53,7 +61,53 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
+    
+    // Animaciones de entrada escalonadas
+    Animated.stagger(100, [
+      Animated.spring(statCard1Anim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+      Animated.spring(statCard2Anim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+      Animated.spring(action1Anim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+      Animated.spring(action2Anim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+      Animated.spring(action3Anim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+    ]).start();
   }, []);
+  
+  const getAnimatedStyle = (animValue: Animated.Value) => ({
+    opacity: animValue,
+    transform: [
+      {
+        translateY: animValue.interpolate({
+          inputRange: [0, 1],
+          outputRange: [20, 0],
+        }),
+      },
+    ],
+  });
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -75,71 +129,81 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.statsContainer}>
-        <TouchableOpacity 
-          style={[styles.statCard, { borderLeftColor: theme.colors.primary }]}
-          onPress={() => router.push('/(tabs)/garden')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.statIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
-            <Ionicons name="leaf" size={32} color={theme.colors.primary} />
-          </View>
-          <View style={styles.statContent}>
-            <Text style={styles.statNumber}>{plantCount}</Text>
-            <Text style={styles.statLabel}>Plantas</Text>
-          </View>
-        </TouchableOpacity>
+        <Animated.View style={getAnimatedStyle(statCard1Anim)}>
+          <TouchableOpacity 
+            style={[styles.statCard, { borderLeftColor: theme.colors.primary }]}
+            onPress={() => router.push('/(tabs)/garden')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.statIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
+              <Ionicons name="leaf" size={32} color={theme.colors.primary} />
+            </View>
+            <View style={styles.statContent}>
+              <Text style={styles.statNumber}>{plantCount}</Text>
+              <Text style={styles.statLabel}>Plantas</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
 
-        <TouchableOpacity 
-          style={[styles.statCard, { borderLeftColor: '#2196f3' }]}
-          onPress={() => router.push('/(tabs)/sensors')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.statIconContainer, { backgroundColor: '#2196f315' }]}>
-            <Ionicons name="hardware-chip" size={32} color="#2196f3" />
-          </View>
-          <View style={styles.statContent}>
-            <Text style={styles.statNumber}>{activeSensors}</Text>
-            <Text style={styles.statLabel}>Sensores Activos</Text>
-          </View>
-        </TouchableOpacity>
+        <Animated.View style={getAnimatedStyle(statCard2Anim)}>
+          <TouchableOpacity 
+            style={[styles.statCard, { borderLeftColor: '#2196f3' }]}
+            onPress={() => router.push('/(tabs)/sensors')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.statIconContainer, { backgroundColor: '#2196f315' }]}>
+              <Ionicons name="hardware-chip" size={32} color="#2196f3" />
+            </View>
+            <View style={styles.statContent}>
+              <Text style={styles.statNumber}>{activeSensors}</Text>
+              <Text style={styles.statLabel}>Sensores Activos</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
 
       <View style={styles.actionsContainer}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/(tabs)/garden')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.actionButtonIcon}>
-            <Ionicons name="leaf" size={24} color={theme.colors.primary} />
-          </View>
-          <Text style={styles.actionButtonText}>Ver Mi Jardín</Text>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
-        </TouchableOpacity>
+        <Animated.View style={getAnimatedStyle(action1Anim)}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(tabs)/garden')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.actionButtonIcon}>
+              <Ionicons name="leaf" size={24} color={theme.colors.primary} />
+            </View>
+            <Text style={styles.actionButtonText}>Ver Mi Jardín</Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
+          </TouchableOpacity>
+        </Animated.View>
 
-        <TouchableOpacity
-          style={[styles.actionButton, styles.actionButtonPrimary]}
-          onPress={() => router.push('/scan-plant')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.actionButtonIconPrimary}>
-            <Ionicons name="camera" size={28} color="#fff" />
-          </View>
-          <Text style={styles.actionButtonTextPrimary}>Escanear Nueva Planta</Text>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
-        </TouchableOpacity>
+        <Animated.View style={getAnimatedStyle(action2Anim)}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonPrimary]}
+            onPress={() => router.push('/scan-plant')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.actionButtonIconPrimary}>
+              <Ionicons name="camera" size={28} color="#fff" />
+            </View>
+            <Text style={styles.actionButtonTextPrimary}>Escanear Nueva Planta</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </Animated.View>
 
-        <TouchableOpacity
-          style={[styles.actionButton, { borderLeftWidth: 4, borderLeftColor: '#9c27b0' }]}
-          onPress={() => router.push('/ai-chat')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.actionButtonIcon, { backgroundColor: '#9c27b015' }]}>
-            <Ionicons name="chatbubbles" size={24} color="#9c27b0" />
-          </View>
-          <Text style={styles.actionButtonText}>🤖 Chat con IA</Text>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
-        </TouchableOpacity>
+        <Animated.View style={getAnimatedStyle(action3Anim)}>
+          <TouchableOpacity
+            style={[styles.actionButton, { borderLeftWidth: 4, borderLeftColor: '#9c27b0' }]}
+            onPress={() => router.push('/ai-chat')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.actionButtonIcon, { backgroundColor: '#9c27b015' }]}>
+              <Ionicons name="chatbubbles" size={24} color="#9c27b0" />
+            </View>
+            <Text style={styles.actionButtonText}>🤖 Chat con IA</Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </ScrollView>
   );

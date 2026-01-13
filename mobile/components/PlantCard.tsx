@@ -1,7 +1,7 @@
 /**
  * Componente para mostrar una tarjeta de planta
  */
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   TouchableOpacity,
   ImageSourcePropType,
+  Animated,
 } from 'react-native';
 import { PlantResponse } from '../types';
 import { useTheme } from '../context/ThemeContext';
@@ -17,11 +18,15 @@ import { Ionicons } from '@expo/vector-icons';
 interface PlantCardProps {
   plant: PlantResponse;
   onPress?: () => void;
+  index?: number;
 }
 
-export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
+export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, index = 0 }) => {
   const { theme } = useTheme();
   const styles = createStyles(theme.colors);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const entranceAnim = useRef(new Animated.Value(0)).current;
+  const moodBadgeScale = useRef(new Animated.Value(1)).current;
   const getMoodEmoji = (mood: string) => {
     const moodMap: Record<string, string> = {
       happy: '😊',
@@ -41,12 +46,87 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
     return healthMap[health] || '#b0bec5';
   };
 
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10,
+    }).start();
+  };
+
+  useEffect(() => {
+    // Animación de entrada escalonada
+    Animated.spring(entranceAnim, {
+      toValue: 1,
+      delay: index * 50,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 8,
+    }).start();
+    
+    // Animación de pulse para el mood badge
+    const pulseAnim = Animated.loop(
+      Animated.sequence([
+        Animated.spring(moodBadgeScale, {
+          toValue: 1.15,
+          useNativeDriver: true,
+          tension: 200,
+          friction: 3,
+        }),
+        Animated.spring(moodBadgeScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 200,
+          friction: 3,
+        }),
+        Animated.delay(2000),
+      ]),
+      { iterations: 1 }
+    );
+    
+    // Ejecutar pulse una vez al montar
+    setTimeout(() => {
+      pulseAnim.start();
+    }, 500 + index * 50);
+  }, []);
+
+  const opacity = entranceAnim;
+  const translateY = entranceAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+
   return (
-    <TouchableOpacity 
-      style={[styles.card, { borderLeftColor: getHealthColor(plant.health_status) }]} 
-      onPress={onPress} 
-      activeOpacity={0.8}
+    <Animated.View
+      style={[
+        {
+          transform: [{ scale: scaleAnim }, { translateY }],
+          opacity,
+        },
+      ]}
     >
+      <TouchableOpacity 
+        style={[
+          styles.card,
+          {
+            borderLeftColor: getHealthColor(plant.health_status),
+          },
+        ]} 
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+      >
       <View style={styles.imageContainer}>
         {plant.character_image_url ? (
           <Image
@@ -72,9 +152,17 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
             <Ionicons name="leaf" size={40} color={getHealthColor(plant.health_status)} />
           </View>
         )}
-        <View style={[styles.moodBadge, { backgroundColor: getHealthColor(plant.health_status) }]}>
+        <Animated.View
+          style={[
+            styles.moodBadge,
+            {
+              backgroundColor: getHealthColor(plant.health_status),
+              transform: [{ scale: moodBadgeScale }],
+            },
+          ]}
+        >
           <Text style={styles.moodEmoji}>{getMoodEmoji(plant.character_mood)}</Text>
-        </View>
+        </Animated.View>
       </View>
 
       <View style={styles.content}>
@@ -97,7 +185,8 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
       <View style={styles.chevronContainer}>
         <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 

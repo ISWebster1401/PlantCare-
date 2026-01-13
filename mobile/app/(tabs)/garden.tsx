@@ -54,9 +54,10 @@ export default function GardenScreen() {
     loadPlants();
   };
 
-  const renderPlant = ({ item }: { item: PlantResponse }) => (
+  const renderPlant = ({ item, index }: { item: PlantResponse; index: number }) => (
     <PlantCard
       plant={item}
+      index={index}
       onPress={() => {
         router.push(`/plant-detail?id=${item.id}`);
       }}
