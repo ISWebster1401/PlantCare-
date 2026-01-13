@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { plantsAPI } from '../services/api';
+import { PlantSpeciesAutocomplete } from './PlantSpeciesAutocomplete';
 import './PlantScanner.css';
 
 interface PlantScannerProps {
@@ -109,11 +110,10 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
               autoFocus
               required
             />
-            <input
-              type="text"
-              placeholder="Especie (opcional, ej: Monstera deliciosa, Ficus lyrata...)"
+            <PlantSpeciesAutocomplete
               value={plantSpecies}
-              onChange={(e) => setPlantSpecies(e.target.value)}
+              onChange={setPlantSpecies}
+              placeholder="Especie (opcional, ej: Monstera deliciosa, Ficus lyrata...)"
               className="name-input"
             />
             <small className="species-hint" style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center' }}>
