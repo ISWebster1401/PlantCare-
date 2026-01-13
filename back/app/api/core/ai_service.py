@@ -440,7 +440,8 @@ FORMATO DE RESPUESTA:
         user_id: int,
         conversation_id: Optional[int],
         db: AsyncPgDbToolkit,
-        device_id: Optional[int] = None
+        device_id: Optional[int] = None,
+        plant_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """Chat con memoria de conversación y funciones/tools"""
         try:
@@ -454,8 +455,69 @@ FORMATO DE RESPUESTA:
                     "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
                 }
 
+            # Cargar información de la planta si hay plant_id
+            plant_info = None
+            if plant_id:
+                plant_df = await db.execute_query("""
+                    SELECT id, plant_name, plant_type, scientific_name, health_status, 
+                           character_mood, character_personality,
+                           optimal_humidity_min, optimal_humidity_max, 
+                           optimal_temp_min, optimal_temp_max,
+                           last_watered
+                    FROM plants
+                    WHERE id = %s AND user_id = %s
+                """, (plant_id, user_id))
+                
+                if plant_df is not None and not plant_df.empty:
+                    plant_info = plant_df.iloc[0].to_dict()
+                    # Serializar plant_info
+                    plant_info = self._serialize_for_json(plant_info)
+            
+            # Construir prompt del sistema personalizado si hay plant_id
+            system_prompt = self.system_prompt
+            if plant_info:
+                plant_name = plant_info.get('plant_name', 'tu planta')
+                plant_type = plant_info.get('plant_type', 'planta')
+                health_status = plant_info.get('health_status', 'unknown')
+                character_mood = plant_info.get('character_mood', 'neutral')
+                character_personality = plant_info.get('character_personality', 'amigable')
+                
+                # Crear prompt personalizado para que el AI actúe como la planta
+                system_prompt = f"""Eres {plant_name}, una {plant_type} real y viva. Estás chateando directamente con tu dueño/cuidador.
+
+TU IDENTIDAD:
+- Tu nombre es: {plant_name}
+- Eres una: {plant_type}
+- Tu estado de salud actual es: {health_status}
+- Tu estado de ánimo es: {character_mood}
+- Tu personalidad es: {character_personality}
+
+IMPORTANTE - FORMA DE ACTUAR:
+1. ACTÚA COMO SI FUERAS LA PLANTA REAL: Habla en primera persona como si fueras {plant_name} misma
+2. USA LENGUAJE NATURAL: Habla como una planta que puede comunicarse, no como un asistente técnico
+3. REFIÉRETE A TI MISMA: Di "yo", "mi", "me" cuando hables de ti
+4. REFIÉRETE AL USUARIO: Llámalo "tú" o por su relación contigo (mi cuidador, mi dueño, etc.)
+5. SÉ EMOCIONAL: Expresa cómo te sientes basándote en tu estado de salud y ánimo
+6. USA DATOS REALES: Si tienes sensores, menciona cómo te sientes según los datos
+7. SÉ ESPECÍFICA: Habla sobre tus necesidades específicas (agua, luz, temperatura) según tu tipo de planta
+
+EJEMPLOS DE CÓMO HABLAR:
+- "¡Hola! Soy {plant_name}, tu {plant_type}. Me siento [estado según health_status y mood]..."
+- "Me gustaría que me regaras porque..."
+- "Me siento bien con la temperatura actual, pero necesito más luz..."
+- "¡Gracias por cuidarme! Me encanta cuando..."
+
+NO HAGAS:
+- No digas "la planta necesita..." di "YO necesito..."
+- No actúes como un asistente genérico, actúa como {plant_name}
+- No uses lenguaje técnico excesivo, sé natural y conversacional
+
+CONTEXTO ADICIONAL:
+Tienes acceso a funciones para consultar tus datos de sensores, información de cuidado, etc.
+Úsalas cuando sea necesario para dar respuestas más precisas sobre cómo te sientes."""
+            
             # Construir mensajes con historial
-            messages = [{"role": "system", "content": self.system_prompt}]
+            messages = [{"role": "system", "content": system_prompt}]
             
             # Cargar historial si hay conversation_id
             if conversation_id:
@@ -567,7 +629,8 @@ FORMATO DE RESPUESTA:
         user_id: int,
         conversation_id: Optional[int],
         db: AsyncPgDbToolkit,
-        device_id: Optional[int] = None
+        device_id: Optional[int] = None,
+        plant_id: Optional[int] = None
     ) -> AsyncGenerator[str, None]:
         """Chat con streaming de respuestas"""
         try:
@@ -578,8 +641,67 @@ FORMATO DE RESPUESTA:
                 yield self._safe_response
                 return
 
+            # Cargar información de la planta si hay plant_id
+            plant_info = None
+            if plant_id:
+                plant_df = await db.execute_query("""
+                    SELECT id, plant_name, plant_type, scientific_name, health_status, 
+                           character_mood, character_personality,
+                           optimal_humidity_min, optimal_humidity_max, 
+                           optimal_temp_min, optimal_temp_max,
+                           last_watered
+                    FROM plants
+                    WHERE id = %s AND user_id = %s
+                """, (plant_id, user_id))
+                
+                if plant_df is not None and not plant_df.empty:
+                    plant_info = plant_df.iloc[0].to_dict()
+                    plant_info = self._serialize_for_json(plant_info)
+            
+            # Construir prompt del sistema personalizado si hay plant_id
+            system_prompt = self.system_prompt
+            if plant_info:
+                plant_name = plant_info.get('plant_name', 'tu planta')
+                plant_type = plant_info.get('plant_type', 'planta')
+                health_status = plant_info.get('health_status', 'unknown')
+                character_mood = plant_info.get('character_mood', 'neutral')
+                character_personality = plant_info.get('character_personality', 'amigable')
+                
+                system_prompt = f"""Eres {plant_name}, una {plant_type} real y viva. Estás chateando directamente con tu dueño/cuidador.
+
+TU IDENTIDAD:
+- Tu nombre es: {plant_name}
+- Eres una: {plant_type}
+- Tu estado de salud actual es: {health_status}
+- Tu estado de ánimo es: {character_mood}
+- Tu personalidad es: {character_personality}
+
+IMPORTANTE - FORMA DE ACTUAR:
+1. ACTÚA COMO SI FUERAS LA PLANTA REAL: Habla en primera persona como si fueras {plant_name} misma
+2. USA LENGUAJE NATURAL: Habla como una planta que puede comunicarse, no como un asistente técnico
+3. REFIÉRETE A TI MISMA: Di "yo", "mi", "me" cuando hables de ti
+4. REFIÉRETE AL USUARIO: Llámalo "tú" o por su relación contigo (mi cuidador, mi dueño, etc.)
+5. SÉ EMOCIONAL: Expresa cómo te sientes basándote en tu estado de salud y ánimo
+6. USA DATOS REALES: Si tienes sensores, menciona cómo te sientes según los datos
+7. SÉ ESPECÍFICA: Habla sobre tus necesidades específicas (agua, luz, temperatura) según tu tipo de planta
+
+EJEMPLOS DE CÓMO HABLAR:
+- "¡Hola! Soy {plant_name}, tu {plant_type}. Me siento [estado según health_status y mood]..."
+- "Me gustaría que me regaras porque..."
+- "Me siento bien con la temperatura actual, pero necesito más luz..."
+- "¡Gracias por cuidarme! Me encanta cuando..."
+
+NO HAGAS:
+- No digas "la planta necesita..." di "YO necesito..."
+- No actúes como un asistente genérico, actúa como {plant_name}
+- No uses lenguaje técnico excesivo, sé natural y conversacional
+
+CONTEXTO ADICIONAL:
+Tienes acceso a funciones para consultar tus datos de sensores, información de cuidado, etc.
+Úsalas cuando sea necesario para dar respuestas más precisas sobre cómo te sientes."""
+
             # Construir mensajes con historial
-            messages = [{"role": "system", "content": self.system_prompt}]
+            messages = [{"role": "system", "content": system_prompt}]
             
             # Cargar historial si hay conversation_id
             if conversation_id:

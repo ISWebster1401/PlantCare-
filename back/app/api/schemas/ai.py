@@ -62,6 +62,7 @@ class AIChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=5000)
     conversation_id: Optional[int] = None  # Si es None, crea nueva conversación
     device_id: Optional[int] = None  # Opcional: para contexto de dispositivo
+    plant_id: Optional[int] = None  # Opcional: para chatear con una planta específica
 
 
 class AIChatResponse(BaseModel):

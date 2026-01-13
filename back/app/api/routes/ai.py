@@ -340,7 +340,8 @@ async def chat_with_memory(
             user_id=current_user["id"],
             conversation_id=conversation_id,
             db=db,
-            device_id=request.device_id
+            device_id=request.device_id,
+            plant_id=request.plant_id
         )
         
         # Guardar respuesta de IA
@@ -555,7 +556,8 @@ async def chat_stream(
                 user_id=current_user["id"],
                 conversation_id=conversation_id,
                 db=db,
-                device_id=request.device_id
+                device_id=request.device_id,
+                plant_id=request.plant_id
             ):
                 full_response += chunk
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
