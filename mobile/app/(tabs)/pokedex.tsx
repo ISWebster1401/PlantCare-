@@ -59,7 +59,7 @@ export default function PokedexScreen() {
   const handleEntryPress = (entry: PokedexEntryResponse) => {
     router.push({
       pathname: '/pokedex-entry-detail',
-      params: { id: entry.id.toString() },
+      params: { id: entry.catalog_entry.entry_number.toString() },
     });
   };
 
@@ -121,7 +121,7 @@ export default function PokedexScreen() {
           renderItem={({ item }) => (
             <PokedexCard entry={item} onPress={() => handleEntryPress(item)} />
           )}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => item.catalog_entry.id.toString()}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl

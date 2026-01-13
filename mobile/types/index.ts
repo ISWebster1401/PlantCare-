@@ -228,18 +228,27 @@ export interface DeviceCodeResponse {
 // POKEDEX TYPES
 // ============================================
 
-export interface PokedexEntryResponse {
+export interface PokedexCatalogEntry {
   id: number;
-  user_id: number;
+  entry_number: number;
   plant_type: string;
-  scientific_name: string | null;
+  scientific_name: string;
+  common_names: string | null;
+  family: string | null;
   care_level: string | null;
   care_tips: string | null;
-  original_photo_url: string | null;
   optimal_humidity_min: number | null;
   optimal_humidity_max: number | null;
   optimal_temp_min: number | null;
   optimal_temp_max: number | null;
-  discovered_at: string;
-  updated_at: string | null;
+  silhouette_url: string | null;
+  is_active: boolean;
+}
+
+export interface PokedexEntryResponse {
+  catalog_entry: PokedexCatalogEntry;
+  is_unlocked: boolean;
+  discovered_at: string | null;
+  discovered_photo_url: string | null;
+  unlock_id: number | null;
 }

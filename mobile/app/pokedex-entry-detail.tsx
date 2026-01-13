@@ -125,7 +125,7 @@ export default function PokedexEntryDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {entry.plant_type || 'Planta'}
+          {entry.catalog_entry.plant_type || 'Planta'}
         </Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -133,10 +133,10 @@ export default function PokedexEntryDetailScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Foto */}
         <View style={styles.imageSection}>
-          {entry.original_photo_url ? (
+          {entry.is_unlocked && entry.discovered_photo_url ? (
             <View style={styles.imageWrapper}>
               <Image
-                source={{ uri: entry.original_photo_url }}
+                source={{ uri: entry.discovered_photo_url }}
                 style={styles.plantImage}
                 resizeMode="contain"
               />
@@ -146,7 +146,9 @@ export default function PokedexEntryDetailScreen() {
               <View style={styles.placeholderIconContainer}>
                 <Ionicons name="leaf" size={64} color={theme.colors.primary} />
               </View>
-              <Text style={styles.placeholderText}>Sin foto</Text>
+              <Text style={styles.placeholderText}>
+                {entry.is_unlocked ? 'Sin foto' : 'No desbloqueada'}
+              </Text>
             </View>
           )}
         </View>
@@ -157,70 +159,72 @@ export default function PokedexEntryDetailScreen() {
             <Ionicons name="leaf" size={24} color={theme.colors.primary} />
             <View style={styles.plantTypeContent}>
               <Text style={styles.plantType}>
-                {entry.plant_type || 'Planta'}
+                {entry.catalog_entry.plant_type || 'Planta'}
               </Text>
-              {entry.scientific_name && (
-                <Text style={styles.scientificName}>{entry.scientific_name}</Text>
+              {entry.catalog_entry.scientific_name && (
+                <Text style={styles.scientificName}>{entry.catalog_entry.scientific_name}</Text>
               )}
             </View>
           </View>
-          {entry.care_level && (
+          {entry.catalog_entry.care_level && (
             <View style={[styles.careLevelBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
               <Ionicons name="star" size={16} color={theme.colors.primary} />
               <Text style={[styles.careLevel, { color: theme.colors.primary }]}>
-                Nivel: {entry.care_level}
+                Nivel: {entry.catalog_entry.care_level}
               </Text>
             </View>
           )}
         </View>
 
         {/* Fecha de descubrimiento */}
-        <View style={styles.dateSection}>
-          <View style={styles.dateCard}>
-            <Ionicons name="calendar" size={20} color={theme.colors.textSecondary} />
-            <View style={styles.dateContent}>
-              <Text style={styles.dateLabel}>Descubierta el</Text>
-              <Text style={styles.dateValue}>{formatDate(entry.discovered_at)}</Text>
+        {entry.is_unlocked && entry.discovered_at && (
+          <View style={styles.dateSection}>
+            <View style={styles.dateCard}>
+              <Ionicons name="calendar" size={20} color={theme.colors.textSecondary} />
+              <View style={styles.dateContent}>
+                <Text style={styles.dateLabel}>Descubierta el</Text>
+                <Text style={styles.dateValue}>{formatDate(entry.discovered_at)}</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Tips de cuidado */}
-        {entry.care_tips && (
+        {entry.catalog_entry.care_tips && (
           <View style={styles.tipsSection}>
             <View style={styles.sectionTitleContainer}>
               <Ionicons name="bulb" size={24} color="#ffb74d" />
               <Text style={styles.sectionTitle}>Tips de Cuidado</Text>
             </View>
             <View style={styles.tipsCard}>
-              <Text style={styles.tipsText}>{entry.care_tips}</Text>
+              <Text style={styles.tipsText}>{entry.catalog_entry.care_tips}</Text>
             </View>
           </View>
         )}
 
         {/* Condiciones óptimas */}
-        {(entry.optimal_humidity_min || entry.optimal_temp_min) && (
+        {(entry.catalog_entry.optimal_humidity_min || entry.catalog_entry.optimal_temp_min) && (
           <View style={styles.conditionsSection}>
             <View style={styles.sectionTitleContainer}>
               <Ionicons name="stats-chart" size={24} color="#64b5f6" />
               <Text style={styles.sectionTitle}>Condiciones Óptimas</Text>
             </View>
             <View style={styles.conditionsRow}>
-              {entry.optimal_humidity_min && entry.optimal_humidity_max && (
+              {entry.catalog_entry.optimal_humidity_min && entry.catalog_entry.optimal_humidity_max && (
                 <View style={styles.conditionCard}>
                   <Ionicons name="water" size={24} color="#64b5f6" />
                   <Text style={styles.conditionLabel}>Humedad</Text>
                   <Text style={styles.conditionValue}>
-                    {entry.optimal_humidity_min}% - {entry.optimal_humidity_max}%
+                    {entry.catalog_entry.optimal_humidity_min}% - {entry.catalog_entry.optimal_humidity_max}%
                   </Text>
                 </View>
               )}
-              {entry.optimal_temp_min && entry.optimal_temp_max && (
+              {entry.catalog_entry.optimal_temp_min && entry.catalog_entry.optimal_temp_max && (
                 <View style={styles.conditionCard}>
                   <Ionicons name="thermometer" size={24} color="#ef5350" />
                   <Text style={styles.conditionLabel}>Temperatura</Text>
                   <Text style={styles.conditionValue}>
-                    {entry.optimal_temp_min}°C - {entry.optimal_temp_max}°C
+                    {entry.catalog_entry.optimal_temp_min}°C - {entry.catalog_entry.optimal_temp_max}°C
                   </Text>
                 </View>
               )}

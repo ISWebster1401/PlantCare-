@@ -48,9 +48,9 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress }) => {
       activeOpacity={0.8}
     >
       <View style={styles.imageContainer}>
-        {entry.original_photo_url ? (
+        {entry.is_unlocked && entry.discovered_photo_url ? (
           <Image
-            source={{ uri: entry.original_photo_url }}
+            source={{ uri: entry.discovered_photo_url }}
             style={styles.image}
             resizeMode="cover"
           />
@@ -63,28 +63,30 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress }) => {
 
       <View style={styles.content}>
         <Text style={styles.plantType} numberOfLines={1}>
-          {entry.plant_type || 'Planta'}
+          {entry.catalog_entry.plant_type || 'Planta'}
         </Text>
-        {entry.scientific_name && (
+        {entry.catalog_entry.scientific_name && (
           <Text style={styles.scientificName} numberOfLines={1}>
-            {entry.scientific_name}
+            {entry.catalog_entry.scientific_name}
           </Text>
         )}
 
-        {entry.care_level && (
-          <View style={[styles.careLevelBadge, { backgroundColor: `${getCareLevelColor(entry.care_level)}15` }]}>
-            <Text style={[styles.careLevelText, { color: getCareLevelColor(entry.care_level) }]}>
-              {entry.care_level}
+        {entry.catalog_entry.care_level && (
+          <View style={[styles.careLevelBadge, { backgroundColor: `${getCareLevelColor(entry.catalog_entry.care_level)}15` }]}>
+            <Text style={[styles.careLevelText, { color: getCareLevelColor(entry.catalog_entry.care_level) }]}>
+              {entry.catalog_entry.care_level}
             </Text>
           </View>
         )}
 
-        <View style={styles.dateContainer}>
-          <Ionicons name="calendar-outline" size={14} color={theme.colors.textSecondary} />
-          <Text style={styles.dateText}>
-            {formatDate(entry.discovered_at)}
-          </Text>
-        </View>
+        {entry.is_unlocked && entry.discovered_at && (
+          <View style={styles.dateContainer}>
+            <Ionicons name="calendar-outline" size={14} color={theme.colors.textSecondary} />
+            <Text style={styles.dateText}>
+              {formatDate(entry.discovered_at)}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.chevronContainer}>
