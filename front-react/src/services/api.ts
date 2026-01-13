@@ -213,6 +213,12 @@ export const healthAPI = {
 };
 
 export const plantsAPI = {
+  // Obtener lista de especies disponibles
+  getPlantSpecies: async (): Promise<string[]> => {
+    const response = await api.get('/plants/species');
+    return response.data;
+  },
+
   // Identificar planta con imagen
   identifyPlant: async (file: File, plantSpecies?: string) => {
     const formData = new FormData();

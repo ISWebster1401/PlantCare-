@@ -154,11 +154,27 @@ export default function PlantDetailScreen() {
         {/* Imagen/Render 3D */}
         <View style={styles.imageSection}>
           {plant.character_image_url ? (
-            <Image
-              source={{ uri: plant.character_image_url }}
-              style={styles.plantImage}
-              resizeMode="contain"
-            />
+            <View style={styles.imageWrapper}>
+              <Image
+                source={{ uri: plant.character_image_url }}
+                style={styles.plantImage}
+                resizeMode="contain"
+                onError={() => {
+                  console.log('Error cargando character_image_url, intentando con modelo 3D');
+                }}
+              />
+            </View>
+          ) : plant.default_render_url ? (
+            <View style={styles.imageWrapper}>
+              <Image
+                source={{ uri: plant.default_render_url }}
+                style={styles.plantImage}
+                resizeMode="contain"
+                onError={() => {
+                  console.log('Error cargando default_render_url, intentando con modelo 3D');
+                }}
+              />
+            </View>
           ) : plant.model_3d_url ? (
             <View style={styles.model3dContainer}>
               <Model3DViewer 
@@ -170,7 +186,9 @@ export default function PlantDetailScreen() {
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
-              <Ionicons name="cube-outline" size={64} color={theme.colors.primary} />
+              <View style={styles.placeholderIconContainer}>
+                <Ionicons name="leaf" size={64} color={theme.colors.primary} />
+              </View>
               <Text style={styles.placeholderText}>Render 3D</Text>
               <Text style={styles.placeholderSubtext}>Próximamente</Text>
             </View>
@@ -179,26 +197,40 @@ export default function PlantDetailScreen() {
 
         {/* Información básica */}
         <View style={styles.infoSection}>
-          <Text style={styles.plantType}>
-            {plant.plant_type || 'Planta'}
-            {plant.scientific_name && ` (${plant.scientific_name})`}
-          </Text>
+          <View style={styles.plantTypeContainer}>
+            <Ionicons name="leaf" size={24} color={theme.colors.primary} />
+            <View style={styles.plantTypeContent}>
+              <Text style={styles.plantType}>
+                {plant.plant_type || 'Planta'}
+              </Text>
+              {plant.scientific_name && (
+                <Text style={styles.scientificName}>{plant.scientific_name}</Text>
+              )}
+            </View>
+          </View>
           {plant.care_level && (
-            <Text style={styles.careLevel}>Nivel de cuidado: {plant.care_level}</Text>
+            <View style={[styles.careLevelBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
+              <Ionicons name="star" size={16} color={theme.colors.primary} />
+              <Text style={[styles.careLevel, { color: theme.colors.primary }]}>
+                Nivel: {plant.care_level}
+              </Text>
+            </View>
           )}
         </View>
 
         {/* Estado de salud y ánimo */}
         <View style={styles.statusSection}>
-          <View style={styles.statusCard}>
+          <View style={[styles.statusCard, { borderLeftColor: getHealthColor(plant.health_status) }]}>
             <View style={styles.statusHeader}>
               <View style={[styles.healthBadge, { backgroundColor: getHealthColor(plant.health_status) }]} />
-              <Text style={styles.statusLabel}>Estado</Text>
+              <Text style={styles.statusLabel}>Estado de Salud</Text>
             </View>
-            <Text style={styles.statusValue}>{getHealthText(plant.health_status)}</Text>
+            <Text style={[styles.statusValue, { color: getHealthColor(plant.health_status) }]}>
+              {getHealthText(plant.health_status)}
+            </Text>
           </View>
 
-          <View style={styles.statusCard}>
+          <View style={[styles.statusCard, { borderLeftColor: '#ffb74d' }]}>
             <View style={styles.statusHeader}>
               <Text style={styles.moodEmoji}>{getMoodEmoji(plant.character_mood)}</Text>
               <Text style={styles.statusLabel}>Ánimo</Text>
@@ -210,7 +242,10 @@ export default function PlantDetailScreen() {
         {/* Tips de cuidado */}
         {plant.care_tips && (
           <View style={styles.tipsSection}>
-            <Text style={styles.sectionTitle}>💡 Tips de Cuidado</Text>
+            <View style={styles.sectionTitleContainer}>
+              <Ionicons name="bulb" size={24} color="#ffb74d" />
+              <Text style={styles.sectionTitle}>Tips de Cuidado</Text>
+            </View>
             <View style={styles.tipsCard}>
               <Text style={styles.tipsText}>{plant.care_tips}</Text>
             </View>
@@ -304,28 +339,41 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 32,
     paddingHorizontal: 24,
   },
+  imageWrapper: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
   plantImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 16,
+    width: 240,
+    height: 240,
     backgroundColor: colors.surface,
   },
   model3dContainer: {
-    width: 200,
-    height: 200,
-    borderRadius: 16,
+    width: 240,
+    height: 240,
+    borderRadius: 24,
     backgroundColor: colors.surface,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
   },
   model3dViewer: {
     flex: 1,
   },
   imagePlaceholder: {
-    width: 200,
-    height: 200,
-    borderRadius: 16,
+    width: 240,
+    height: 240,
+    borderRadius: 24,
     backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
@@ -333,30 +381,61 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
     borderStyle: 'dashed',
   },
+  placeholderIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: `${colors.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   placeholderText: {
     marginTop: 16,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.primary,
   },
   placeholderSubtext: {
-    marginTop: 4,
-    fontSize: 12,
+    marginTop: 6,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   infoSection: {
     paddingHorizontal: 24,
     paddingBottom: 24,
   },
+  plantTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  plantTypeContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
   plantType: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  scientificName: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+  },
+  careLevelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    gap: 6,
   },
   careLevel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    fontWeight: '600',
   },
   statusSection: {
     flexDirection: 'row',
@@ -367,57 +446,76 @@ const createStyles = (colors: any) => StyleSheet.create({
   statusCard: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     borderWidth: 1,
     borderColor: colors.border,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   healthBadge: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 10,
   },
   moodEmoji: {
-    fontSize: 20,
-    marginRight: 8,
+    fontSize: 24,
+    marginRight: 10,
   },
   statusLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    fontWeight: '600',
   },
   statusValue: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.text,
   },
   tipsSection: {
     paddingHorizontal: 24,
     marginBottom: 24,
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 10,
+  },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
   },
   tipsCard: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     borderWidth: 1,
     borderColor: colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ffb74d',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   tipsText: {
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 26,
     color: colors.textSecondary,
   },
   actionSection: {
@@ -426,14 +524,22 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   sensorButton: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   sensorButtonText: {
-    color: colors.text,
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,

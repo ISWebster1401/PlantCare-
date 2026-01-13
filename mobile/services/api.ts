@@ -21,7 +21,13 @@ import {
   DeviceAdminResponse,
   DeviceCodeBatch,
   DeviceCodeResponse,
+  PokedexEntryResponse,
 } from '../types';
+
+// Log de configuración de API al iniciar
+console.log('🔌 API Configuration:');
+console.log('  Base URL:', Config.API_URL);
+console.log('  Timeout: 30s');
 
 // Crear instancia de Axios
 const api: AxiosInstance = axios.create({
@@ -40,18 +46,64 @@ api.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      // Log para debug (solo en desarrollo)
+      if (__DEV__) {
+        console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
+      }
     } catch (error) {
       console.error('Error obteniendo token:', error);
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('❌ Error en request interceptor:', error);
+    return Promise.reject(error);
+  }
 );
 
 // Interceptor de respuestas - Maneja expiración de tokens
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log para debug (solo en desarrollo)
+    if (__DEV__) {
+      console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    }
+    return response;
+  },
   async (error) => {
+    // Manejo mejorado de errores de red
+    if (!error.response) {
+      // Error de red (sin respuesta del servidor)
+      const errorMessage = error.message || 'Network Error';
+      console.error('❌ Network Error:', {
+        message: errorMessage,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        method: error.config?.method,
+      });
+      
+      // Mensaje más descriptivo y útil
+      const baseURL = error.config?.baseURL || Config.API_URL;
+      const networkError: any = new Error(
+        `No se pudo conectar al servidor en ${baseURL}`
+      );
+      networkError.name = 'NetworkError';
+      networkError.isNetworkError = true;
+      networkError.baseURL = baseURL;
+      networkError.originalError = error;
+      networkError.userMessage = `No se pudo conectar al servidor.\n\nVerifica que:\n• El backend esté corriendo (docker-compose up)\n• La IP sea correcta: ${baseURL}\n• Estés en la misma red WiFi\n• El firewall no esté bloqueando`;
+      
+      console.error('❌ Network Error Details:', {
+        message: error.message,
+        code: error.code,
+        baseURL,
+        url: error.config?.url,
+        method: error.config?.method,
+      });
+      
+      return Promise.reject(networkError);
+    }
+    
     if (error.response?.status === 401 || error.response?.status === 403) {
       // Token expirado o no autorizado: limpiar storage
       try {
@@ -122,13 +174,21 @@ export const authAPI = {
 // ============================================
 
 export const plantsAPI = {
-  identifyPlant: async (file: { uri: string; type: string; name: string }): Promise<PlantIdentify> => {
+  getPlantSpecies: async (): Promise<string[]> => {
+    const response = await api.get('/plants/species');
+    return response.data;
+  },
+
+  identifyPlant: async (file: { uri: string; type: string; name: string }, plantSpecies?: string): Promise<PlantIdentify> => {
     const formData = new FormData();
     formData.append('file', {
       uri: file.uri,
       type: file.type,
       name: file.name,
     } as any);
+    if (plantSpecies) {
+      formData.append('plant_species', plantSpecies);
+    }
 
     const response = await api.post('/plants/identify', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -136,7 +196,7 @@ export const plantsAPI = {
     return response.data;
   },
 
-  createPlant: async (file: { uri: string; type: string; name: string }, plantName: string): Promise<PlantResponse> => {
+  createPlant: async (file: { uri: string; type: string; name: string }, plantName: string, plantSpecies?: string): Promise<PlantResponse> => {
     const formData = new FormData();
     formData.append('file', {
       uri: file.uri,
@@ -144,6 +204,9 @@ export const plantsAPI = {
       name: file.name,
     } as any);
     formData.append('plant_name', plantName);
+    if (plantSpecies) {
+      formData.append('plant_species', plantSpecies);
+    }
 
     const response = await api.post('/plants/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -173,6 +236,43 @@ export const plantsAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
+  },
+};
+
+// ============================================
+// POKEDEX API
+// ============================================
+
+export const pokedexAPI = {
+  scanPokedex: async (file: { uri: string; type: string; name: string }, plantSpecies?: string): Promise<PokedexEntryResponse> => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: file.uri,
+      type: file.type,
+      name: file.name,
+    } as any);
+    if (plantSpecies) {
+      formData.append('plant_species', plantSpecies);
+    }
+
+    const response = await api.post('/plants/pokedex/scan', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  getPokedexEntries: async (): Promise<PokedexEntryResponse[]> => {
+    const response = await api.get('/plants/pokedex/');
+    return response.data;
+  },
+
+  getPokedexEntry: async (entryId: number): Promise<PokedexEntryResponse> => {
+    const response = await api.get(`/plants/pokedex/${entryId}`);
+    return response.data;
+  },
+
+  deletePokedexEntry: async (entryId: number): Promise<void> => {
+    await api.delete(`/plants/pokedex/${entryId}`);
   },
 };
 
