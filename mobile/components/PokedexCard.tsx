@@ -71,15 +71,30 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
           )}
         </View>
         <View style={styles.gridContent}>
-          <Text style={styles.gridPlantType} numberOfLines={1}>
-            {entry.catalog_entry.plant_type || 'Planta'}
-          </Text>
-          {entry.catalog_entry.care_level && (
-            <View style={[styles.gridCareLevelBadge, { backgroundColor: `${getCareLevelColor(entry.catalog_entry.care_level)}20` }]}>
-              <Text style={[styles.gridCareLevelText, { color: getCareLevelColor(entry.catalog_entry.care_level) }]}>
-                {entry.catalog_entry.care_level}
+          {entry.is_unlocked ? (
+            <>
+              <Text style={styles.gridPlantType} numberOfLines={1}>
+                {entry.catalog_entry.plant_type || 'Planta'}
               </Text>
-            </View>
+              {entry.catalog_entry.care_level && (
+                <View style={[styles.gridCareLevelBadge, { backgroundColor: `${getCareLevelColor(entry.catalog_entry.care_level)}20` }]}>
+                  <Text style={[styles.gridCareLevelText, { color: getCareLevelColor(entry.catalog_entry.care_level) }]}>
+                    {entry.catalog_entry.care_level}
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              <Text style={styles.gridPlantType} numberOfLines={1}>
+                ???
+              </Text>
+              <View style={[styles.gridCareLevelBadge, { backgroundColor: `${colors.primary}20` }]}>
+                <Text style={[styles.gridCareLevelText, { color: colors.primary }]}>
+                  🔒 Bloqueada
+                </Text>
+              </View>
+            </>
           )}
         </View>
       </TouchableOpacity>
@@ -114,30 +129,54 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.plantType} numberOfLines={1}>
-          {entry.catalog_entry.plant_type || 'Planta'}
-        </Text>
-        {entry.catalog_entry.scientific_name && (
-          <Text style={styles.scientificName} numberOfLines={1}>
-            {entry.catalog_entry.scientific_name}
-          </Text>
-        )}
-
-        {entry.catalog_entry.care_level && (
-          <View style={[styles.careLevelBadge, { backgroundColor: `${getCareLevelColor(entry.catalog_entry.care_level)}15` }]}>
-            <Text style={[styles.careLevelText, { color: getCareLevelColor(entry.catalog_entry.care_level) }]}>
-              {entry.catalog_entry.care_level}
+        {entry.is_unlocked ? (
+          <>
+            <Text style={styles.plantType} numberOfLines={1}>
+              {entry.catalog_entry.plant_type || 'Planta'}
             </Text>
-          </View>
-        )}
+            {entry.catalog_entry.scientific_name && (
+              <Text style={styles.scientificName} numberOfLines={1}>
+                {entry.catalog_entry.scientific_name}
+              </Text>
+            )}
 
-        {entry.is_unlocked && entry.discovered_at && (
-          <View style={styles.dateContainer}>
-            <Ionicons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
-            <Text style={styles.dateText}>
-              {formatDate(entry.discovered_at)}
+            {entry.catalog_entry.care_level && (
+              <View style={[styles.careLevelBadge, { backgroundColor: `${getCareLevelColor(entry.catalog_entry.care_level)}15` }]}>
+                <Text style={[styles.careLevelText, { color: getCareLevelColor(entry.catalog_entry.care_level) }]}>
+                  {entry.catalog_entry.care_level}
+                </Text>
+              </View>
+            )}
+
+            {entry.discovered_at && (
+              <View style={styles.dateContainer}>
+                <Ionicons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
+                <Text style={styles.dateText}>
+                  {formatDate(entry.discovered_at)}
+                </Text>
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.plantType} numberOfLines={1}>
+              ???
             </Text>
-          </View>
+            <Text style={styles.scientificName} numberOfLines={1}>
+              Planta desconocida
+            </Text>
+            <View style={[styles.careLevelBadge, { backgroundColor: `${colors.primary}15` }]}>
+              <Text style={[styles.careLevelText, { color: colors.primary }]}>
+                🔒 Bloqueada
+              </Text>
+            </View>
+            <View style={styles.dateContainer}>
+              <Ionicons name="lock-closed-outline" size={12} color={theme.colors.textSecondary} />
+              <Text style={styles.dateText}>
+                Escanea para desbloquear
+              </Text>
+            </View>
+          </>
         )}
       </View>
 

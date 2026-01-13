@@ -376,10 +376,11 @@ export const aiAPI = {
   },
 
   // New endpoints with memory
-  chat: async (message: string, conversationId?: number, deviceId?: number): Promise<any> => {
+  chat: async (message: string, conversationId?: number, plantId?: number, deviceId?: number): Promise<any> => {
     const response = await api.post('/ai/chat', {
       message,
       conversation_id: conversationId,
+      plant_id: plantId,
       device_id: deviceId,
     });
     return response.data;
@@ -388,6 +389,7 @@ export const aiAPI = {
   chatStream: async (
     message: string,
     conversationId: number | undefined,
+    plantId: number | undefined,
     deviceId: number | undefined,
     onChunk: (chunk: string) => void,
     onDone: () => void,
@@ -411,6 +413,7 @@ export const aiAPI = {
         body: JSON.stringify({
           message,
           conversation_id: conversationId,
+          plant_id: plantId,
           device_id: deviceId,
         }),
       });

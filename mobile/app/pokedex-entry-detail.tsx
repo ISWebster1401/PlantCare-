@@ -169,11 +169,16 @@ export default function PokedexEntryDetailScreen() {
           </View>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              {entry.catalog_entry.plant_type || 'Planta'}
+              {entry.is_unlocked ? (entry.catalog_entry.plant_type || 'Planta') : '???'}
             </Text>
-            {entry.catalog_entry.scientific_name && (
+            {entry.is_unlocked && entry.catalog_entry.scientific_name && (
               <Text style={styles.headerSubtitle} numberOfLines={1}>
                 {entry.catalog_entry.scientific_name}
+              </Text>
+            )}
+            {!entry.is_unlocked && (
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                Planta desconocida
               </Text>
             )}
           </View>
@@ -216,114 +221,138 @@ export default function PokedexEntryDetailScreen() {
         </View>
 
         {/* Información Botánica con diseño más atractivo */}
-        <View style={styles.botanicalSection}>
-          <View style={[styles.botanicalCard, { borderLeftColor: '#4caf50' }]}>
-            <View style={styles.botanicalHeader}>
-              <Ionicons name="school" size={28} color="#4caf50" />
-              <Text style={styles.botanicalCardTitle}>📚 Información Científica</Text>
+        {entry.is_unlocked ? (
+          <View style={styles.botanicalSection}>
+            <View style={[styles.botanicalCard, { borderLeftColor: '#4caf50' }]}>
+              <View style={styles.botanicalHeader}>
+                <Ionicons name="school" size={28} color="#4caf50" />
+                <Text style={styles.botanicalCardTitle}>📚 Información Científica</Text>
+              </View>
+              {entry.catalog_entry.scientific_name && (
+                <View style={styles.botanicalRow}>
+                  <View style={[styles.botanicalIconCircle, { backgroundColor: '#4caf5030' }]}>
+                    <Ionicons name="flask" size={24} color="#4caf50" />
+                  </View>
+                  <View style={styles.botanicalContent}>
+                    <Text style={styles.botanicalLabel}>🔬 Nombre Científico</Text>
+                    <Text style={styles.botanicalValue}>{entry.catalog_entry.scientific_name}</Text>
+                  </View>
+                </View>
+              )}
+              {entry.catalog_entry.family && (
+                <View style={[styles.botanicalRow, styles.botanicalRowSeparator]}>
+                  <View style={[styles.botanicalIconCircle, { backgroundColor: '#9c27b030' }]}>
+                    <Ionicons name="flower" size={24} color="#9c27b0" />
+                  </View>
+                  <View style={styles.botanicalContent}>
+                    <Text style={styles.botanicalLabel}>🌸 Familia Botánica</Text>
+                    <Text style={styles.botanicalValue}>{entry.catalog_entry.family}</Text>
+                  </View>
+                </View>
+              )}
+              {entry.catalog_entry.common_names && (
+                <View style={[styles.botanicalRow, styles.botanicalRowSeparator]}>
+                  <View style={[styles.botanicalIconCircle, { backgroundColor: '#ff980030' }]}>
+                    <Ionicons name="bookmark" size={24} color="#ff9800" />
+                  </View>
+                  <View style={styles.botanicalContent}>
+                    <Text style={styles.botanicalLabel}>🏷️ También se llama</Text>
+                    <Text style={styles.botanicalValue}>{entry.catalog_entry.common_names}</Text>
+                  </View>
+                </View>
+              )}
             </View>
-            {entry.catalog_entry.scientific_name && (
-              <View style={styles.botanicalRow}>
-                <View style={[styles.botanicalIconCircle, { backgroundColor: '#4caf5030' }]}>
-                  <Ionicons name="flask" size={24} color="#4caf50" />
-                </View>
-                <View style={styles.botanicalContent}>
-                  <Text style={styles.botanicalLabel}>🔬 Nombre Científico</Text>
-                  <Text style={styles.botanicalValue}>{entry.catalog_entry.scientific_name}</Text>
-                </View>
-              </View>
-            )}
-            {entry.catalog_entry.family && (
-              <View style={[styles.botanicalRow, styles.botanicalRowSeparator]}>
-                <View style={[styles.botanicalIconCircle, { backgroundColor: '#9c27b030' }]}>
-                  <Ionicons name="flower" size={24} color="#9c27b0" />
-                </View>
-                <View style={styles.botanicalContent}>
-                  <Text style={styles.botanicalLabel}>🌸 Familia Botánica</Text>
-                  <Text style={styles.botanicalValue}>{entry.catalog_entry.family}</Text>
-                </View>
-              </View>
-            )}
-            {entry.catalog_entry.common_names && (
-              <View style={[styles.botanicalRow, styles.botanicalRowSeparator]}>
-                <View style={[styles.botanicalIconCircle, { backgroundColor: '#ff980030' }]}>
-                  <Ionicons name="bookmark" size={24} color="#ff9800" />
-                </View>
-                <View style={styles.botanicalContent}>
-                  <Text style={styles.botanicalLabel}>🏷️ También se llama</Text>
-                  <Text style={styles.botanicalValue}>{entry.catalog_entry.common_names}</Text>
-                </View>
-              </View>
-            )}
           </View>
-        </View>
+        ) : (
+          <View style={styles.botanicalSection}>
+            <View style={[styles.botanicalCard, { borderLeftColor: theme.colors.primary }]}>
+              <View style={styles.botanicalHeader}>
+                <Ionicons name="lock-closed" size={28} color={theme.colors.primary} />
+                <Text style={styles.botanicalCardTitle}>🔒 Información Bloqueada</Text>
+              </View>
+              <View style={styles.botanicalRow}>
+                <View style={[styles.botanicalIconCircle, { backgroundColor: theme.colors.primary + '30' }]}>
+                  <Ionicons name="eye-off" size={24} color={theme.colors.primary} />
+                </View>
+                <View style={styles.botanicalContent}>
+                  <Text style={styles.botanicalLabel}>🔒 Esta información está bloqueada</Text>
+                  <Text style={styles.botanicalValue}>
+                    Escanea esta planta para desbloquear toda su información
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Estadísticas tipo Pokémon con diseño más colorido */}
-        <View style={styles.statsSection}>
-          <View style={styles.sectionTitleContainer}>
-            <View style={[styles.sectionIconContainer, { backgroundColor: theme.colors.primary + '20' }]}>
-              <Ionicons name="stats-chart" size={28} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.sectionTitle}>⚡ Estadísticas</Text>
-          </View>
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCard, styles.statCardVibrant, { 
-              borderLeftColor: getLocationColor(),
-              backgroundColor: getLocationColor() + '15'
-            }]}>
-              <View style={[styles.statIconContainer, { backgroundColor: getLocationColor() + '30' }]}>
-                <Ionicons name={getLocationIcon()} size={32} color={getLocationColor()} />
+        {entry.is_unlocked ? (
+          <View style={styles.statsSection}>
+            <View style={styles.sectionTitleContainer}>
+              <View style={[styles.sectionIconContainer, { backgroundColor: theme.colors.primary + '20' }]}>
+                <Ionicons name="stats-chart" size={28} color={theme.colors.primary} />
               </View>
-              <Text style={styles.statLabel}>📍 Tipo</Text>
-              <Text style={[styles.statValue, { color: getLocationColor() }]}>
-                {locationType}
-              </Text>
+              <Text style={styles.sectionTitle}>⚡ Estadísticas</Text>
             </View>
-            
-            {entry.catalog_entry.care_level && (
+            <View style={styles.statsGrid}>
               <View style={[styles.statCard, styles.statCardVibrant, { 
-                borderLeftColor: '#ff9800',
-                backgroundColor: '#ff980015'
+                borderLeftColor: getLocationColor(),
+                backgroundColor: getLocationColor() + '15'
               }]}>
-                <View style={[styles.statIconContainer, { backgroundColor: '#ff980030' }]}>
-                  <Ionicons name="star" size={32} color="#ff9800" />
+                <View style={[styles.statIconContainer, { backgroundColor: getLocationColor() + '30' }]}>
+                  <Ionicons name={getLocationIcon()} size={32} color={getLocationColor()} />
                 </View>
-                <Text style={styles.statLabel}>⭐ Nivel</Text>
-                <Text style={[styles.statValue, { color: '#ff9800' }]}>
-                  {entry.catalog_entry.care_level}
+                <Text style={styles.statLabel}>📍 Tipo</Text>
+                <Text style={[styles.statValue, { color: getLocationColor() }]}>
+                  {locationType}
                 </Text>
               </View>
-            )}
-            
-            {entry.catalog_entry.family && (
-              <View style={[styles.statCard, styles.statCardVibrant, { 
-                borderLeftColor: '#9c27b0',
-                backgroundColor: '#9c27b015'
-              }]}>
-                <View style={[styles.statIconContainer, { backgroundColor: '#9c27b030' }]}>
-                  <Ionicons name="flower" size={32} color="#9c27b0" />
+              
+              {entry.catalog_entry.care_level && (
+                <View style={[styles.statCard, styles.statCardVibrant, { 
+                  borderLeftColor: '#ff9800',
+                  backgroundColor: '#ff980015'
+                }]}>
+                  <View style={[styles.statIconContainer, { backgroundColor: '#ff980030' }]}>
+                    <Ionicons name="star" size={32} color="#ff9800" />
+                  </View>
+                  <Text style={styles.statLabel}>⭐ Nivel</Text>
+                  <Text style={[styles.statValue, { color: '#ff9800' }]}>
+                    {entry.catalog_entry.care_level}
+                  </Text>
                 </View>
-                <Text style={styles.statLabel}>🌸 Familia</Text>
-                <Text style={[styles.statValue, { color: '#9c27b0' }]} numberOfLines={1}>
-                  {entry.catalog_entry.family.split(' ')[0]}
+              )}
+              
+              {entry.catalog_entry.family && (
+                <View style={[styles.statCard, styles.statCardVibrant, { 
+                  borderLeftColor: '#9c27b0',
+                  backgroundColor: '#9c27b015'
+                }]}>
+                  <View style={[styles.statIconContainer, { backgroundColor: '#9c27b030' }]}>
+                    <Ionicons name="flower" size={32} color="#9c27b0" />
+                  </View>
+                  <Text style={styles.statLabel}>🌸 Familia</Text>
+                  <Text style={[styles.statValue, { color: '#9c27b0' }]} numberOfLines={1}>
+                    {entry.catalog_entry.family.split(' ')[0]}
+                  </Text>
+                </View>
+              )}
+              
+              <View style={[styles.statCard, styles.statCardVibrant, { 
+                borderLeftColor: '#4caf50',
+                backgroundColor: '#4caf5015'
+              }]}>
+                <View style={[styles.statIconContainer, { backgroundColor: '#4caf5030' }]}>
+                  <Ionicons name="leaf" size={32} color="#4caf50" />
+                </View>
+                <Text style={styles.statLabel}>🌿 Categoría</Text>
+                <Text style={[styles.statValue, { color: '#4caf50' }]}>
+                  {entry.catalog_entry.plant_type || 'Planta'}
                 </Text>
               </View>
-            )}
-            
-            <View style={[styles.statCard, styles.statCardVibrant, { 
-              borderLeftColor: '#4caf50',
-              backgroundColor: '#4caf5015'
-            }]}>
-              <View style={[styles.statIconContainer, { backgroundColor: '#4caf5030' }]}>
-                <Ionicons name="leaf" size={32} color="#4caf50" />
-              </View>
-              <Text style={styles.statLabel}>🌿 Categoría</Text>
-              <Text style={[styles.statValue, { color: '#4caf50' }]}>
-                {entry.catalog_entry.plant_type || 'Planta'}
-              </Text>
             </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Fecha de descubrimiento */}
         {entry.is_unlocked && entry.discovered_at && (
@@ -339,7 +368,7 @@ export default function PokedexEntryDetailScreen() {
         )}
 
         {/* Tips de cuidado con diseño más divertido */}
-        {entry.catalog_entry.care_tips && (
+        {entry.is_unlocked && entry.catalog_entry.care_tips && (
           <View style={styles.tipsSection}>
             <View style={styles.sectionTitleContainer}>
               <View style={[styles.sectionIconContainer, { backgroundColor: '#ffb74d20' }]}>
@@ -358,7 +387,7 @@ export default function PokedexEntryDetailScreen() {
         )}
 
         {/* Condiciones óptimas con diseño más atractivo */}
-        {(entry.catalog_entry.optimal_humidity_min || entry.catalog_entry.optimal_temp_min) && (
+        {entry.is_unlocked && (entry.catalog_entry.optimal_humidity_min || entry.catalog_entry.optimal_temp_min) && (
           <View style={styles.conditionsSection}>
             <View style={styles.sectionTitleContainer}>
               <View style={[styles.sectionIconContainer, { backgroundColor: '#64b5f620' }]}>
