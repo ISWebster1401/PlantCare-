@@ -1,12 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
 from app.api.core.auth_user import get_current_active_user
 from app.api.core.database import get_db
 from app.api.core.ai_service import ai_service
+from app.api.schemas.ai import (
+    AIChatRequest, AIChatResponse, AIConversationResponse,
+    AIConversationDetailResponse, AIMessageResponse
+)
 from pgdbtoolkit import AsyncPgDbToolkit
 from datetime import datetime
+import json
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -280,3 +286,298 @@ async def test_ai_simple():
             "details": "Verifica que OPENAI_API_KEY esté configurada correctamente",
             "timestamp": datetime.utcnow().isoformat(),
         }
+
+
+# ============================================
+# NUEVOS ENDPOINTS CON MEMORIA Y FUNCIONES
+# ============================================
+
+@router.post("/chat", response_model=AIChatResponse)
+async def chat_with_memory(
+    request: AIChatRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Chat con memoria de conversación y acceso a datos del usuario."""
+    try:
+        logger.info(f"Usuario {current_user['email']} envía mensaje: {request.message[:50]}...")
+        
+        # Crear o obtener conversación
+        conversation_id = request.conversation_id
+        if not conversation_id:
+            # Crear nueva conversación
+            title = request.message[:50] if len(request.message) > 50 else request.message
+            conv_result = await db.execute_query("""
+                INSERT INTO ai_conversations (user_id, title)
+                VALUES (%s, %s)
+                RETURNING id
+            """, (current_user["id"], title))
+            conversation_id = conv_result.iloc[0]["id"]
+            logger.info(f"✅ Nueva conversación creada: {conversation_id}")
+        else:
+            # Verificar que la conversación pertenece al usuario
+            conv_check = await db.execute_query("""
+                SELECT id FROM ai_conversations
+                WHERE id = %s AND user_id = %s
+            """, (conversation_id, current_user["id"]))
+            if conv_check is None or conv_check.empty:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Conversación no encontrada"
+                )
+        
+        # Guardar mensaje del usuario
+        user_msg_result = await db.execute_query("""
+            INSERT INTO ai_messages (conversation_id, role, content)
+            VALUES (%s, 'user', %s)
+            RETURNING id
+        """, (conversation_id, request.message))
+        user_message_id = user_msg_result.iloc[0]["id"]
+        
+        # Obtener respuesta de IA con memoria
+        ai_response = await ai_service.chat_with_memory(
+            user_message=request.message,
+            user_id=current_user["id"],
+            conversation_id=conversation_id,
+            db=db,
+            device_id=request.device_id
+        )
+        
+        # Guardar respuesta de IA
+        ai_msg_result = await db.execute_query("""
+            INSERT INTO ai_messages (conversation_id, role, content, metadata)
+            VALUES (%s, 'assistant', %s, %s::jsonb)
+            RETURNING id
+        """, (conversation_id, ai_response["response"], json.dumps({"usage": ai_response["usage"]})))
+        ai_message_id = ai_msg_result.iloc[0]["id"]
+        
+        # Actualizar updated_at de la conversación
+        await db.execute_query("""
+            UPDATE ai_conversations
+            SET updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (conversation_id,))
+        
+        return AIChatResponse(
+            conversation_id=conversation_id,
+            message_id=ai_message_id,
+            response=ai_response["response"],
+            tokens_used=ai_response["usage"],
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"❌ Error en chat con memoria: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"Error procesando chat: {error_msg}")
+
+
+@router.get("/conversations", response_model=List[AIConversationResponse])
+async def list_conversations(
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Lista todas las conversaciones del usuario."""
+    try:
+        conversations_df = await db.execute_query("""
+            SELECT 
+                c.id, c.user_id, c.title, c.created_at, c.updated_at,
+                COUNT(m.id) as message_count
+            FROM ai_conversations c
+            LEFT JOIN ai_messages m ON c.id = m.conversation_id
+            WHERE c.user_id = %s
+            GROUP BY c.id, c.user_id, c.title, c.created_at, c.updated_at
+            ORDER BY c.updated_at DESC
+        """, (current_user["id"],))
+        
+        if conversations_df is None or conversations_df.empty:
+            return []
+        
+        conversations = []
+        for _, row in conversations_df.iterrows():
+            conversations.append(AIConversationResponse(
+                id=int(row["id"]),
+                user_id=int(row["user_id"]),
+                title=row["title"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+                message_count=int(row["message_count"])
+            ))
+        
+        return conversations
+        
+    except Exception as e:
+        logger.error(f"❌ Error listando conversaciones: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error listando conversaciones: {str(e)}")
+
+
+@router.get("/conversations/{conversation_id}", response_model=AIConversationDetailResponse)
+async def get_conversation(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Obtiene una conversación específica con todos sus mensajes."""
+    try:
+        # Verificar que la conversación pertenece al usuario
+        conv_df = await db.execute_query("""
+            SELECT * FROM ai_conversations
+            WHERE id = %s AND user_id = %s
+        """, (conversation_id, current_user["id"]))
+        
+        if conv_df is None or conv_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversación no encontrada"
+            )
+        
+        conversation = conv_df.iloc[0].to_dict()
+        
+        # Obtener mensajes
+        messages_df = await db.execute_query("""
+            SELECT * FROM ai_messages
+            WHERE conversation_id = %s
+            ORDER BY created_at ASC
+        """, (conversation_id,))
+        
+        messages = []
+        if messages_df is not None and not messages_df.empty:
+            for _, row in messages_df.iterrows():
+                msg_dict = row.to_dict()
+                metadata = None
+                if msg_dict.get("metadata"):
+                    try:
+                        metadata = json.loads(msg_dict["metadata"]) if isinstance(msg_dict["metadata"], str) else msg_dict["metadata"]
+                    except:
+                        metadata = msg_dict["metadata"]
+                
+                messages.append(AIMessageResponse(
+                    id=int(msg_dict["id"]),
+                    conversation_id=int(msg_dict["conversation_id"]),
+                    role=msg_dict["role"],
+                    content=msg_dict["content"],
+                    metadata=metadata,
+                    created_at=msg_dict["created_at"]
+                ))
+        
+        return AIConversationDetailResponse(
+            id=int(conversation["id"]),
+            user_id=int(conversation["user_id"]),
+            title=conversation["title"],
+            created_at=conversation["created_at"],
+            updated_at=conversation["updated_at"],
+            messages=messages
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo conversación: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error obteniendo conversación: {str(e)}")
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Elimina una conversación y todos sus mensajes."""
+    try:
+        # Verificar que la conversación pertenece al usuario
+        conv_df = await db.execute_query("""
+            SELECT id FROM ai_conversations
+            WHERE id = %s AND user_id = %s
+        """, (conversation_id, current_user["id"]))
+        
+        if conv_df is None or conv_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversación no encontrada"
+            )
+        
+        # Eliminar conversación (los mensajes se eliminan automáticamente por CASCADE)
+        await db.execute_query("""
+            DELETE FROM ai_conversations
+            WHERE id = %s
+        """, (conversation_id,))
+        
+        return {"message": "Conversación eliminada exitosamente"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error eliminando conversación: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error eliminando conversación: {str(e)}")
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    request: AIChatRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Chat con streaming de respuestas (Server-Sent Events)."""
+    async def generate():
+        try:
+            # Crear o obtener conversación
+            conversation_id = request.conversation_id
+            if not conversation_id:
+                title = request.message[:50] if len(request.message) > 50 else request.message
+                conv_result = await db.execute_query("""
+                    INSERT INTO ai_conversations (user_id, title)
+                    VALUES (%s, %s)
+                    RETURNING id
+                """, (current_user["id"], title))
+                conversation_id = conv_result.iloc[0]["id"]
+            else:
+                # Verificar que la conversación pertenece al usuario
+                conv_check = await db.execute_query("""
+                    SELECT id FROM ai_conversations
+                    WHERE id = %s AND user_id = %s
+                """, (conversation_id, current_user["id"]))
+                if conv_check is None or conv_check.empty:
+                    yield f"data: {json.dumps({'error': 'Conversación no encontrada'})}\n\n"
+                    return
+            
+            # Guardar mensaje del usuario
+            await db.execute_query("""
+                INSERT INTO ai_messages (conversation_id, role, content)
+                VALUES (%s, 'user', %s)
+            """, (conversation_id, request.message))
+            
+            # Stream respuesta
+            full_response = ""
+            async for chunk in ai_service.chat_stream(
+                user_message=request.message,
+                user_id=current_user["id"],
+                conversation_id=conversation_id,
+                db=db,
+                device_id=request.device_id
+            ):
+                full_response += chunk
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+            
+            # Guardar respuesta completa
+            if full_response:
+                await db.execute_query("""
+                    INSERT INTO ai_messages (conversation_id, role, content)
+                    VALUES (%s, 'assistant', %s)
+                """, (conversation_id, full_response))
+                
+                # Actualizar updated_at
+                await db.execute_query("""
+                    UPDATE ai_conversations
+                    SET updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, (conversation_id,))
+            
+            yield f"data: {json.dumps({'done': True})}\n\n"
+            
+        except Exception as e:
+            logger.error(f"❌ Error en streaming: {str(e)}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")

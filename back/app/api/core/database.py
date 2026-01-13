@@ -638,6 +638,54 @@ async def _create_tables(db: AsyncPgDbToolkit):
         # PASO 16: INSERTAR MODELOS 3D PREDETERMINADOS (si no existen)
         # ============================================
         await _seed_plant_models(db)
+        
+        # ============================================
+        # PASO 17: CREAR TABLAS PARA CONVERSACIONES DE IA
+        # ============================================
+        if "ai_conversations" not in tables:
+            logger.info("📋 Creando tabla ai_conversations...")
+            await db.create_table("ai_conversations", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
+                "title": "VARCHAR(255) NOT NULL",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            # Crear índices
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_ai_conversations_user_id 
+                ON ai_conversations(user_id)
+            """)
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_ai_conversations_updated_at 
+                ON ai_conversations(updated_at DESC)
+            """)
+            logger.info("✅ Tabla ai_conversations creada exitosamente")
+        else:
+            logger.info("✅ Tabla ai_conversations ya existe")
+        
+        if "ai_messages" not in tables:
+            logger.info("📋 Creando tabla ai_messages...")
+            await db.create_table("ai_messages", {
+                "id": "SERIAL PRIMARY KEY",
+                "conversation_id": "INTEGER REFERENCES ai_conversations(id) ON DELETE CASCADE",
+                "role": "VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system'))",
+                "content": "TEXT NOT NULL",
+                "metadata": "JSONB",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            # Crear índices
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation_id 
+                ON ai_messages(conversation_id)
+            """)
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_ai_messages_created_at 
+                ON ai_messages(created_at)
+            """)
+            logger.info("✅ Tabla ai_messages creada exitosamente")
+        else:
+            logger.info("✅ Tabla ai_messages ya existe")
             
     except Exception as e:
         log_error_with_context(e, "create_tables")
