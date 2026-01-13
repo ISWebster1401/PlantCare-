@@ -147,6 +147,7 @@ export default function PokedexScreen() {
         </View>
       ) : (
         <FlatList
+          key={`flatlist-${viewMode}`}
           data={entries}
           renderItem={({ item }) => (
             <PokedexCard 

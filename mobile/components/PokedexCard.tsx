@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import { PokedexEntryResponse } from '../types';
 import { useTheme } from '../context/ThemeContext';
@@ -147,10 +148,11 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
   );
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const GRID_CARD_WIDTH = (SCREEN_WIDTH - 32) / 2 - 6;
-
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any) => {
+  const { width: SCREEN_WIDTH } = Dimensions.get('window');
+  const GRID_CARD_WIDTH = (SCREEN_WIDTH - 32) / 2 - 6;
+  
+  return StyleSheet.create({
   // List View Styles
   card: {
     backgroundColor: colors.surface,
@@ -301,4 +303,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
   },
-});
+  });
+};
