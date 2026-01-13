@@ -89,8 +89,8 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
               <Text style={styles.gridPlantType} numberOfLines={1}>
                 ???
               </Text>
-              <View style={[styles.gridCareLevelBadge, { backgroundColor: `${colors.primary}20` }]}>
-                <Text style={[styles.gridCareLevelText, { color: colors.primary }]}>
+              <View style={[styles.gridCareLevelBadge, { backgroundColor: `${theme.colors.primary}20` }]}>
+                <Text style={[styles.gridCareLevelText, { color: theme.colors.primary }]}>
                   🔒 Bloqueada
                 </Text>
               </View>
@@ -165,8 +165,8 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
             <Text style={styles.scientificName} numberOfLines={1}>
               Planta desconocida
             </Text>
-            <View style={[styles.careLevelBadge, { backgroundColor: `${colors.primary}15` }]}>
-              <Text style={[styles.careLevelText, { color: colors.primary }]}>
+            <View style={[styles.careLevelBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
+              <Text style={[styles.careLevelText, { color: theme.colors.primary }]}>
                 🔒 Bloqueada
               </Text>
             </View>

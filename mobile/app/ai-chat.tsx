@@ -263,18 +263,28 @@ export default function AIChatScreen() {
             };
           })
         );
-        setConversations(formattedConvs);
+        setConversations((prev) => {
+          const updated = formattedConvs;
+          // Preservar conversaciones locales que aún no están en el backend (como 'new')
+          const localConvs = prev.filter((c) => c.id === 'new' || (typeof c.id === 'string' && !formattedConvs.find(fc => String(fc.id) === String(c.id))));
+          return [...updated, ...localConvs];
+        });
         if (formattedConvs.length > 0 && !activeConversationId) {
           setActiveConversationId(formattedConvs[0].id as number);
         }
       } else {
-        // No crear conversación por defecto si no hay plantas seleccionadas
-        setConversations([]);
+        // Preservar conversaciones locales si no hay conversaciones en el backend
+        setConversations((prev) => {
+          return prev.filter((c) => c.id === 'new' || typeof c.id === 'string');
+        });
         setActiveConversationId(null);
       }
     } catch (error) {
       console.error('Error loading conversations:', error);
-      setConversations([]);
+      // Preservar conversaciones locales en caso de error
+      setConversations((prev) => {
+        return prev.filter((c) => c.id === 'new' || typeof c.id === 'string');
+      });
       setActiveConversationId(null);
     }
   };
@@ -394,9 +404,41 @@ export default function AIChatScreen() {
         timestamp: response.timestamp || new Date().toISOString(),
       };
 
-      appendMessage(finalConversationId || 'new', aiMessage);
-      
-      await loadConversations();
+      // Si la conversación era 'new' y ahora tenemos un ID real del backend, actualizar
+      const realConversationId = response.conversation_id;
+      if (realConversationId && (finalConversationId === null || finalConversationId === 'new')) {
+        // Actualizar la conversación local para usar el ID real del backend
+        setConversations((prev) =>
+          prev.map((conv) => {
+            if (conv.id === 'new' || conv.id === finalConversationId) {
+              // Preservar el mensaje de bienvenida si existe
+              const welcomeMessage = conv.messages.find(
+                (msg) => msg.type === 'ai' && (msg.content.includes('¡Hola!') || String(msg.id).startsWith('welcome_'))
+              );
+              
+              // Obtener todos los mensajes existentes (incluyendo userMessage que ya se agregó)
+              const existingMessages = conv.messages.filter(m => m.id !== aiMessage.id);
+              
+              // Si hay mensaje de bienvenida, asegurarse de que esté al inicio
+              const allMessages = welcomeMessage 
+                ? [welcomeMessage, ...existingMessages.filter(m => m.id !== welcomeMessage.id), aiMessage]
+                : [...existingMessages, aiMessage];
+              
+              return {
+                ...conv,
+                id: realConversationId,
+                messages: allMessages,
+                updatedAt: new Date().toISOString(),
+              };
+            }
+            return conv;
+          })
+        );
+        setActiveConversationId(realConversationId);
+      } else {
+        // Si ya tenía un ID real, solo agregar el mensaje
+        appendMessage(finalConversationId || 'new', aiMessage);
+      }
       
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
