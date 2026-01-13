@@ -223,3 +223,23 @@ export interface DeviceCodeResponse {
   device_type: string;
   created_at: string;
 }
+
+// ============================================
+// POKEDEX TYPES
+// ============================================
+
+export interface PokedexEntryResponse {
+  id: number;
+  user_id: number;
+  plant_type: string;
+  scientific_name: string | null;
+  care_level: string | null;
+  care_tips: string | null;
+  original_photo_url: string | null;
+  optimal_humidity_min: number | null;
+  optimal_humidity_max: number | null;
+  optimal_temp_min: number | null;
+  optimal_temp_max: number | null;
+  discovered_at: string;
+  updated_at: string | null;
+}
