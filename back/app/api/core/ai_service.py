@@ -4,8 +4,10 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import logging
 import json
+from datetime import datetime
 from app.api.core.config import settings
 from pgdbtoolkit import AsyncPgDbToolkit
+import pandas as pd
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -84,6 +86,35 @@ FORMATO DE RESPUESTA:
     def _contains_prohibited_content(self, text: str) -> bool:
         normalized = text.lower()
         return any(keyword in normalized for keyword in self._prohibited_keywords)
+
+    def _serialize_for_json(self, obj: Any) -> Any:
+        """Convierte objetos no serializables (Timestamps, etc.) a strings para JSON"""
+        try:
+            # Manejar Timestamps de pandas
+            if hasattr(obj, '__class__') and 'Timestamp' in str(type(obj)):
+                if hasattr(obj, 'isoformat'):
+                    return obj.isoformat() if pd.notna(obj) else None
+                else:
+                    return str(obj) if pd.notna(obj) else None
+            elif isinstance(obj, pd.Timestamp):
+                return obj.isoformat() if pd.notna(obj) else None
+            elif isinstance(obj, datetime):
+                return obj.isoformat()
+            elif isinstance(obj, dict):
+                return {k: self._serialize_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [self._serialize_for_json(item) for item in obj]
+            elif isinstance(obj, tuple):
+                return tuple(self._serialize_for_json(item) for item in obj)
+            elif pd.isna(obj):
+                return None
+            elif hasattr(obj, 'item'):  # Para numpy types
+                return obj.item()
+            else:
+                return obj
+        except Exception as e:
+            logger.warning(f"Error serializando objeto {type(obj)}: {str(e)}, usando str()")
+            return str(obj) if obj is not None else None
 
     def _get_functions(self) -> List[Dict[str, Any]]:
         """Define las funciones/tools disponibles para el agente"""
@@ -205,7 +236,8 @@ FORMATO DE RESPUESTA:
                 
                 plants = []
                 for _, row in plants_df.iterrows():
-                    plants.append(row.to_dict())
+                    plant_dict = row.to_dict()
+                    plants.append(self._serialize_for_json(plant_dict))
                 
                 return {"plants": plants, "count": len(plants)}
             
@@ -237,7 +269,8 @@ FORMATO DE RESPUESTA:
                 if plant_df is None or plant_df.empty:
                     return {"error": "Planta no encontrada"}
                 
-                return {"plant": plant_df.iloc[0].to_dict()}
+                plant_dict = plant_df.iloc[0].to_dict()
+                return {"plant": self._serialize_for_json(plant_dict)}
             
             elif function_name == "get_sensor_data":
                 sensor_id = arguments.get("sensor_id")
@@ -293,7 +326,8 @@ FORMATO DE RESPUESTA:
                 
                 readings = []
                 for _, row in readings_df.iterrows():
-                    readings.append(row.to_dict())
+                    reading_dict = row.to_dict()
+                    readings.append(self._serialize_for_json(reading_dict))
                 
                 return {"readings": readings, "count": len(readings)}
             
@@ -339,7 +373,8 @@ FORMATO DE RESPUESTA:
                 
                 entries = []
                 for _, row in pokedex_df.iterrows():
-                    entries.append(row.to_dict())
+                    entry_dict = row.to_dict()
+                    entries.append(self._serialize_for_json(entry_dict))
                 
                 return {"entries": entries, "count": len(entries)}
             
@@ -358,7 +393,8 @@ FORMATO DE RESPUESTA:
                 if tips_df is None or tips_df.empty:
                     return {"error": f"No se encontró información de cuidado para {plant_type}"}
                 
-                return {"tips": tips_df.iloc[0].to_dict()}
+                tips_dict = tips_df.iloc[0].to_dict()
+                return {"tips": self._serialize_for_json(tips_dict)}
             
             return {"error": f"Función desconocida: {function_name}"}
             
@@ -429,10 +465,13 @@ FORMATO DE RESPUESTA:
             # Agregar mensaje del usuario
             messages.append({"role": "user", "content": user_message})
             
+            # Serializar todos los mensajes para asegurar que no hay objetos no serializables
+            serialized_messages = self._serialize_for_json(messages)
+            
             # Llamar a OpenAI con funciones
             response = client.chat.completions.create(
                 model=self.model,
-                messages=messages,
+                messages=serialized_messages,
                 tools=self._get_functions(),
                 tool_choice="auto",
                 max_tokens=2000,
@@ -457,6 +496,19 @@ FORMATO DE RESPUESTA:
                         function_name, arguments, user_id, db
                     )
                     
+                    # Serializar resultado antes de enviarlo a OpenAI
+                    serialized_result = self._serialize_for_json(function_result)
+                    
+                    # Intentar serializar a JSON para verificar que no hay errores
+                    try:
+                        json_content = json.dumps(serialized_result, default=str)
+                    except Exception as json_err:
+                        logger.error(f"Error serializando resultado de función {function_name}: {str(json_err)}")
+                        logger.error(f"Resultado: {function_result}")
+                        # Intentar serialización más agresiva
+                        serialized_result = self._serialize_for_json(function_result)
+                        json_content = json.dumps(serialized_result, default=str, ensure_ascii=False)
+                    
                     # Agregar resultado a los mensajes
                     messages.append({
                         "role": "assistant",
@@ -472,14 +524,17 @@ FORMATO DE RESPUESTA:
                     })
                     messages.append({
                         "role": "tool",
-                        "content": json.dumps(function_result),
+                        "content": json_content,
                         "tool_call_id": tool_call.id
                     })
+                
+                # Serializar mensajes antes de la segunda llamada
+                serialized_messages_final = self._serialize_for_json(messages)
                 
                 # Llamar de nuevo a OpenAI con los resultados
                 final_response_obj = client.chat.completions.create(
                     model=self.model,
-                    messages=messages,
+                    messages=serialized_messages_final,
                     max_tokens=2000,
                     temperature=0.7
                 )

@@ -337,7 +337,7 @@ export default function AIChatScreen() {
 
         {activeConversation && (
           <KeyboardAvoidingView
-            style={styles.chatContainer}
+            style={styles.chatWrapper}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           >
@@ -352,6 +352,8 @@ export default function AIChatScreen() {
                 activeConversation.messages.length <= 1 && styles.emptyContent
               ]}
               showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               onContentSizeChange={() => {
                 setTimeout(() => {
                   flatListRef.current?.scrollToEnd({ animated: true });
@@ -414,9 +416,6 @@ const createStyles = (colors: any) =>
       flex: 1,
       backgroundColor: colors.background,
     },
-    chatContainer: {
-      flex: 1,
-    },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -448,15 +447,18 @@ const createStyles = (colors: any) =>
       width: 40,
       alignItems: 'center',
     },
+    chatWrapper: {
+      flex: 1,
+    },
     messagesList: {
       flex: 1,
     },
     messagesContent: {
       padding: 16,
       paddingBottom: 8,
+      flexGrow: 1,
     },
     emptyContent: {
-      flexGrow: 1,
       justifyContent: 'flex-end',
     },
     messageContainer: {
