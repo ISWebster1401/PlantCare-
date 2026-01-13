@@ -278,6 +278,45 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla plants creada exitosamente")
         else:
             logger.info("✅ Tabla plants ya existe")
+        
+        # ============================================
+        # PASO 4: CREAR TABLA PLANT_POKEDEX
+        # ============================================
+        if "plant_pokedex" not in tables:
+            logger.info("📋 Creando tabla plant_pokedex...")
+            await db.create_table("plant_pokedex", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
+                "plant_type": "VARCHAR(100)",
+                "scientific_name": "VARCHAR(200)",
+                "care_level": "VARCHAR(20)",
+                "care_tips": "TEXT",
+                "original_photo_url": "TEXT",
+                "optimal_humidity_min": "FLOAT",
+                "optimal_humidity_max": "FLOAT",
+                "optimal_temp_min": "FLOAT",
+                "optimal_temp_max": "FLOAT",
+                "discovered_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            # Crear índice en user_id para consultas rápidas
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_plant_pokedex_user_id 
+                ON plant_pokedex(user_id)
+            """)
+            # Crear índice en discovered_at para ordenamiento
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_plant_pokedex_discovered_at 
+                ON plant_pokedex(discovered_at DESC)
+            """)
+            # Crear constraint único para evitar duplicados
+            await db.execute_query("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_plant_pokedex_unique 
+                ON plant_pokedex(user_id, plant_type, scientific_name)
+            """)
+            logger.info("✅ Tabla plant_pokedex creada exitosamente")
+        else:
+            logger.info("✅ Tabla plant_pokedex ya existe")
             # Migrar sensor_id a UUID si existe como INTEGER (para coincidir con sensors.id UUID)
             try:
                 result = await db.execute_query("""

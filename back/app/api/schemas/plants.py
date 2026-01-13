@@ -100,6 +100,26 @@ class PlantResponse(BaseModel):
         from_attributes = True
 
 
+class PokedexEntryResponse(BaseModel):
+    """Respuesta con información de una entrada en la pokedex"""
+    id: int
+    user_id: int
+    plant_type: str
+    scientific_name: Optional[str] = None
+    care_level: Optional[str] = None
+    care_tips: Optional[str] = None
+    original_photo_url: Optional[str] = None
+    optimal_humidity_min: Optional[float] = None
+    optimal_humidity_max: Optional[float] = None
+    optimal_temp_min: Optional[float] = None
+    optimal_temp_max: Optional[float] = None
+    discovered_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
 class PlantHealth(BaseModel):
     """Estado de salud de una planta"""
     health_status: str

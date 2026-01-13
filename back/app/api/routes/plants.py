@@ -3,6 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 import logging
 import json
+import pandas as pd
 
 from pgdbtoolkit import AsyncPgDbToolkit
 
@@ -23,6 +24,7 @@ from ..schemas.plants import (
     PlantModelResponse,
     PlantModelUploadRequest,
     PlantModelAssignRequest,
+    PokedexEntryResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -369,7 +371,13 @@ async def identify_plant(
 
         logger.info(f"✅ Archivo válido para identificación: {file.filename} ({file.content_type})")
 
-        original_photo_url = upload_image(file.file, folder="plants/original")
+        # Leer el contenido del archivo antes de subirlo
+        # FastAPI UploadFile.file puede ser un SpooledTemporaryFile o similar
+        file_content = await file.read()
+        from io import BytesIO
+        file_buffer = BytesIO(file_content)
+        
+        original_photo_url = upload_image(file_buffer, folder="plants/original")
         # Pasar especie si el usuario la proporcionó
         plant_data = await identify_plant_with_vision(original_photo_url, plant_species=plant_species)
 
@@ -437,7 +445,13 @@ async def create_plant(
 
         # 1. Subir foto original
         logger.info(f"Subiendo foto original para planta {plant_name}")
-        original_photo_url = upload_image(file.file, folder="plants/original")
+        # Leer el contenido del archivo antes de subirlo
+        # FastAPI UploadFile.file puede ser un SpooledTemporaryFile o similar
+        file_content = await file.read()
+        from io import BytesIO
+        file_buffer = BytesIO(file_content)
+        
+        original_photo_url = upload_image(file_buffer, folder="plants/original")
 
         # 2. Identificar planta (mejorada si el usuario proporcionó especie)
         logger.info("Identificando planta...")
@@ -526,8 +540,19 @@ async def create_plant(
             plant["character_mood"] = "happy"
         if not plant.get("health_status"):
             plant["health_status"] = "healthy"
+        # Manejar valores NaN/None de pandas para campos de modelo 3D
+        if pd.notna(plant.get("model_3d_url")):
+            plant["model_3d_url"] = str(plant["model_3d_url"])
+        else:
+            plant["model_3d_url"] = None
+        if pd.notna(plant.get("default_render_url")):
+            plant["default_render_url"] = str(plant["default_render_url"])
+        else:
+            plant["default_render_url"] = None
 
         logger.info(f"✅ Planta creada exitosamente: {plant_name} (ID: {plant_id})")
+        logger.info(f"   model_3d_url: {plant.get('model_3d_url')}")
+        logger.info(f"   default_render_url: {plant.get('default_render_url')}")
         return PlantResponse(**plant)
 
     except HTTPException:
@@ -574,6 +599,15 @@ async def list_plants(
                     plant["character_mood"] = "happy"
                 if not plant.get("health_status"):
                     plant["health_status"] = "healthy"
+                # Manejar valores NaN/None de pandas para campos de modelo 3D
+                if pd.notna(plant.get("model_3d_url")):
+                    plant["model_3d_url"] = str(plant["model_3d_url"])
+                else:
+                    plant["model_3d_url"] = None
+                if pd.notna(plant.get("default_render_url")):
+                    plant["default_render_url"] = str(plant["default_render_url"])
+                else:
+                    plant["default_render_url"] = None
                 plants.append(PlantResponse(**plant))
             except Exception as e:
                 logger.warning(
@@ -625,6 +659,15 @@ async def get_plant(
             plant["character_mood"] = "happy"
         if not plant.get("health_status"):
             plant["health_status"] = "healthy"
+        # Manejar valores NaN/None de pandas para campos de modelo 3D
+        if pd.notna(plant.get("model_3d_url")):
+            plant["model_3d_url"] = str(plant["model_3d_url"])
+        else:
+            plant["model_3d_url"] = None
+        if pd.notna(plant.get("default_render_url")):
+            plant["default_render_url"] = str(plant["default_render_url"])
+        else:
+            plant["default_render_url"] = None
 
         return PlantResponse(**plant)
 
@@ -1286,4 +1329,308 @@ async def assign_model_to_plant(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error asignando modelo a planta: {str(e)}",
+        )
+
+
+# ============================================
+# ENDPOINTS DE POKEDEX
+# ============================================
+
+@router.post("/pokedex/scan", response_model=PokedexEntryResponse, status_code=status.HTTP_201_CREATED)
+async def scan_pokedex(
+    file: UploadFile = File(...),
+    plant_species: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Escanea una planta y la agrega/actualiza en la pokedex del usuario.
+    No crea una planta en el jardín, solo la registra en el catálogo personal.
+    
+    Args:
+        file: Imagen de la planta
+        plant_species: (Opcional) Especie de la planta si el usuario la conoce
+    """
+    try:
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
+        allowed_content_types = {"image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif"}
+
+        file_extension = None
+        if file.filename:
+            file_extension = "." + file.filename.rsplit(".", 1)[-1].lower()
+
+        if file_extension and file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de archivo no permitido. Solo se aceptan: JPEG, JPG, PNG, HEIC, HEIF. Recibido: {file_extension}",
+            )
+
+        if file.content_type and file.content_type.lower() not in allowed_content_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de contenido no permitido. Solo se aceptan: image/jpeg, image/png, image/heic, image/heif. Recibido: {file.content_type}",
+            )
+
+        logger.info(f"✅ Archivo válido para pokedex: {file.filename} ({file.content_type})")
+
+        # 1. Subir foto a Supabase Storage
+        file_content = await file.read()
+        from io import BytesIO
+        file_buffer = BytesIO(file_content)
+        
+        original_photo_url = upload_image(file_buffer, folder="pokedex")
+
+        # 2. Identificar planta con IA
+        if plant_species:
+            logger.info(f"Usuario proporcionó especie para pokedex: {plant_species}")
+        plant_data = await identify_plant_with_vision(original_photo_url, plant_species=plant_species)
+
+        # 3. Verificar si ya existe en la pokedex del usuario
+        existing_entry = await db.execute_query("""
+            SELECT id FROM plant_pokedex
+            WHERE user_id = %s 
+            AND plant_type = %s 
+            AND scientific_name = %s
+            LIMIT 1
+        """, (current_user["id"], plant_data.get("plant_type"), plant_data.get("scientific_name")))
+
+        if existing_entry is not None and not existing_entry.empty:
+            # Actualizar entrada existente
+            entry_id = existing_entry.iloc[0]["id"]
+            logger.info(f"🔄 Actualizando entrada existente en pokedex (ID: {entry_id})")
+            
+            await db.execute_query("""
+                UPDATE plant_pokedex
+                SET care_level = %s,
+                    care_tips = %s,
+                    original_photo_url = %s,
+                    optimal_humidity_min = %s,
+                    optimal_humidity_max = %s,
+                    optimal_temp_min = %s,
+                    optimal_temp_max = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (
+                plant_data.get("care_level"),
+                plant_data.get("care_tips"),
+                original_photo_url,
+                plant_data.get("optimal_humidity_min"),
+                plant_data.get("optimal_humidity_max"),
+                plant_data.get("optimal_temp_min"),
+                plant_data.get("optimal_temp_max"),
+                entry_id
+            ))
+            
+            # Recuperar entrada actualizada
+            updated_entry = await db.execute_query("""
+                SELECT * FROM plant_pokedex WHERE id = %s
+            """, (entry_id,))
+            
+            entry_dict = updated_entry.iloc[0].to_dict()
+            if pd.notna(entry_dict.get("optimal_humidity_min")):
+                entry_dict["optimal_humidity_min"] = float(entry_dict["optimal_humidity_min"])
+            if pd.notna(entry_dict.get("optimal_humidity_max")):
+                entry_dict["optimal_humidity_max"] = float(entry_dict["optimal_humidity_max"])
+            if pd.notna(entry_dict.get("optimal_temp_min")):
+                entry_dict["optimal_temp_min"] = float(entry_dict["optimal_temp_min"])
+            if pd.notna(entry_dict.get("optimal_temp_max")):
+                entry_dict["optimal_temp_max"] = float(entry_dict["optimal_temp_max"])
+            
+            return PokedexEntryResponse(**entry_dict)
+        else:
+            # Crear nueva entrada
+            logger.info(f"✨ Creando nueva entrada en pokedex para tipo: {plant_data.get('plant_type')}")
+            
+            result = await db.execute_query("""
+                INSERT INTO plant_pokedex (
+                    user_id, plant_type, scientific_name, care_level, care_tips,
+                    original_photo_url, optimal_humidity_min, optimal_humidity_max,
+                    optimal_temp_min, optimal_temp_max
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING *
+            """, (
+                current_user["id"],
+                plant_data.get("plant_type", "Planta"),
+                plant_data.get("scientific_name"),
+                plant_data.get("care_level"),
+                plant_data.get("care_tips"),
+                original_photo_url,
+                plant_data.get("optimal_humidity_min"),
+                plant_data.get("optimal_humidity_max"),
+                plant_data.get("optimal_temp_min"),
+                plant_data.get("optimal_temp_max")
+            ))
+            
+            entry_dict = result.iloc[0].to_dict()
+            if pd.notna(entry_dict.get("optimal_humidity_min")):
+                entry_dict["optimal_humidity_min"] = float(entry_dict["optimal_humidity_min"])
+            if pd.notna(entry_dict.get("optimal_humidity_max")):
+                entry_dict["optimal_humidity_max"] = float(entry_dict["optimal_humidity_max"])
+            if pd.notna(entry_dict.get("optimal_temp_min")):
+                entry_dict["optimal_temp_min"] = float(entry_dict["optimal_temp_min"])
+            if pd.notna(entry_dict.get("optimal_temp_max")):
+                entry_dict["optimal_temp_max"] = float(entry_dict["optimal_temp_max"])
+            
+            logger.info(f"✅ Entrada agregada a pokedex (ID: {entry_dict['id']})")
+            return PokedexEntryResponse(**entry_dict)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error escaneando planta para pokedex: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error escaneando planta para pokedex: {str(e)}",
+        )
+
+
+@router.get("/pokedex/", response_model=List[PokedexEntryResponse])
+async def get_pokedex_entries(
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Obtiene todas las plantas en la pokedex del usuario actual.
+    Ordenadas por fecha de descubrimiento (más recientes primero).
+    """
+    try:
+        entries_df = await db.execute_query("""
+            SELECT * FROM plant_pokedex
+            WHERE user_id = %s
+            ORDER BY discovered_at DESC
+        """, (current_user["id"],))
+
+        if entries_df is None or entries_df.empty:
+            return []
+
+        entries = []
+        for _, row in entries_df.iterrows():
+            try:
+                entry = row.to_dict()
+                # Convertir valores NaN a None y floats correctamente
+                if pd.notna(entry.get("optimal_humidity_min")):
+                    entry["optimal_humidity_min"] = float(entry["optimal_humidity_min"])
+                else:
+                    entry["optimal_humidity_min"] = None
+                if pd.notna(entry.get("optimal_humidity_max")):
+                    entry["optimal_humidity_max"] = float(entry["optimal_humidity_max"])
+                else:
+                    entry["optimal_humidity_max"] = None
+                if pd.notna(entry.get("optimal_temp_min")):
+                    entry["optimal_temp_min"] = float(entry["optimal_temp_min"])
+                else:
+                    entry["optimal_temp_min"] = None
+                if pd.notna(entry.get("optimal_temp_max")):
+                    entry["optimal_temp_max"] = float(entry["optimal_temp_max"])
+                else:
+                    entry["optimal_temp_max"] = None
+                entries.append(PokedexEntryResponse(**entry))
+            except Exception as e:
+                logger.warning(f"Error serializando entrada de pokedex {entry.get('id', 'unknown')}: {e}")
+                continue
+
+        logger.info(f"✅ {len(entries)} entradas de pokedex obtenidas para usuario {current_user['id']}")
+        return entries
+
+    except Exception as e:
+        logger.error(f"Error obteniendo entradas de pokedex: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo entradas de pokedex: {str(e)}",
+        )
+
+
+@router.get("/pokedex/{entry_id}", response_model=PokedexEntryResponse)
+async def get_pokedex_entry(
+    entry_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Obtiene el detalle de una entrada específica de la pokedex del usuario.
+    """
+    try:
+        entry_df = await db.execute_query("""
+            SELECT * FROM plant_pokedex
+            WHERE id = %s AND user_id = %s
+            LIMIT 1
+        """, (entry_id, current_user["id"]))
+
+        if entry_df is None or entry_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Entrada de pokedex no encontrada",
+            )
+
+        entry = entry_df.iloc[0].to_dict()
+        # Convertir valores NaN a None y floats correctamente
+        if pd.notna(entry.get("optimal_humidity_min")):
+            entry["optimal_humidity_min"] = float(entry["optimal_humidity_min"])
+        else:
+            entry["optimal_humidity_min"] = None
+        if pd.notna(entry.get("optimal_humidity_max")):
+            entry["optimal_humidity_max"] = float(entry["optimal_humidity_max"])
+        else:
+            entry["optimal_humidity_max"] = None
+        if pd.notna(entry.get("optimal_temp_min")):
+            entry["optimal_temp_min"] = float(entry["optimal_temp_min"])
+        else:
+            entry["optimal_temp_min"] = None
+        if pd.notna(entry.get("optimal_temp_max")):
+            entry["optimal_temp_max"] = float(entry["optimal_temp_max"])
+        else:
+            entry["optimal_temp_max"] = None
+
+        return PokedexEntryResponse(**entry)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obteniendo entrada de pokedex: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo entrada de pokedex: {str(e)}",
+        )
+
+
+@router.delete("/pokedex/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pokedex_entry(
+    entry_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Elimina una entrada de la pokedex del usuario.
+    """
+    try:
+        # Verificar que la entrada pertenece al usuario
+        entry_df = await db.execute_query("""
+            SELECT id FROM plant_pokedex
+            WHERE id = %s AND user_id = %s
+            LIMIT 1
+        """, (entry_id, current_user["id"]))
+
+        if entry_df is None or entry_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Entrada de pokedex no encontrada",
+            )
+
+        # Eliminar entrada
+        await db.execute_query("""
+            DELETE FROM plant_pokedex
+            WHERE id = %s AND user_id = %s
+        """, (entry_id, current_user["id"]))
+
+        logger.info(f"✅ Entrada de pokedex eliminada (ID: {entry_id})")
+        return None
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error eliminando entrada de pokedex: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error eliminando entrada de pokedex: {str(e)}",
         )

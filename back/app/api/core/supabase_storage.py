@@ -169,8 +169,32 @@ def upload_file(
         file_path = f"{folder}/{filename}" if folder else filename
         
         # Leer contenido del archivo
-        file.seek(0)  # Asegurar que estamos al inicio
-        file_content = file.read()
+        # Verificar si es un objeto file-like con método read()
+        if hasattr(file, 'read'):
+            try:
+                # Intentar leer desde la posición actual
+                current_pos = file.tell() if hasattr(file, 'tell') else 0
+                if current_pos != 0 and hasattr(file, 'seek'):
+                    file.seek(0)  # Asegurar que estamos al inicio
+                file_content = file.read()
+                # Si read() devuelve bytes, usarlo directamente
+                if isinstance(file_content, bytes):
+                    pass  # file_content ya es bytes
+                elif isinstance(file_content, int):
+                    # Si read() devuelve un int, es un error - intentar leer de otra manera
+                    raise Exception(f"Error leyendo archivo: read() devolvió int en lugar de bytes. Tipo recibido: {type(file)}")
+                else:
+                    # Convertir a bytes si es necesario
+                    file_content = bytes(file_content) if file_content else b''
+            except Exception as read_error:
+                logger.error(f"Error leyendo archivo: {read_error}")
+                raise Exception(f"Error leyendo archivo: {str(read_error)}")
+        else:
+            # Si no tiene método read(), intentar tratarlo como bytes directamente
+            if isinstance(file, bytes):
+                file_content = file
+            else:
+                raise Exception(f"El archivo no es un objeto file-like válido. Tipo recibido: {type(file)}")
         
         # Validar que el archivo no esté vacío
         if len(file_content) == 0:
