@@ -22,6 +22,7 @@ from app.api.core.database import init_db, close_db, health_check, get_database_
 from app.api.core.supabase_storage import init_supabase
 from app.api.core.redis_cache import init_redis
 from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo, uploads, plants, sensors, notifications
+from app.api.routes import demo_data
 
 # Crear aplicación FastAPI
 app = FastAPI(
@@ -155,6 +156,7 @@ app.include_router(uploads.router, prefix="/api")
 app.include_router(plants.router, prefix="/api")
 app.include_router(sensors.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(demo_data.router, prefix="/api")
 
 # Ruta raíz
 @app.get("/", response_class=HTMLResponse)
