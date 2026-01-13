@@ -42,23 +42,34 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity 
+      style={[styles.card, { borderLeftColor: getHealthColor(plant.health_status) }]} 
+      onPress={onPress} 
+      activeOpacity={0.8}
+    >
       <View style={styles.imageContainer}>
         {plant.character_image_url ? (
           <Image
             source={{ uri: plant.character_image_url }}
             style={styles.image}
             resizeMode="cover"
+            onError={() => console.log('Error cargando character_image_url')}
           />
         ) : plant.default_render_url ? (
           <Image
             source={{ uri: plant.default_render_url }}
             style={styles.image}
             resizeMode="cover"
+            onError={() => console.log('Error cargando default_render_url')}
           />
+        ) : plant.model_3d_url ? (
+          // Si hay model_3d_url pero no default_render_url, mostrar un indicador visual
+          <View style={[styles.image, styles.model3dPreview, { backgroundColor: `${getHealthColor(plant.health_status)}20` }]}>
+            <Ionicons name="cube" size={32} color={getHealthColor(plant.health_status)} />
+          </View>
         ) : (
-          <View style={styles.placeholder}>
-            <Ionicons name="leaf-outline" size={48} color={theme.colors.primary} />
+          <View style={[styles.placeholder, { backgroundColor: `${getHealthColor(plant.health_status)}15` }]}>
+            <Ionicons name="leaf" size={40} color={getHealthColor(plant.health_status)} />
           </View>
         )}
         <View style={[styles.moodBadge, { backgroundColor: getHealthColor(plant.health_status) }]}>
@@ -76,14 +87,16 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
 
         <View style={styles.healthContainer}>
           <View style={[styles.healthIndicator, { backgroundColor: getHealthColor(plant.health_status) }]} />
-          <Text style={styles.healthText}>
+          <Text style={[styles.healthText, { color: getHealthColor(plant.health_status) }]}>
             {plant.health_status === 'healthy' ? 'Saludable' : 
              plant.health_status === 'warning' ? 'Atención' : 'Crítico'}
           </Text>
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
+      <View style={styles.chevronContainer}>
+        <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
+      </View>
     </TouchableOpacity>
   );
 };
@@ -91,73 +104,103 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress }) => {
 const createStyles = (colors: any) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   imageContainer: {
     position: 'relative',
     marginRight: 16,
   },
   image: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: 88,
+    height: 88,
+    borderRadius: 16,
     backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.border,
   },
   placeholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  moodBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 32,
-    height: 32,
+    width: 88,
+    height: 88,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
+    borderColor: colors.border,
+  },
+  model3dPreview: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: `${colors.primary}10`,
+  },
+  moodBadge: {
+    position: 'absolute',
+    bottom: -6,
+    right: -6,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
     borderColor: colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   moodEmoji: {
-    fontSize: 16,
+    fontSize: 18,
   },
   content: {
     flex: 1,
   },
   plantName: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: 0.3,
   },
   plantType: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
-    marginBottom: 8,
+    marginBottom: 10,
+    fontWeight: '500',
   },
   healthContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: `${colors.primary}10`,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
   },
   healthIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
   },
   healthText: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  chevronContainer: {
+    marginLeft: 8,
+    opacity: 0.5,
   },
 });

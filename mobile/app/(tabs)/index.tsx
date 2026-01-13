@@ -40,7 +40,13 @@ export default function HomeScreen() {
       // Solo loguear errores que no sean de autenticación (401/403)
       // Los errores de auth se manejan en el interceptor de axios
       if (error.response?.status !== 401 && error.response?.status !== 403) {
-        console.error('Error cargando datos:', error);
+        // Manejar errores de red de forma más clara
+        if (error.isNetworkError || error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error')) {
+          console.error('❌ Error de conexión:', error.userMessage || error.message);
+          console.error('   Base URL:', error.baseURL || Config.API_URL);
+        } else {
+          console.error('Error cargando datos:', error);
+        }
       }
     }
   };
@@ -58,42 +64,69 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+      showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.greeting}>¡Hola, {user?.full_name?.split(' ')[0] || 'Usuario'}! 👋</Text>
-        <Text style={styles.subtitle}>Bienvenido a tu jardín virtual</Text>
+        <View style={styles.greetingContainer}>
+          <Text style={styles.greeting}>¡Hola, {user?.full_name?.split(' ')[0] || 'Usuario'}! 👋</Text>
+          <Text style={styles.subtitle}>Bienvenido a tu jardín virtual</Text>
+        </View>
       </View>
 
       <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Ionicons name="leaf" size={32} color={theme.colors.primary} />
-          <Text style={styles.statNumber}>{plantCount}</Text>
-          <Text style={styles.statLabel}>Plantas</Text>
-        </View>
+        <TouchableOpacity 
+          style={[styles.statCard, { borderLeftColor: theme.colors.primary }]}
+          onPress={() => router.push('/(tabs)/garden')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.statIconContainer, { backgroundColor: `${theme.colors.primary}15` }]}>
+            <Ionicons name="leaf" size={32} color={theme.colors.primary} />
+          </View>
+          <View style={styles.statContent}>
+            <Text style={styles.statNumber}>{plantCount}</Text>
+            <Text style={styles.statLabel}>Plantas</Text>
+          </View>
+        </TouchableOpacity>
 
-        <View style={styles.statCard}>
-          <Ionicons name="hardware-chip" size={32} color="#2196f3" />
-          <Text style={styles.statNumber}>{activeSensors}</Text>
-          <Text style={styles.statLabel}>Sensores Activos</Text>
-        </View>
+        <TouchableOpacity 
+          style={[styles.statCard, { borderLeftColor: '#2196f3' }]}
+          onPress={() => router.push('/(tabs)/sensors')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.statIconContainer, { backgroundColor: '#2196f315' }]}>
+            <Ionicons name="hardware-chip" size={32} color="#2196f3" />
+          </View>
+          <View style={styles.statContent}>
+            <Text style={styles.statNumber}>{activeSensors}</Text>
+            <Text style={styles.statLabel}>Sensores Activos</Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.actionsContainer}>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => router.push('/(tabs)/garden')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="leaf-outline" size={24} color={theme.colors.icon} />
+          <View style={styles.actionButtonIcon}>
+            <Ionicons name="leaf" size={24} color={theme.colors.primary} />
+          </View>
           <Text style={styles.actionButtonText}>Ver Mi Jardín</Text>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.actionButton, styles.actionButtonPrimary]}
           onPress={() => router.push('/scan-plant')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="camera-outline" size={24} color={theme.colors.text} />
-          <Text style={styles.actionButtonText}>Escanear Nueva Planta</Text>
+          <View style={styles.actionButtonIconPrimary}>
+            <Ionicons name="camera" size={28} color="#fff" />
+          </View>
+          <Text style={styles.actionButtonTextPrimary}>Escanear Nueva Planta</Text>
+          <Ionicons name="arrow-forward" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
     </ScrollView>

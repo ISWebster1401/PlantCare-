@@ -80,9 +80,12 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
       // ya que usa fetch internamente
       const loader = new GLTFLoader();
       
+      console.log(`🔄 Cargando modelo 3D desde: ${modelUrl}`);
+      
       loader.load(
         modelUrl,
         (gltf) => {
+          console.log('✅ Modelo GLB cargado exitosamente:', gltf);
           // Agregar modelo a la escena
           const model = gltf.scene;
           
@@ -160,6 +163,8 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
         },
         (error) => {
           console.error('❌ Error cargando modelo 3D:', error);
+          console.error('   URL:', modelUrl);
+          console.error('   Error completo:', JSON.stringify(error, null, 2));
         }
       );
 
