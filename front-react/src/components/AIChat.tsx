@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { aiAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import './AIChat.css';
 
 interface AIMessage {
-  id: string;
+  id: string | number;
   type: 'user' | 'ai';
   content: string;
   timestamp: string;
@@ -12,11 +12,12 @@ interface AIMessage {
 }
 
 interface Conversation {
-  id: string;
+  id: number | string;
   title: string;
   messages: AIMessage[];
   createdAt: string;
   updatedAt: string;
+  messageCount?: number;
 }
 
 const defaultWelcomeMessage = (): AIMessage => ({
@@ -25,17 +26,6 @@ const defaultWelcomeMessage = (): AIMessage => ({
   content: '🌱 ¡Hola! Soy PlantCare AI, tu asistente experto en cuidado de plantas. Puedo ayudarte a identificar plantas, dar consejos de cuidado y responder tus preguntas. ¿Con qué te ayudo hoy?',
   timestamp: new Date().toISOString()
 });
-
-const createConversation = (title?: string): Conversation => {
-  const now = new Date().toISOString();
-  return {
-    id: `chat_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-    title: title ?? 'Nuevo chat',
-    messages: [defaultWelcomeMessage()],
-    createdAt: now,
-    updatedAt: now,
-  };
-};
 
 const formatConversationTime = (iso: string) => {
   try {
@@ -69,81 +59,94 @@ const getConversationPreview = (conversation: Conversation) => {
 
 const AIChat: React.FC = () => {
   const { user } = useAuth();
-  const historyKey = useMemo(
-    () => (user ? `plantcare_ai_history_${user.id}` : 'plantcare_ai_history_guest'),
-    [user]
-  );
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
   const [devices, setDevices] = useState<any[]>([]);
+  const streamingMessageRef = useRef<string>('');
+  const streamingMessageIdRef = useRef<string | null>(null);
 
+  // Cargar conversaciones desde backend
   useEffect(() => {
-    loadDevices();
-  }, []);
+    if (user) {
+      loadConversations();
+      loadDevices();
+    }
+  }, [user]);
 
-  useEffect(() => {
+  const loadConversations = async () => {
     try {
-      const stored = localStorage.getItem(historyKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length && parsed[0]?.messages) {
-          setConversations(parsed);
-          setActiveConversationId(parsed[0].id);
-          return;
+      const convs = await aiAPI.getConversations();
+      if (convs && convs.length > 0) {
+        // Convertir conversaciones del backend al formato local
+        const formattedConvs: Conversation[] = await Promise.all(
+          convs.map(async (conv: any) => {
+            // Cargar mensajes de cada conversación
+            const fullConv = await aiAPI.getConversation(conv.id);
+            return {
+              id: conv.id,
+              title: conv.title,
+              messages: fullConv.messages.map((msg: any) => ({
+                id: msg.id,
+                type: msg.role === 'user' ? 'user' : 'ai',
+                content: msg.content,
+                timestamp: msg.created_at
+              })),
+              createdAt: conv.created_at,
+              updatedAt: conv.updated_at,
+              messageCount: conv.message_count
+            };
+          })
+        );
+        setConversations(formattedConvs);
+        if (formattedConvs.length > 0 && !activeConversationId) {
+          setActiveConversationId(formattedConvs[0].id as number);
         }
-        if (Array.isArray(parsed) && parsed.length && !parsed[0]?.messages) {
-          const legacyConversation = createConversation('Chat guardado');
-          legacyConversation.messages = parsed as AIMessage[];
-          legacyConversation.updatedAt =
-            legacyConversation.messages[legacyConversation.messages.length - 1]?.timestamp ??
-            legacyConversation.createdAt;
-          setConversations([legacyConversation]);
-          setActiveConversationId(legacyConversation.id);
-          return;
-        }
+      } else {
+        // Si no hay conversaciones, crear una nueva con mensaje de bienvenida
+        const newConv: Conversation = {
+          id: 'new',
+          title: 'Nuevo chat',
+          messages: [defaultWelcomeMessage()],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        setConversations([newConv]);
+        setActiveConversationId(null);
       }
-      const freshConversation = createConversation('Chat 1');
-      setConversations([freshConversation]);
-      setActiveConversationId(freshConversation.id);
-      localStorage.setItem(historyKey, JSON.stringify([freshConversation]));
     } catch (error) {
-      console.error('Error loading chat history:', error);
-      const fallbackChat = createConversation('Chat 1');
-      setConversations([fallbackChat]);
-      setActiveConversationId(fallbackChat.id);
-    }
-  }, [historyKey]);
-
-  useEffect(() => {
-    if (!conversations.length) {
-      return;
-    }
-    try {
-      localStorage.setItem(historyKey, JSON.stringify(conversations));
-    } catch (error) {
-      console.error('Error storing chat history:', error);
-    }
-  }, [historyKey, conversations]);
-
-  useEffect(() => {
-    if (!conversations.length) {
+      console.error('Error loading conversations:', error);
+      // Fallback: crear conversación local
+      const fallbackConv: Conversation = {
+        id: 'new',
+        title: 'Nuevo chat',
+        messages: [defaultWelcomeMessage()],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      setConversations([fallbackConv]);
       setActiveConversationId(null);
-      return;
     }
-    if (!activeConversationId || !conversations.some((conversation) => conversation.id === activeConversationId)) {
-      setActiveConversationId(conversations[0].id);
+  };
+
+  const loadDevices = async () => {
+    try {
+      const deviceList = await aiAPI.getMyDevices();
+      setDevices(deviceList);
+    } catch (error) {
+      console.error('Error loading devices:', error);
     }
-  }, [conversations, activeConversationId]);
+  };
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [conversations, activeConversationId]
   );
 
-  const appendMessageToConversation = useCallback((conversationId: string, message: AIMessage) => {
+  const appendMessageToConversation = useCallback((conversationId: number | string, message: AIMessage) => {
     setConversations((prev) =>
       prev.map((conversation) => {
         if (conversation.id !== conversationId) {
@@ -152,13 +155,10 @@ const AIChat: React.FC = () => {
 
         const updatedMessages = [...conversation.messages, message];
         let updatedTitle = conversation.title;
-        if (message.type === 'user') {
-          const previousUserMessages = conversation.messages.filter((msg) => msg.type === 'user').length;
-          if (previousUserMessages === 0) {
-            const trimmed = message.content.trim();
-            if (trimmed) {
-              updatedTitle = trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed;
-            }
+        if (message.type === 'user' && conversation.messages.filter((msg) => msg.type === 'user').length === 0) {
+          const trimmed = message.content.trim();
+          if (trimmed) {
+            updatedTitle = trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed;
           }
         }
 
@@ -172,102 +172,173 @@ const AIChat: React.FC = () => {
     );
   }, []);
 
-  const resetActiveConversation = () => {
-    if (!activeConversation) {
-      return;
-    }
-    const welcome = defaultWelcomeMessage();
+  const updateStreamingMessage = useCallback((conversationId: number | string, content: string) => {
     setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id === activeConversation.id
-          ? { ...conversation, messages: [welcome], updatedAt: welcome.timestamp }
-          : conversation
-      )
-    );
-  };
+      prev.map((conversation) => {
+        if (conversation.id !== conversationId) {
+          return conversation;
+        }
 
-  const loadDevices = async () => {
-    try {
-      const deviceList = await aiAPI.getMyDevices();
-      setDevices(deviceList);
-    } catch (error) {
-      console.error('Error loading devices:', error);
-    }
-  };
+        const messages = [...conversation.messages];
+        const lastMessage = messages[messages.length - 1];
+        
+        if (lastMessage && lastMessage.type === 'ai' && lastMessage.id === streamingMessageIdRef.current) {
+          // Actualizar mensaje existente
+          messages[messages.length - 1] = {
+            ...lastMessage,
+            content: content
+          };
+        } else {
+          // Crear nuevo mensaje si no existe
+          messages.push({
+            id: streamingMessageIdRef.current || Date.now(),
+            type: 'ai',
+            content: content,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        return {
+          ...conversation,
+          messages: messages
+        };
+      })
+    );
+  }, []);
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+    if (!inputMessage.trim() || isLoading || isStreaming) return;
 
-    let conversationId = activeConversation?.id ?? null;
-    if (!conversationId) {
-      const newConversation = createConversation(`Chat ${conversations.length + 1}`);
-      conversationId = newConversation.id;
-      setConversations((prev) => [newConversation, ...prev]);
-      setActiveConversationId(newConversation.id);
-    }
-
-    const userMessage: AIMessage = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputMessage,
-      timestamp: new Date().toISOString()
-    };
-
-    appendMessageToConversation(conversationId, userMessage);
+    let conversationId = activeConversationId;
+    const messageText = inputMessage.trim();
     setInputMessage('');
     setIsLoading(true);
 
-    try {
-      let response;
-      if (selectedDevice) {
-        response = await aiAPI.analyzeDevice(selectedDevice, inputMessage);
-      } else {
-        response = await aiAPI.askGeneral(inputMessage);
-      }
+    // Si no hay conversación activa o es 'new', crear una nueva
+    if (!conversationId || conversationId === 'new') {
+      conversationId = null;
+    }
 
-      const aiMessage: AIMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: response.response,
-        timestamp: response.timestamp,
-        deviceInfo: response.device_info
+    const userMessage: AIMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: messageText,
+      timestamp: new Date().toISOString()
+    };
+
+    // Si no hay conversación activa, crear una temporal
+    if (!conversationId) {
+      const newConv: Conversation = {
+        id: 'new',
+        title: messageText.length > 40 ? `${messageText.slice(0, 40)}…` : messageText,
+        messages: [defaultWelcomeMessage(), userMessage],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
+      setConversations((prev) => [newConv, ...prev]);
+      setActiveConversationId('new' as any);
+    } else {
+      appendMessageToConversation(conversationId, userMessage);
+    }
 
-      appendMessageToConversation(conversationId, aiMessage);
+    try {
+      // Usar streaming para mejor UX
+      setIsStreaming(true);
+      streamingMessageRef.current = '';
+      streamingMessageIdRef.current = `streaming_${Date.now()}`;
+
+      // Agregar mensaje de IA vacío para mostrar mientras stream
+      const tempAiMessage: AIMessage = {
+        id: streamingMessageIdRef.current,
+        type: 'ai',
+        content: '',
+        timestamp: new Date().toISOString()
+      };
+      appendMessageToConversation(conversationId || 'new', tempAiMessage);
+
+      let finalConversationId = conversationId;
+
+      await aiAPI.chatStream(
+        messageText,
+        typeof conversationId === 'number' ? conversationId : undefined,
+        selectedDevice || undefined,
+        (chunk: string) => {
+          streamingMessageRef.current += chunk;
+          updateStreamingMessage(finalConversationId || 'new', streamingMessageRef.current);
+        },
+        async () => {
+          setIsStreaming(false);
+          // Recargar conversaciones para obtener IDs reales
+          await loadConversations();
+        },
+        (error: string) => {
+          setIsStreaming(false);
+          setIsLoading(false);
+          const errorMessage: AIMessage = {
+            id: Date.now(),
+            type: 'ai',
+            content: `❌ Error: ${error}`,
+            timestamp: new Date().toISOString()
+          };
+          appendMessageToConversation(finalConversationId || 'new', errorMessage);
+        }
+      );
     } catch (error: any) {
+      setIsStreaming(false);
+      setIsLoading(false);
       const errorMessage: AIMessage = {
-        id: (Date.now() + 1).toString(),
+        id: Date.now(),
         type: 'ai',
         content: '❌ Lo siento, hubo un error procesando tu consulta. Por favor intenta de nuevo.',
         timestamp: new Date().toISOString()
       };
-      appendMessageToConversation(conversationId, errorMessage);
+      appendMessageToConversation(conversationId || 'new', errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleNewChat = () => {
-    setConversations((prev) => {
-      const newConversation = createConversation(`Chat ${prev.length + 1}`);
-      setActiveConversationId(newConversation.id);
-      return [newConversation, ...prev];
-    });
+    const newConv: Conversation = {
+      id: 'new',
+      title: 'Nuevo chat',
+      messages: [defaultWelcomeMessage()],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    setConversations((prev) => [newConv, ...prev]);
+    setActiveConversationId('new' as any);
   };
 
-  const handleDeleteConversation = (conversationId: string) => {
-    setConversations((prev) => {
-      const filtered = prev.filter((conversation) => conversation.id !== conversationId);
-      if (!filtered.length) {
-        const fallbackConversation = createConversation('Chat 1');
-        setActiveConversationId(fallbackConversation.id);
-        return [fallbackConversation];
+  const handleDeleteConversation = async (conversationId: number | string) => {
+    if (typeof conversationId === 'number') {
+      try {
+        await aiAPI.deleteConversation(conversationId);
+        await loadConversations();
+      } catch (error) {
+        console.error('Error deleting conversation:', error);
       }
-      if (conversationId === activeConversationId) {
-        setActiveConversationId(filtered[0].id);
-      }
-      return filtered;
-    });
+    } else {
+      // Si es conversación local ('new'), solo eliminarla del estado
+      setConversations((prev) => {
+        const filtered = prev.filter((conversation) => conversation.id !== conversationId);
+        if (!filtered.length) {
+          const fallbackConversation: Conversation = {
+            id: 'new',
+            title: 'Nuevo chat',
+            messages: [defaultWelcomeMessage()],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          setActiveConversationId('new' as any);
+          return [fallbackConversation];
+        }
+        if (conversationId === activeConversationId) {
+          setActiveConversationId(filtered[0].id as number);
+        }
+        return filtered;
+      });
+    }
   };
 
   const activeMessages = activeConversation?.messages ?? [];
@@ -280,9 +351,6 @@ const AIChat: React.FC = () => {
           <div className="chat-actions">
             <button className="new-chat-btn" onClick={handleNewChat}>
               ➕ Nuevo chat
-            </button>
-            <button className="clear-history-btn" onClick={resetActiveConversation} disabled={!activeConversation}>
-              🧹 Limpiar conversación
             </button>
           </div>
         </div>
@@ -312,10 +380,10 @@ const AIChat: React.FC = () => {
                 className={`conversation-item ${conversation.id === activeConversationId ? 'active' : ''}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => setActiveConversationId(conversation.id)}
+                onClick={() => setActiveConversationId(conversation.id as number)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
-                    setActiveConversationId(conversation.id);
+                    setActiveConversationId(conversation.id as number);
                   }
                 }}
               >
@@ -360,7 +428,7 @@ const AIChat: React.FC = () => {
                 </div>
               </div>
             ))}
-            {isLoading && (
+            {(isLoading || isStreaming) && (
               <div className="message ai loading">
                 <div className="message-content">
                   <div className="typing-indicator">
@@ -384,14 +452,14 @@ const AIChat: React.FC = () => {
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              disabled={isLoading}
+              disabled={isLoading || isStreaming}
             />
             <button
               onClick={sendMessage}
-              disabled={isLoading || !inputMessage.trim()}
+              disabled={isLoading || isStreaming || !inputMessage.trim()}
               className="send-btn"
             >
-              {isLoading ? '⏳' : '🚀'}
+              {(isLoading || isStreaming) ? '⏳' : '🚀'}
             </button>
           </div>
         </div>

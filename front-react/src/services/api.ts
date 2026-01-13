@@ -176,13 +176,13 @@ export const quotesAPI = {
 };
 
 export const aiAPI = {
-  // Hacer pregunta general sobre plantas
+  // Hacer pregunta general sobre plantas (legacy)
   askGeneral: async (question: string) => {
     const response = await api.post('/ai/ask', { question });
     return response.data;
   },
 
-  // Analizar dispositivo específico
+  // Analizar dispositivo específico (legacy)
   analyzeDevice: async (deviceId: number, question?: string) => {
     const payload: any = { device_id: deviceId };
     if (question) payload.question = question;
@@ -201,6 +201,104 @@ export const aiAPI = {
   healthCheck: async () => {
     const response = await api.get('/ai/health');
     return response.data;
+  },
+
+  // ============================================
+  // NUEVOS ENDPOINTS CON MEMORIA
+  // ============================================
+
+  // Chat con memoria
+  chat: async (message: string, conversationId?: number, deviceId?: number) => {
+    const response = await api.post('/ai/chat', {
+      message,
+      conversation_id: conversationId,
+      device_id: deviceId
+    });
+    return response.data;
+  },
+
+  // Chat con streaming
+  chatStream: async (
+    message: string,
+    conversationId: number | undefined,
+    deviceId: number | undefined,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (error: string) => void
+  ) => {
+    try {
+      const response = await fetch(`${api.defaults.baseURL}/ai/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${document.cookie.split('access_token=')[1]?.split(';')[0] || ''}`
+        },
+        body: JSON.stringify({
+          message,
+          conversation_id: conversationId,
+          device_id: deviceId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                onError(data.error);
+                return;
+              }
+              if (data.done) {
+                onDone();
+                return;
+              }
+              if (data.content) {
+                onChunk(data.content);
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      onError(error.message || 'Error en streaming');
+    }
+  },
+
+  // Listar conversaciones
+  getConversations: async () => {
+    const response = await api.get('/ai/conversations');
+    return response.data;
+  },
+
+  // Obtener conversación específica
+  getConversation: async (conversationId: number) => {
+    const response = await api.get(`/ai/conversations/${conversationId}`);
+    return response.data;
+  },
+
+  // Eliminar conversación
+  deleteConversation: async (conversationId: number) => {
+    await api.delete(`/ai/conversations/${conversationId}`);
   },
 };
 

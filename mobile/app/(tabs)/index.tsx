@@ -128,6 +128,18 @@ export default function HomeScreen() {
           <Text style={styles.actionButtonTextPrimary}>Escanear Nueva Planta</Text>
           <Ionicons name="arrow-forward" size={20} color="#fff" />
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, { borderLeftWidth: 4, borderLeftColor: '#9c27b0' }]}
+          onPress={() => router.push('/ai-chat')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.actionButtonIcon, { backgroundColor: '#9c27b015' }]}>
+            <Ionicons name="chatbubbles" size={24} color="#9c27b0" />
+          </View>
+          <Text style={styles.actionButtonText}>🤖 Chat con IA</Text>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -201,5 +213,31 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  actionButtonIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  actionButtonIconPrimary: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  actionButtonTextPrimary: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  greetingContainer: {
+    marginBottom: 8,
   },
 });

@@ -357,6 +357,7 @@ export const notificationsAPI = {
 // ============================================
 
 export const aiAPI = {
+  // Legacy endpoints
   askGeneral: async (question: string): Promise<AIResponse> => {
     const response = await api.post('/ai/ask', { question });
     return response.data;
@@ -372,6 +373,97 @@ export const aiAPI = {
   getMyDevices: async (): Promise<any[]> => {
     const response = await api.get('/ai/my-devices');
     return response.data;
+  },
+
+  // New endpoints with memory
+  chat: async (message: string, conversationId?: number, deviceId?: number): Promise<any> => {
+    const response = await api.post('/ai/chat', {
+      message,
+      conversation_id: conversationId,
+      device_id: deviceId,
+    });
+    return response.data;
+  },
+
+  chatStream: async (
+    message: string,
+    conversationId: number | undefined,
+    deviceId: number | undefined,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (error: string) => void
+  ): Promise<void> => {
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      const response = await fetch(`${Config.API_URL}/ai/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          message,
+          conversation_id: conversationId,
+          device_id: deviceId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                onError(data.error);
+                return;
+              }
+              if (data.done) {
+                onDone();
+                return;
+              }
+              if (data.content) {
+                onChunk(data.content);
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      onError(error.message || 'Error en streaming');
+    }
+  },
+
+  getConversations: async (): Promise<any[]> => {
+    const response = await api.get('/ai/conversations');
+    return response.data;
+  },
+
+  getConversation: async (conversationId: number): Promise<any> => {
+    const response = await api.get(`/ai/conversations/${conversationId}`);
+    return response.data;
+  },
+
+  deleteConversation: async (conversationId: number): Promise<void> => {
+    await api.delete(`/ai/conversations/${conversationId}`);
   },
 };
 
