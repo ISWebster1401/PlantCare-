@@ -214,9 +214,12 @@ export const healthAPI = {
 
 export const plantsAPI = {
   // Identificar planta con imagen
-  identifyPlant: async (file: File) => {
+  identifyPlant: async (file: File, plantSpecies?: string) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (plantSpecies) {
+      formData.append('plant_species', plantSpecies);
+    }
     const response = await api.post('/plants/identify', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
@@ -234,10 +237,13 @@ export const plantsAPI = {
   },
 
   // Crear planta completa
-  createPlant: async (file: File, plantName: string) => {
+  createPlant: async (file: File, plantName: string, plantSpecies?: string) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('plant_name', plantName);
+    if (plantSpecies) {
+      formData.append('plant_species', plantSpecies);
+    }
     const response = await api.post('/plants/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });

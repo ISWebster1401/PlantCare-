@@ -11,6 +11,7 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>('');
   const [plantName, setPlantName] = useState('');
+  const [plantSpecies, setPlantSpecies] = useState(''); // Campo opcional para especie
   const [identifiedData, setIdentifiedData] = useState<any>(null);
   const [error, setError] = useState<string>('');
 
@@ -40,7 +41,8 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
     setStep('identifying');
     setError('');
     try {
-      const data = await plantsAPI.identifyPlant(file);
+      // Pasar especie si el usuario la proporcionó
+      const data = await plantsAPI.identifyPlant(file, plantSpecies.trim() || undefined);
       setIdentifiedData(data);
       setStep('identified');
     } catch (error: any) {
@@ -57,13 +59,15 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
     setError('');
     try {
       // Crear planta (el modelo se asigna automáticamente según el tipo)
-      const plant = await plantsAPI.createPlant(image, plantName);
+      // Pasar especie si el usuario la proporcionó
+      const plant = await plantsAPI.createPlant(image, plantName, plantSpecies.trim() || undefined);
       
       onPlantCreated(plant);
       // Reset form
       setImage(null);
       setPreview('');
       setPlantName('');
+      setPlantSpecies('');
       setIdentifiedData(null);
       setStep('name');
     } catch (error: any) {
@@ -87,23 +91,34 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
 
   return (
     <div className="plant-scanner">
-      {/* Paso 1: Nombre de la planta */}
+      {/* Paso 1: Nombre de la planta y especie (opcional) */}
       {step === 'name' && (
         <div className="scanner-step">
           <div className="step-icon">🌱</div>
           <h3>Paso 1: Nombre tu planta</h3>
           <p className="step-description">
-            Dale un nombre especial a tu nueva planta. Puede ser cualquier nombre que te guste.
+            Dale un nombre especial a tu nueva planta. Si conoces la especie, puedes ingresarla para mejorar la identificación.
           </p>
           <form onSubmit={handleNameSubmit} className="name-form">
             <input
               type="text"
-              placeholder="Ej: Pepito, Rosita, Verde..."
+              placeholder="Nombre de la planta (ej: Pepito, Rosita, Verde...)"
               value={plantName}
               onChange={(e) => setPlantName(e.target.value)}
               className="name-input"
               autoFocus
+              required
             />
+            <input
+              type="text"
+              placeholder="Especie (opcional, ej: Monstera deliciosa, Ficus lyrata...)"
+              value={plantSpecies}
+              onChange={(e) => setPlantSpecies(e.target.value)}
+              className="name-input"
+            />
+            <small className="species-hint" style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center' }}>
+              Si conoces la especie, ingrésala para una identificación más precisa
+            </small>
             <button type="submit" className="btn-next" disabled={!plantName.trim()}>
               Continuar →
             </button>
