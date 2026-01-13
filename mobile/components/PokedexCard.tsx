@@ -16,9 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 interface PokedexCardProps {
   entry: PokedexEntryResponse;
   onPress?: () => void;
+  viewMode?: 'list' | 'grid';
 }
 
-export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress }) => {
+export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMode = 'list' }) => {
   const { theme } = useTheme();
   const styles = createStyles(theme.colors);
 
@@ -41,6 +42,49 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress }) => {
     });
   };
 
+  if (viewMode === 'grid') {
+    return (
+      <TouchableOpacity 
+        style={styles.gridCard} 
+        onPress={onPress} 
+        activeOpacity={0.8}
+      >
+        <View style={styles.gridImageContainer}>
+          {entry.is_unlocked && entry.discovered_photo_url ? (
+            <Image
+              source={{ uri: entry.discovered_photo_url }}
+              style={styles.gridImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.gridPlaceholder}>
+              <Ionicons name="leaf" size={32} color={theme.colors.primary} />
+            </View>
+          )}
+          {entry.catalog_entry.entry_number && (
+            <View style={styles.entryNumberBadge}>
+              <Text style={styles.entryNumberText}>
+                #{entry.catalog_entry.entry_number.toString().padStart(3, '0')}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.gridContent}>
+          <Text style={styles.gridPlantType} numberOfLines={1}>
+            {entry.catalog_entry.plant_type || 'Planta'}
+          </Text>
+          {entry.catalog_entry.care_level && (
+            <View style={[styles.gridCareLevelBadge, { backgroundColor: `${getCareLevelColor(entry.catalog_entry.care_level)}20` }]}>
+              <Text style={[styles.gridCareLevelText, { color: getCareLevelColor(entry.catalog_entry.care_level) }]}>
+                {entry.catalog_entry.care_level}
+              </Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity 
       style={styles.card} 
@@ -56,7 +100,14 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress }) => {
           />
         ) : (
           <View style={styles.placeholder}>
-            <Ionicons name="leaf" size={40} color={theme.colors.primary} />
+            <Ionicons name="leaf" size={32} color={theme.colors.primary} />
+          </View>
+        )}
+        {entry.catalog_entry.entry_number && (
+          <View style={styles.entryNumberBadge}>
+            <Text style={styles.entryNumberText}>
+              #{entry.catalog_entry.entry_number.toString().padStart(3, '0')}
+            </Text>
           </View>
         )}
       </View>
@@ -81,7 +132,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress }) => {
 
         {entry.is_unlocked && entry.discovered_at && (
           <View style={styles.dateContainer}>
-            <Ionicons name="calendar-outline" size={14} color={theme.colors.textSecondary} />
+            <Ionicons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
             <Text style={styles.dateText}>
               {formatDate(entry.discovered_at)}
             </Text>
@@ -90,88 +141,164 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress }) => {
       </View>
 
       <View style={styles.chevronContainer}>
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.iconSecondary} />
       </View>
     </TouchableOpacity>
   );
 };
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const GRID_CARD_WIDTH = (SCREEN_WIDTH - 32) / 2 - 6;
+
 const createStyles = (colors: any) => StyleSheet.create({
+  // List View Styles
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   imageContainer: {
-    marginRight: 16,
+    marginRight: 10,
+    position: 'relative',
   },
   image: {
-    width: 88,
-    height: 88,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 10,
     backgroundColor: colors.background,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   placeholder: {
-    width: 88,
-    height: 88,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: `${colors.primary}15`,
-    borderWidth: 2,
+    backgroundColor: `${colors.primary}12`,
+    borderWidth: 1.5,
     borderColor: colors.border,
+  },
+  entryNumberBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    minWidth: 28,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+  },
+  entryNumberText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#fff',
   },
   content: {
     flex: 1,
   },
   plantType: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
-    letterSpacing: 0.3,
+    marginBottom: 3,
+    letterSpacing: 0.2,
   },
   scientificName: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   careLevelBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginBottom: 6,
   },
   careLevelText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
   },
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
   dateText: {
-    fontSize: 12,
+    fontSize: 10,
     color: colors.textSecondary,
-    marginLeft: 6,
+    marginLeft: 4,
   },
   chevronContainer: {
-    marginLeft: 8,
-    opacity: 0.5,
+    marginLeft: 6,
+    opacity: 0.4,
+  },
+  // Grid View Styles
+  gridCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    margin: 4,
+    width: GRID_CARD_WIDTH,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  gridImageContainer: {
+    width: '100%',
+    height: GRID_CARD_WIDTH,
+    position: 'relative',
+    backgroundColor: colors.background,
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.background,
+  },
+  gridPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: `${colors.primary}12`,
+  },
+  gridContent: {
+    padding: 8,
+  },
+  gridPlantType: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+  gridCareLevelBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  gridCareLevelText: {
+    fontSize: 9,
+    fontWeight: '600',
   },
 });

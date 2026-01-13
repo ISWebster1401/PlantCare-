@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { pokedexAPI } from '../../services/api';
@@ -18,11 +19,14 @@ import { PokedexCard } from '../../components/PokedexCard';
 import { useTheme } from '../../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
+type ViewMode = 'list' | 'grid';
+
 export default function PokedexScreen() {
   const { theme } = useTheme();
   const [entries, setEntries] = useState<PokedexEntryResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const router = useRouter();
   
   const styles = createStyles(theme.colors);
@@ -91,12 +95,38 @@ export default function PokedexScreen() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.titleContainer}>
-            <Ionicons name="book" size={28} color={theme.colors.primary} />
+            <Ionicons name="book" size={22} color={theme.colors.primary} />
             <Text style={styles.title}>Pokedex Plantuna</Text>
           </View>
-          <View style={styles.statBadge}>
-            <Ionicons name="leaf" size={18} color={theme.colors.primary} />
-            <Text style={styles.statText}>{entries.length}</Text>
+          <View style={styles.headerRight}>
+            <View style={styles.statBadge}>
+              <Ionicons name="leaf" size={14} color={theme.colors.primary} />
+              <Text style={styles.statText}>{entries.filter(e => e.is_unlocked).length} / {entries.length}</Text>
+            </View>
+            <View style={styles.viewModeButtons}>
+              <TouchableOpacity
+                style={[styles.viewModeButton, viewMode === 'list' && styles.viewModeButtonActive]}
+                onPress={() => setViewMode('list')}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name="list" 
+                  size={18} 
+                  color={viewMode === 'list' ? '#fff' : theme.colors.textSecondary} 
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.viewModeButton, viewMode === 'grid' && styles.viewModeButtonActive]}
+                onPress={() => setViewMode('grid')}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name="grid" 
+                  size={18} 
+                  color={viewMode === 'grid' ? '#fff' : theme.colors.textSecondary} 
+                />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -119,10 +149,15 @@ export default function PokedexScreen() {
         <FlatList
           data={entries}
           renderItem={({ item }) => (
-            <PokedexCard entry={item} onPress={() => handleEntryPress(item)} />
+            <PokedexCard 
+              entry={item} 
+              onPress={() => handleEntryPress(item)}
+              viewMode={viewMode}
+            />
           )}
           keyExtractor={(item) => item.catalog_entry.id.toString()}
-          contentContainerStyle={styles.listContent}
+          numColumns={viewMode === 'grid' ? 2 : 1}
+          contentContainerStyle={viewMode === 'grid' ? styles.gridContent : styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -152,8 +187,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 24,
+    paddingBottom: 10,
+    paddingHorizontal: 16,
   },
   headerContent: {
     flexDirection: 'row',
@@ -163,27 +198,47 @@ const createStyles = (colors: any) => StyleSheet.create({
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: `${colors.primary}15`,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
   },
   statText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.primary,
+  },
+  viewModeButtons: {
+    flexDirection: 'row',
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 2,
+    gap: 4,
+  },
+  viewModeButton: {
+    padding: 6,
+    borderRadius: 8,
+  },
+  viewModeButtonActive: {
+    backgroundColor: colors.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -244,23 +299,27 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '700',
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 100,
+    padding: 10,
+    paddingBottom: 90,
+  },
+  gridContent: {
+    padding: 8,
+    paddingBottom: 90,
   },
   fab: {
     position: 'absolute',
-    right: 24,
-    bottom: 24,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    right: 16,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 5,
   },
 });
