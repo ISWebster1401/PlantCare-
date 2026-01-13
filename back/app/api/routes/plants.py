@@ -247,6 +247,93 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
         return None
 
 
+@router.get("/species", response_model=List[str])
+async def get_plant_species(
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Devuelve una lista de todas las especies de plantas comunes disponibles.
+    Útil para autocompletado en el frontend.
+    """
+    # Lista completa de especies de plantas comunes (nombres científicos y comunes)
+    species_list = [
+        # Araceae (Monstera, Pothos, etc.)
+        "Monstera deliciosa",
+        "Monstera adansonii",
+        "Monstera obliqua",
+        "Epipremnum aureum",  # Pothos
+        "Philodendron hederaceum",
+        "Philodendron bipinnatifidum",
+        "Anthurium andraeanum",
+        "Spathiphyllum wallisii",  # Espatifilo
+        "Zamioculcas zamiifolia",  # Zamioculca
+        "Aglaonema commutatum",
+        "Dieffenbachia seguine",
+        "Syngonium podophyllum",
+        
+        # Ficus
+        "Ficus lyrata",  # Ficus Lira
+        "Ficus elastica",  # Ficus de Goma
+        "Ficus benjamina",
+        "Ficus microcarpa",
+        "Ficus pumila",
+        
+        # Suculentas y Cactus
+        "Echeveria elegans",
+        "Echeveria 'Perle von Nürnberg'",
+        "Crassula ovata",  # Árbol de Jade
+        "Aloe vera",
+        "Aloe barbadensis",
+        "Haworthia fasciata",
+        "Kalanchoe blossfeldiana",
+        "Sedum morganianum",  # Cola de Burro
+        "Schlumbergera truncata",  # Cactus de Navidad
+        "Opuntia ficus-indica",
+        "Mammillaria",
+        "Echinocactus grusonii",
+        "Cereus",
+        
+        # Sansevieria
+        "Sansevieria trifasciata",
+        "Sansevieria cylindrica",
+        "Sansevieria laurentii",
+        
+        # Dracaena
+        "Dracaena marginata",
+        "Dracaena fragrans",
+        "Dracaena deremensis",
+        
+        # Helechos
+        "Nephrolepis exaltata",  # Helecho Espada
+        "Adiantum capillus-veneris",  # Culantrillo
+        "Pteris cretica",
+        "Asplenium nidus",  # Nido de Ave
+        
+        # Otras comunes
+        "Pilea peperomioides",  # Planta del Dólar
+        "Peperomia obtusifolia",
+        "Calathea orbifolia",
+        "Calathea makoyana",
+        "Maranta leuconeura",
+        "Stromanthe sanguinea",
+        "Tradescantia zebrina",
+        "Chlorophytum comosum",  # Cinta
+        "Hedera helix",  # Hiedra
+        "Schefflera arboricola",
+        "Yucca elephantipes",
+        "Beaucarnea recurvata",  # Nolina
+        "Aspidistra elatior",
+        "Cyperus alternifolius",
+        "Lavandula angustifolia",  # Lavanda
+        "Rosmarinus officinalis",  # Romero
+        "Mentha",  # Menta
+        "Ocimum basilicum",  # Albahaca
+        "Petroselinum crispum",  # Perejil
+    ]
+    
+    return sorted(species_list)
+
+
 @router.post("/identify", response_model=PlantIdentify)
 async def identify_plant(
     file: UploadFile = File(...),

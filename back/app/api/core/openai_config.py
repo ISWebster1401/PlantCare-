@@ -125,7 +125,9 @@ Tu objetivo es proporcionar identificaciones PRECISAS y ESPECÍFICAS, preferente
                     "content": [
                         {
                             "type": "text",
-                            "text": f"""{f'CONTEXTO: El usuario indica que esta planta podría ser: "{plant_species}". Usa esta información como pista adicional para mejorar tu identificación, pero verifica siempre contra las características visuales de la imagen.\n\n' if plant_species else ''}Analiza esta imagen de planta con EXTREMA PRECISIÓN. Evalúa sistemáticamente:
+                            "text": (f"""CONTEXTO: El usuario indica que esta planta podría ser: "{plant_species}". Usa esta información como pista adicional para mejorar tu identificación, pero verifica siempre contra las características visuales de la imagen.
+
+""" if plant_species else "") + """Analiza esta imagen de planta con EXTREMA PRECISIÓN. Evalúa sistemáticamente:
 
 🔬 CARACTERÍSTICAS MORFOLÓGICAS DETALLADAS:
 
@@ -234,7 +236,9 @@ async def _identify_plant_fallback(image_url: str, plant_species: Optional[str] 
                     "content": [
                         {
                             "type": "text",
-                            "text": f"""{f'CONTEXTO: El usuario indica que esta planta podría ser: "{plant_species}". Usa esta información como pista, pero verifica contra las características visuales.\n\n' if plant_species else ''}Eres un experto botánico. Identifica esta planta con la mayor precisión posible.
+                            "text": (f"""CONTEXTO: El usuario indica que esta planta podría ser: "{plant_species}". Usa esta información como pista, pero verifica contra las características visuales.
+
+""" if plant_species else "") + """Eres un experto botánico. Identifica esta planta con la mayor precisión posible.
 
 Analiza cuidadosamente:
 - Forma y disposición de hojas
