@@ -250,9 +250,16 @@ async def _assign_default_model(db: AsyncPgDbToolkit, plant_id: int, plant_type:
 @router.post("/identify", response_model=PlantIdentify)
 async def identify_plant(
     file: UploadFile = File(...),
+    plant_species: Optional[str] = Form(None),
     current_user: dict = Depends(get_current_active_user),
 ):
-    """Sube una foto a Supabase Storage y usa GPT‑4o Vision para identificar la planta."""
+    """Sube una foto a Supabase Storage y usa GPT‑4o Vision para identificar la planta.
+    
+    Args:
+        file: Imagen de la planta
+        plant_species: (Opcional) Especie de la planta si el usuario la conoce. 
+                      Si se proporciona, se usa para mejorar la precisión de la identificación.
+    """
     try:
         allowed_extensions = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
         allowed_content_types = {"image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif"}
@@ -276,7 +283,8 @@ async def identify_plant(
         logger.info(f"✅ Archivo válido para identificación: {file.filename} ({file.content_type})")
 
         original_photo_url = upload_image(file.file, folder="plants/original")
-        plant_data = await identify_plant_with_vision(original_photo_url)
+        # Pasar especie si el usuario la proporcionó
+        plant_data = await identify_plant_with_vision(original_photo_url, plant_species=plant_species)
 
         return PlantIdentify(**plant_data)
 
@@ -294,6 +302,7 @@ async def identify_plant(
 async def create_plant(
     file: UploadFile = File(...),
     plant_name: str = Form(...),
+    plant_species: Optional[str] = Form(None),
     current_user: dict = Depends(get_current_active_user),
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
@@ -301,8 +310,14 @@ async def create_plant(
 
     1. Valida la imagen (JPEG/PNG)
     2. Sube foto original a Supabase Storage
-    3. Identifica la planta con GPT‑4o Vision
+    3. Identifica la planta con GPT‑4o Vision (mejorada si se proporciona plant_species)
     4. Guarda todo en la base de datos y devuelve la planta creada
+    
+    Args:
+        file: Imagen de la planta
+        plant_name: Nombre personalizado de la planta
+        plant_species: (Opcional) Especie/tipo de planta si el usuario la conoce.
+                      Se usa para mejorar la precisión de la identificación.
     
     Nota: El modelo 3D y su render se crearán manualmente y se subirán después.
     """
@@ -337,9 +352,11 @@ async def create_plant(
         logger.info(f"Subiendo foto original para planta {plant_name}")
         original_photo_url = upload_image(file.file, folder="plants/original")
 
-        # 2. Identificar planta
+        # 2. Identificar planta (mejorada si el usuario proporcionó especie)
         logger.info("Identificando planta...")
-        plant_data = await identify_plant_with_vision(original_photo_url)
+        if plant_species:
+            logger.info(f"Usuario proporcionó especie: {plant_species}. Mejorando identificación...")
+        plant_data = await identify_plant_with_vision(original_photo_url, plant_species=plant_species)
 
         # 3. Guardar en DB usando execute_query con INSERT
         # Nota: character_image_url se establecerá manualmente después cuando se cree el modelo 3D
