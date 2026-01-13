@@ -25,6 +25,8 @@ from ..schemas.plants import (
     PlantModelUploadRequest,
     PlantModelAssignRequest,
     PokedexEntryResponse,
+    PokedexCatalogEntry,
+    PokedexUnlockResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -1336,7 +1338,47 @@ async def assign_model_to_plant(
 # ENDPOINTS DE POKEDEX
 # ============================================
 
-@router.post("/pokedex/scan", response_model=PokedexEntryResponse, status_code=status.HTTP_201_CREATED)
+def _match_plant_to_catalog(identified_scientific_name: str, identified_plant_type: str, catalog_entries: any) -> Optional[int]:
+    """
+    Busca coincidencias entre la planta identificada y el catálogo de 100 plantas.
+    Retorna el entry_number de la planta coincidente, o None si no hay coincidencia.
+    """
+    if not identified_scientific_name and not identified_plant_type:
+        return None
+    
+    identified_scientific_lower = identified_scientific_name.lower() if identified_scientific_name else ""
+    identified_type_lower = identified_plant_type.lower() if identified_plant_type else ""
+    
+    # Buscar coincidencia exacta por nombre científico
+    for _, row in catalog_entries.iterrows():
+        catalog_scientific = str(row.get("scientific_name", "")).lower()
+        catalog_type = str(row.get("plant_type", "")).lower()
+        common_names = str(row.get("common_names", "")).lower()
+        
+        # Coincidencia exacta por nombre científico
+        if identified_scientific_lower and catalog_scientific and identified_scientific_lower == catalog_scientific:
+            return int(row["entry_number"])
+        
+        # Coincidencia por tipo de planta (ej: "Monstera" = "Monstera deliciosa")
+        if identified_type_lower and catalog_type:
+            # Verificar si el tipo identificado coincide con el tipo del catálogo
+            if identified_type_lower == catalog_type:
+                return int(row["entry_number"])
+            # Verificar si el nombre científico contiene el tipo del catálogo
+            if catalog_type in identified_scientific_lower or identified_type_lower in catalog_scientific:
+                return int(row["entry_number"])
+        
+        # Coincidencia por nombres comunes
+        if common_names and identified_scientific_lower:
+            common_list = [name.strip().lower() for name in common_names.split(",")]
+            for common_name in common_list:
+                if common_name in identified_scientific_lower or identified_scientific_lower in common_name:
+                    return int(row["entry_number"])
+    
+    return None
+
+
+@router.post("/pokedex/scan", response_model=PokedexUnlockResponse, status_code=status.HTTP_201_CREATED)
 async def scan_pokedex(
     file: UploadFile = File(...),
     plant_species: Optional[str] = Form(None),
@@ -1344,8 +1386,8 @@ async def scan_pokedex(
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
     """
-    Escanea una planta y la agrega/actualiza en la pokedex del usuario.
-    No crea una planta en el jardín, solo la registra en el catálogo personal.
+    Escanea una planta e intenta desbloquearla en el catálogo de 100 plantas.
+    Si la planta identificada coincide con alguna del catálogo, se desbloquea para el usuario.
     
     Args:
         file: Imagen de la planta
@@ -1378,102 +1420,107 @@ async def scan_pokedex(
         from io import BytesIO
         file_buffer = BytesIO(file_content)
         
-        original_photo_url = upload_image(file_buffer, folder="pokedex")
+        discovered_photo_url = upload_image(file_buffer, folder="pokedex")
 
         # 2. Identificar planta con IA
         if plant_species:
             logger.info(f"Usuario proporcionó especie para pokedex: {plant_species}")
-        plant_data = await identify_plant_with_vision(original_photo_url, plant_species=plant_species)
+        plant_data = await identify_plant_with_vision(discovered_photo_url, plant_species=plant_species)
 
-        # 3. Verificar si ya existe en la pokedex del usuario
-        existing_entry = await db.execute_query("""
-            SELECT id FROM plant_pokedex
-            WHERE user_id = %s 
-            AND plant_type = %s 
-            AND scientific_name = %s
+        identified_scientific = plant_data.get("scientific_name", "")
+        identified_type = plant_data.get("plant_type", "")
+
+        # 3. Obtener todas las plantas del catálogo
+        catalog_df = await db.execute_query("""
+            SELECT * FROM pokedex_catalog
+            WHERE is_active = TRUE
+            ORDER BY entry_number
+        """)
+
+        if catalog_df is None or catalog_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="El catálogo de pokedex no está disponible",
+            )
+
+        # 4. Buscar coincidencia en el catálogo
+        matched_entry_number = _match_plant_to_catalog(identified_scientific, identified_type, catalog_df)
+
+        if not matched_entry_number:
+            # No se encontró coincidencia - informar al usuario pero no desbloquear nada
+            logger.info(f"⚠️ Planta identificada '{identified_type}' ({identified_scientific}) no coincide con ninguna del catálogo")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"La planta identificada '{identified_type}' ({identified_scientific}) no está en el catálogo de 100 plantas predefinidas. Intenta con otra planta.",
+            )
+
+        # 5. Obtener información de la entrada del catálogo
+        catalog_entry_df = catalog_df[catalog_df["entry_number"] == matched_entry_number]
+        if catalog_entry_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error encontrando entrada del catálogo",
+            )
+
+        catalog_entry = catalog_entry_df.iloc[0]
+        catalog_entry_id = int(catalog_entry["id"])
+
+        # 6. Verificar si el usuario ya desbloqueó esta planta
+        existing_unlock = await db.execute_query("""
+            SELECT id FROM pokedex_user_unlocks
+            WHERE user_id = %s AND catalog_entry_id = %s
             LIMIT 1
-        """, (current_user["id"], plant_data.get("plant_type"), plant_data.get("scientific_name")))
+        """, (current_user["id"], catalog_entry_id))
 
-        if existing_entry is not None and not existing_entry.empty:
-            # Actualizar entrada existente
-            entry_id = existing_entry.iloc[0]["id"]
-            logger.info(f"🔄 Actualizando entrada existente en pokedex (ID: {entry_id})")
+        if existing_unlock is not None and not existing_unlock.empty:
+            # Ya está desbloqueada - actualizar la foto
+            unlock_id = existing_unlock.iloc[0]["id"]
+            logger.info(f"🔄 Planta ya desbloqueada, actualizando foto (unlock_id: {unlock_id})")
             
             await db.execute_query("""
-                UPDATE plant_pokedex
-                SET care_level = %s,
-                    care_tips = %s,
-                    original_photo_url = %s,
-                    optimal_humidity_min = %s,
-                    optimal_humidity_max = %s,
-                    optimal_temp_min = %s,
-                    optimal_temp_max = %s,
-                    updated_at = NOW()
+                UPDATE pokedex_user_unlocks
+                SET discovered_photo_url = %s,
+                    discovered_at = NOW()
                 WHERE id = %s
-            """, (
-                plant_data.get("care_level"),
-                plant_data.get("care_tips"),
-                original_photo_url,
-                plant_data.get("optimal_humidity_min"),
-                plant_data.get("optimal_humidity_max"),
-                plant_data.get("optimal_temp_min"),
-                plant_data.get("optimal_temp_max"),
-                entry_id
-            ))
+            """, (discovered_photo_url, unlock_id))
             
-            # Recuperar entrada actualizada
-            updated_entry = await db.execute_query("""
-                SELECT * FROM plant_pokedex WHERE id = %s
-            """, (entry_id,))
-            
-            entry_dict = updated_entry.iloc[0].to_dict()
-            if pd.notna(entry_dict.get("optimal_humidity_min")):
-                entry_dict["optimal_humidity_min"] = float(entry_dict["optimal_humidity_min"])
-            if pd.notna(entry_dict.get("optimal_humidity_max")):
-                entry_dict["optimal_humidity_max"] = float(entry_dict["optimal_humidity_max"])
-            if pd.notna(entry_dict.get("optimal_temp_min")):
-                entry_dict["optimal_temp_min"] = float(entry_dict["optimal_temp_min"])
-            if pd.notna(entry_dict.get("optimal_temp_max")):
-                entry_dict["optimal_temp_max"] = float(entry_dict["optimal_temp_max"])
-            
-            return PokedexEntryResponse(**entry_dict)
+            unlock_result = await db.execute_query("""
+                SELECT u.*, c.entry_number, c.plant_type, c.scientific_name
+                FROM pokedex_user_unlocks u
+                JOIN pokedex_catalog c ON u.catalog_entry_id = c.id
+                WHERE u.id = %s
+            """, (unlock_id,))
         else:
-            # Crear nueva entrada
-            logger.info(f"✨ Creando nueva entrada en pokedex para tipo: {plant_data.get('plant_type')}")
+            # Crear nuevo desbloqueo
+            logger.info(f"✨ Desbloqueando planta #{matched_entry_number}: {catalog_entry['plant_type']}")
             
-            result = await db.execute_query("""
-                INSERT INTO plant_pokedex (
-                    user_id, plant_type, scientific_name, care_level, care_tips,
-                    original_photo_url, optimal_humidity_min, optimal_humidity_max,
-                    optimal_temp_min, optimal_temp_max
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            unlock_result = await db.execute_query("""
+                INSERT INTO pokedex_user_unlocks (user_id, catalog_entry_id, discovered_photo_url)
+                VALUES (%s, %s, %s)
                 RETURNING *
-            """, (
-                current_user["id"],
-                plant_data.get("plant_type", "Planta"),
-                plant_data.get("scientific_name"),
-                plant_data.get("care_level"),
-                plant_data.get("care_tips"),
-                original_photo_url,
-                plant_data.get("optimal_humidity_min"),
-                plant_data.get("optimal_humidity_max"),
-                plant_data.get("optimal_temp_min"),
-                plant_data.get("optimal_temp_max")
-            ))
+            """, (current_user["id"], catalog_entry_id, discovered_photo_url))
             
-            entry_dict = result.iloc[0].to_dict()
-            if pd.notna(entry_dict.get("optimal_humidity_min")):
-                entry_dict["optimal_humidity_min"] = float(entry_dict["optimal_humidity_min"])
-            if pd.notna(entry_dict.get("optimal_humidity_max")):
-                entry_dict["optimal_humidity_max"] = float(entry_dict["optimal_humidity_max"])
-            if pd.notna(entry_dict.get("optimal_temp_min")):
-                entry_dict["optimal_temp_min"] = float(entry_dict["optimal_temp_min"])
-            if pd.notna(entry_dict.get("optimal_temp_max")):
-                entry_dict["optimal_temp_max"] = float(entry_dict["optimal_temp_max"])
+            unlock_id = unlock_result.iloc[0]["id"]
             
-            logger.info(f"✅ Entrada agregada a pokedex (ID: {entry_dict['id']})")
-            return PokedexEntryResponse(**entry_dict)
+            # Obtener entrada completa con info del catálogo
+            unlock_result = await db.execute_query("""
+                SELECT u.*, c.entry_number, c.plant_type, c.scientific_name
+                FROM pokedex_user_unlocks u
+                JOIN pokedex_catalog c ON u.catalog_entry_id = c.id
+                WHERE u.id = %s
+            """, (unlock_id,))
+
+        unlock_dict = unlock_result.iloc[0].to_dict()
+        
+        return PokedexUnlockResponse(
+            unlock_id=int(unlock_dict["id"]),
+            catalog_entry_id=int(unlock_dict["catalog_entry_id"]),
+            entry_number=int(unlock_dict["entry_number"]),
+            plant_type=str(unlock_dict["plant_type"]),
+            scientific_name=str(unlock_dict["scientific_name"]),
+            discovered_photo_url=str(unlock_dict["discovered_photo_url"]),
+            discovered_at=unlock_dict["discovered_at"]
+        )
 
     except HTTPException:
         raise
@@ -1491,46 +1538,85 @@ async def get_pokedex_entries(
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
     """
-    Obtiene todas las plantas en la pokedex del usuario actual.
-    Ordenadas por fecha de descubrimiento (más recientes primero).
+    Obtiene todas las 100 plantas del catálogo con su estado de desbloqueo para el usuario.
+    Retorna todas las plantas, indicando cuáles están desbloqueadas y cuáles están bloqueadas (incógnito).
+    Ordenadas por entry_number (001, 002, ..., 100).
     """
     try:
-        entries_df = await db.execute_query("""
-            SELECT * FROM plant_pokedex
-            WHERE user_id = %s
-            ORDER BY discovered_at DESC
-        """, (current_user["id"],))
+        # Obtener todas las plantas del catálogo
+        catalog_df = await db.execute_query("""
+            SELECT * FROM pokedex_catalog
+            WHERE is_active = TRUE
+            ORDER BY entry_number
+        """, ())
 
-        if entries_df is None or entries_df.empty:
+        if catalog_df is None or catalog_df.empty:
             return []
 
+        # Obtener plantas desbloqueadas por el usuario
+        unlocks_df = await db.execute_query("""
+            SELECT catalog_entry_id, discovered_photo_url, discovered_at, id as unlock_id
+            FROM pokedex_user_unlocks
+            WHERE user_id = %s
+        """, (current_user["id"],))
+
+        # Crear diccionario de desbloqueos para lookup rápido
+        unlocks_map = {}
+        if unlocks_df is not None and not unlocks_df.empty:
+            for _, unlock_row in unlocks_df.iterrows():
+                catalog_id = int(unlock_row["catalog_entry_id"])
+                unlocks_map[catalog_id] = {
+                    "discovered_photo_url": str(unlock_row["discovered_photo_url"]) if pd.notna(unlock_row.get("discovered_photo_url")) else None,
+                    "discovered_at": unlock_row["discovered_at"],
+                    "unlock_id": int(unlock_row["unlock_id"])
+                }
+
+        # Construir respuesta con todas las plantas
         entries = []
-        for _, row in entries_df.iterrows():
+        for _, catalog_row in catalog_df.iterrows():
             try:
-                entry = row.to_dict()
+                catalog_entry_dict = catalog_row.to_dict()
+                catalog_id = int(catalog_entry_dict["id"])
+                
                 # Convertir valores NaN a None y floats correctamente
-                if pd.notna(entry.get("optimal_humidity_min")):
-                    entry["optimal_humidity_min"] = float(entry["optimal_humidity_min"])
+                if pd.notna(catalog_entry_dict.get("optimal_humidity_min")):
+                    catalog_entry_dict["optimal_humidity_min"] = float(catalog_entry_dict["optimal_humidity_min"])
                 else:
-                    entry["optimal_humidity_min"] = None
-                if pd.notna(entry.get("optimal_humidity_max")):
-                    entry["optimal_humidity_max"] = float(entry["optimal_humidity_max"])
+                    catalog_entry_dict["optimal_humidity_min"] = None
+                if pd.notna(catalog_entry_dict.get("optimal_humidity_max")):
+                    catalog_entry_dict["optimal_humidity_max"] = float(catalog_entry_dict["optimal_humidity_max"])
                 else:
-                    entry["optimal_humidity_max"] = None
-                if pd.notna(entry.get("optimal_temp_min")):
-                    entry["optimal_temp_min"] = float(entry["optimal_temp_min"])
+                    catalog_entry_dict["optimal_humidity_max"] = None
+                if pd.notna(catalog_entry_dict.get("optimal_temp_min")):
+                    catalog_entry_dict["optimal_temp_min"] = float(catalog_entry_dict["optimal_temp_min"])
                 else:
-                    entry["optimal_temp_min"] = None
-                if pd.notna(entry.get("optimal_temp_max")):
-                    entry["optimal_temp_max"] = float(entry["optimal_temp_max"])
+                    catalog_entry_dict["optimal_temp_min"] = None
+                if pd.notna(catalog_entry_dict.get("optimal_temp_max")):
+                    catalog_entry_dict["optimal_temp_max"] = float(catalog_entry_dict["optimal_temp_max"])
                 else:
-                    entry["optimal_temp_max"] = None
-                entries.append(PokedexEntryResponse(**entry))
+                    catalog_entry_dict["optimal_temp_max"] = None
+                
+                catalog_entry = PokedexCatalogEntry(**catalog_entry_dict)
+                
+                # Verificar si está desbloqueada
+                is_unlocked = catalog_id in unlocks_map
+                unlock_data = unlocks_map.get(catalog_id, {})
+                
+                entry_response = PokedexEntryResponse(
+                    catalog_entry=catalog_entry,
+                    is_unlocked=is_unlocked,
+                    discovered_at=unlock_data.get("discovered_at"),
+                    discovered_photo_url=unlock_data.get("discovered_photo_url"),
+                    unlock_id=unlock_data.get("unlock_id")
+                )
+                
+                entries.append(entry_response)
             except Exception as e:
-                logger.warning(f"Error serializando entrada de pokedex {entry.get('id', 'unknown')}: {e}")
+                logger.warning(f"Error serializando entrada de catálogo {catalog_entry_dict.get('entry_number', 'unknown')}: {e}")
                 continue
 
-        logger.info(f"✅ {len(entries)} entradas de pokedex obtenidas para usuario {current_user['id']}")
+        unlocked_count = sum(1 for e in entries if e.is_unlocked)
+        logger.info(f"✅ {len(entries)} plantas del catálogo obtenidas para usuario {current_user['id']} ({unlocked_count} desbloqueadas)")
         return entries
 
     except Exception as e:
@@ -1541,48 +1627,78 @@ async def get_pokedex_entries(
         )
 
 
-@router.get("/pokedex/{entry_id}", response_model=PokedexEntryResponse)
+@router.get("/pokedex/{entry_number}", response_model=PokedexEntryResponse)
 async def get_pokedex_entry(
-    entry_id: int,
+    entry_number: int,
     current_user: dict = Depends(get_current_active_user),
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
     """
-    Obtiene el detalle de una entrada específica de la pokedex del usuario.
+    Obtiene el detalle de una entrada específica del catálogo (por entry_number 1-100)
+    con su estado de desbloqueo para el usuario.
     """
     try:
-        entry_df = await db.execute_query("""
-            SELECT * FROM plant_pokedex
-            WHERE id = %s AND user_id = %s
+        # Obtener entrada del catálogo
+        catalog_df = await db.execute_query("""
+            SELECT * FROM pokedex_catalog
+            WHERE entry_number = %s AND is_active = TRUE
             LIMIT 1
-        """, (entry_id, current_user["id"]))
+        """, (entry_number,))
 
-        if entry_df is None or entry_df.empty:
+        if catalog_df is None or catalog_df.empty:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Entrada de pokedex no encontrada",
+                detail=f"Entrada #{entry_number} no encontrada en el catálogo",
             )
 
-        entry = entry_df.iloc[0].to_dict()
+        catalog_entry_dict = catalog_df.iloc[0].to_dict()
+        catalog_id = int(catalog_entry_dict["id"])
+        
         # Convertir valores NaN a None y floats correctamente
-        if pd.notna(entry.get("optimal_humidity_min")):
-            entry["optimal_humidity_min"] = float(entry["optimal_humidity_min"])
+        if pd.notna(catalog_entry_dict.get("optimal_humidity_min")):
+            catalog_entry_dict["optimal_humidity_min"] = float(catalog_entry_dict["optimal_humidity_min"])
         else:
-            entry["optimal_humidity_min"] = None
-        if pd.notna(entry.get("optimal_humidity_max")):
-            entry["optimal_humidity_max"] = float(entry["optimal_humidity_max"])
+            catalog_entry_dict["optimal_humidity_min"] = None
+        if pd.notna(catalog_entry_dict.get("optimal_humidity_max")):
+            catalog_entry_dict["optimal_humidity_max"] = float(catalog_entry_dict["optimal_humidity_max"])
         else:
-            entry["optimal_humidity_max"] = None
-        if pd.notna(entry.get("optimal_temp_min")):
-            entry["optimal_temp_min"] = float(entry["optimal_temp_min"])
+            catalog_entry_dict["optimal_humidity_max"] = None
+        if pd.notna(catalog_entry_dict.get("optimal_temp_min")):
+            catalog_entry_dict["optimal_temp_min"] = float(catalog_entry_dict["optimal_temp_min"])
         else:
-            entry["optimal_temp_min"] = None
-        if pd.notna(entry.get("optimal_temp_max")):
-            entry["optimal_temp_max"] = float(entry["optimal_temp_max"])
+            catalog_entry_dict["optimal_temp_min"] = None
+        if pd.notna(catalog_entry_dict.get("optimal_temp_max")):
+            catalog_entry_dict["optimal_temp_max"] = float(catalog_entry_dict["optimal_temp_max"])
         else:
-            entry["optimal_temp_max"] = None
+            catalog_entry_dict["optimal_temp_max"] = None
 
-        return PokedexEntryResponse(**entry)
+        catalog_entry = PokedexCatalogEntry(**catalog_entry_dict)
+
+        # Verificar si está desbloqueada por el usuario
+        unlock_df = await db.execute_query("""
+            SELECT discovered_photo_url, discovered_at, id as unlock_id
+            FROM pokedex_user_unlocks
+            WHERE user_id = %s AND catalog_entry_id = %s
+            LIMIT 1
+        """, (current_user["id"], catalog_id))
+
+        is_unlocked = unlock_df is not None and not unlock_df.empty
+        unlock_data = {}
+        if is_unlocked:
+            unlock_row = unlock_df.iloc[0]
+            unlock_data = {
+                "discovered_photo_url": str(unlock_row["discovered_photo_url"]) if pd.notna(unlock_row.get("discovered_photo_url")) else None,
+                "discovered_at": unlock_row["discovered_at"],
+                "unlock_id": int(unlock_row["unlock_id"])
+            }
+
+        return PokedexEntryResponse(
+            catalog_entry=catalog_entry,
+            is_unlocked=is_unlocked,
+            discovered_at=unlock_data.get("discovered_at"),
+            discovered_photo_url=unlock_data.get("discovered_photo_url"),
+            unlock_id=unlock_data.get("unlock_id")
+        )
 
     except HTTPException:
         raise
@@ -1594,43 +1710,43 @@ async def get_pokedex_entry(
         )
 
 
-@router.delete("/pokedex/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_pokedex_entry(
-    entry_id: int,
+@router.get("/pokedex/stats", response_model=dict)
+async def get_pokedex_stats(
     current_user: dict = Depends(get_current_active_user),
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
     """
-    Elimina una entrada de la pokedex del usuario.
+    Obtiene estadísticas de la pokedex del usuario.
+    Retorna: total_plants (100), unlocked_count, locked_count, progress_percentage
     """
     try:
-        # Verificar que la entrada pertenece al usuario
-        entry_df = await db.execute_query("""
-            SELECT id FROM plant_pokedex
-            WHERE id = %s AND user_id = %s
-            LIMIT 1
-        """, (entry_id, current_user["id"]))
+        # Contar total de plantas activas en catálogo
+        total_df = await db.execute_query("""
+            SELECT COUNT(*) as total FROM pokedex_catalog
+            WHERE is_active = TRUE
+        """)
+        total_plants = int(total_df.iloc[0]["total"]) if total_df is not None and not total_df.empty else 0
 
-        if entry_df is None or entry_df.empty:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Entrada de pokedex no encontrada",
-            )
+        # Contar plantas desbloqueadas por el usuario
+        unlocked_df = await db.execute_query("""
+            SELECT COUNT(*) as count FROM pokedex_user_unlocks
+            WHERE user_id = %s
+        """, (current_user["id"],))
+        unlocked_count = int(unlocked_df.iloc[0]["count"]) if unlocked_df is not None and not unlocked_df.empty else 0
 
-        # Eliminar entrada
-        await db.execute_query("""
-            DELETE FROM plant_pokedex
-            WHERE id = %s AND user_id = %s
-        """, (entry_id, current_user["id"]))
+        locked_count = total_plants - unlocked_count
+        progress_percentage = (unlocked_count / total_plants * 100) if total_plants > 0 else 0
 
-        logger.info(f"✅ Entrada de pokedex eliminada (ID: {entry_id})")
-        return None
+        return {
+            "total_plants": total_plants,
+            "unlocked_count": unlocked_count,
+            "locked_count": locked_count,
+            "progress_percentage": round(progress_percentage, 1)
+        }
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error eliminando entrada de pokedex: {str(e)}", exc_info=True)
+        logger.error(f"Error obteniendo estadísticas de pokedex: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error eliminando entrada de pokedex: {str(e)}",
+            detail=f"Error obteniendo estadísticas de pokedex: {str(e)}",
         )

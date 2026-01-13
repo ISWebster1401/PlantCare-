@@ -317,340 +317,82 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla plant_pokedex creada exitosamente")
         else:
             logger.info("✅ Tabla plant_pokedex ya existe")
-            # Migrar sensor_id a UUID si existe como INTEGER (para coincidir con sensors.id UUID)
-            try:
-                result = await db.execute_query("""
-                    SELECT data_type 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'plants' AND column_name = 'sensor_id'
-                """)
-                if result is not None and not result.empty:
-                    current_type = result.iloc[0]['data_type']
-                    if current_type == 'integer':
-                        logger.info("📋 Migrando plants.sensor_id de INTEGER a UUID...")
-                        # Primero eliminar la FK si existe
-                        await db.execute_query("""
-                            ALTER TABLE plants 
-                            DROP CONSTRAINT IF EXISTS fk_plants_sensor_id
-                        """)
-                        # Cambiar el tipo de columna (los valores INTEGER no se pueden convertir a UUID, se ponen NULL)
-                        await db.execute_query("""
-                            ALTER TABLE plants 
-                            ALTER COLUMN sensor_id TYPE UUID USING NULL
-                        """)
-                        logger.info("✅ plants.sensor_id migrado a UUID (valores existentes se perdieron - se requerirá reasignar sensores)")
-            except Exception as e:
-                logger.warning(f"No se pudo verificar/migrar sensor_id: {e}")
         
         # ============================================
-        # PASO 4: CREAR TABLA SENSORS (REDISEÑADA CON UUID)
+        # PASO 5: CREAR TABLA POKEDEX_CATALOG (catálogo maestro de 100 plantas)
         # ============================================
-        if "sensors" not in tables:
-            logger.info("📋 Creando tabla sensors (v2 con UUID)...")
-            # Primero habilitar extensión UUID si no existe
-            await db.execute_query("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
-            
-            await db.execute_query("""
-                CREATE TABLE sensors (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    device_id VARCHAR(50) UNIQUE NOT NULL,
-                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    plant_id INTEGER REFERENCES plants(id) ON DELETE SET NULL,
-                    name VARCHAR(100) NOT NULL,
-                    device_type VARCHAR(50) DEFAULT 'esp8266',
-                    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
-                    last_connection TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Tabla sensors creada exitosamente (v2 con UUID)")
-            
-            # Agregar foreign key de plants.sensor_id → sensors.id después de crear sensors
-            try:
-                await db.execute_query("""
-                    ALTER TABLE plants 
-                    ADD CONSTRAINT fk_plants_sensor_id 
-                    FOREIGN KEY (sensor_id) REFERENCES sensors(id) ON DELETE SET NULL
-                """)
-                logger.info("✅ Foreign key plants.sensor_id → sensors(id) agregada")
-            except Exception as e:
-                logger.warning(f"FK plants.sensor_id ya existe o error: {e}")
-        else:
-            logger.info("✅ Tabla sensors ya existe")
-            # Verificar si necesita migración (si tiene device_key en lugar de device_id)
-            try:
-                check_query = """
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'sensors' AND column_name = 'device_key'
-                """
-                result = await db.execute_query(check_query)
-                if result is not None and not result.empty:
-                    logger.warning("⚠️ Tabla sensors tiene estructura antigua. Se requiere migración manual.")
-            except Exception:
-                pass
-            
-            # Asegurar que la FK de plants.sensor_id existe
-            try:
-                await db.execute_query("""
-                    DO $$ 
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 FROM pg_constraint 
-                            WHERE conname = 'fk_plants_sensor_id'
-                        ) THEN
-                            ALTER TABLE plants 
-                            ADD CONSTRAINT fk_plants_sensor_id 
-                            FOREIGN KEY (sensor_id) REFERENCES sensors(id) ON DELETE SET NULL;
-                        END IF;
-                    END $$;
-                """)
-                logger.info("✅ Foreign key plants.sensor_id → sensors(id) verificada")
-            except Exception as e:
-                logger.warning(f"Error verificando FK plants.sensor_id: {e}")
-        
-        # ============================================
-        # PASO 5: CREAR TABLA SENSOR_READINGS (REDISEÑADA CON UUID Y NUEVOS CAMPOS)
-        # ============================================
-        # ============================================
-        if "sensor_readings" not in tables:
-            logger.info("📋 Creando tabla sensor_readings (v2 con UUID y nuevos campos)...")
-            # Primero habilitar extensión UUID si no existe
-            await db.execute_query("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
-            
-            await db.execute_query("""
-                CREATE TABLE sensor_readings (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    sensor_id UUID NOT NULL REFERENCES sensors(id) ON DELETE CASCADE,
-                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    plant_id INTEGER REFERENCES plants(id) ON DELETE SET NULL,
-                    temperature INTEGER NOT NULL CHECK (temperature >= -20 AND temperature <= 60),
-                    air_humidity FLOAT NOT NULL CHECK (air_humidity >= 0 AND air_humidity <= 100),
-                    soil_moisture FLOAT NOT NULL CHECK (soil_moisture >= 0 AND soil_moisture <= 100),
-                    light_intensity INTEGER,
-                    electrical_conductivity FLOAT CHECK (electrical_conductivity IS NULL OR electrical_conductivity >= 0),
-                    timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Tabla sensor_readings creada exitosamente (v2 con UUID)")
-        else:
-            logger.info("✅ Tabla sensor_readings ya existe")
-            # Verificar si necesita migración (si tiene reading_time en lugar de timestamp)
-            try:
-                check_query = """
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'sensor_readings' AND column_name = 'reading_time'
-                """
-                result = await db.execute_query(check_query)
-                if result is not None and not result.empty:
-                    logger.warning("⚠️ Tabla sensor_readings tiene estructura antigua. Se requiere migración manual.")
-            except Exception:
-                pass
-        
-        # ============================================
-        # PASO 6: CREAR TABLA PLANT_PHOTOS
-        # ============================================
-        if "plant_photos" not in tables:
-            logger.info("📋 Creando tabla plant_photos...")
-            await db.create_table("plant_photos", {
+        if "pokedex_catalog" not in tables:
+            logger.info("📋 Creando tabla pokedex_catalog...")
+            await db.create_table("pokedex_catalog", {
                 "id": "SERIAL PRIMARY KEY",
-                "plant_id": "INTEGER REFERENCES plants(id) ON DELETE CASCADE",
-                "photo_url": "TEXT NOT NULL",
-                "notes": "TEXT",
-                "taken_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                "entry_number": "INTEGER UNIQUE NOT NULL",  # 001, 002, ..., 100
+                "plant_type": "VARCHAR(100) NOT NULL",  # Nombre común
+                "scientific_name": "VARCHAR(200) NOT NULL",  # Nombre científico
+                "common_names": "TEXT",  # Variaciones de nombres comunes separados por coma
+                "family": "VARCHAR(100)",  # Familia botánica
+                "care_level": "VARCHAR(20)",
+                "care_tips": "TEXT",
+                "optimal_humidity_min": "FLOAT",
+                "optimal_humidity_max": "FLOAT",
+                "optimal_temp_min": "FLOAT",
+                "optimal_temp_max": "FLOAT",
+                "silhouette_url": "TEXT",  # URL de silueta para estado bloqueado
+                "is_active": "BOOLEAN DEFAULT TRUE",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             })
-            logger.info("✅ Tabla plant_photos creada exitosamente")
-        else:
-            logger.info("✅ Tabla plant_photos ya existe")
-        
-        # ============================================
-        # PASO 7: CREAR TABLAS PARA MODELOS 3D Y ACCESORIOS
-        # ============================================
-        if "plant_models" not in tables:
-            logger.info("📋 Creando tabla plant_models (modelos 3D por tipo de planta)...")
+            # Crear índice en entry_number para ordenamiento
             await db.execute_query("""
-                CREATE TABLE plant_models (
-                    id SERIAL PRIMARY KEY,
-                    plant_type VARCHAR(100) NOT NULL,
-                    name VARCHAR(100) NOT NULL,
-                    model_3d_url TEXT NOT NULL,
-                    default_render_url TEXT,
-                    is_default BOOLEAN DEFAULT FALSE,
-                    metadata JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                CREATE INDEX IF NOT EXISTS idx_pokedex_catalog_entry_number 
+                ON pokedex_catalog(entry_number)
             """)
-            logger.info("✅ Tabla plant_models creada exitosamente")
-        else:
-            logger.info("✅ Tabla plant_models ya existe")
-
-        if "plant_accessories" not in tables:
-            logger.info("📋 Creando tabla plant_accessories (accesorios 3D)...")
+            # Crear índice en plant_type y scientific_name para matching
             await db.execute_query("""
-                CREATE TABLE plant_accessories (
-                    id SERIAL PRIMARY KEY,
-                    code VARCHAR(50) UNIQUE NOT NULL,
-                    name VARCHAR(100) NOT NULL,
-                    description TEXT,
-                    model_3d_url TEXT NOT NULL,
-                    preview_image_url TEXT,
-                    metadata JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                CREATE INDEX IF NOT EXISTS idx_pokedex_catalog_names 
+                ON pokedex_catalog(plant_type, scientific_name)
             """)
-            logger.info("✅ Tabla plant_accessories creada exitosamente")
-        else:
-            logger.info("✅ Tabla plant_accessories ya existe")
-
-        if "plant_model_assignments" not in tables:
-            logger.info("📋 Creando tabla plant_model_assignments (asignación de modelo por planta)...")
-            await db.execute_query("""
-                CREATE TABLE plant_model_assignments (
-                    id SERIAL PRIMARY KEY,
-                    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
-                    model_id INTEGER NOT NULL REFERENCES plant_models(id) ON DELETE CASCADE,
-                    custom_render_url TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Tabla plant_model_assignments creada exitosamente")
-        else:
-            logger.info("✅ Tabla plant_model_assignments ya existe")
-
-        if "plant_accessory_assignments" not in tables:
-            logger.info("📋 Creando tabla plant_accessory_assignments (accesorios activos por planta)...")
-            await db.execute_query("""
-                CREATE TABLE plant_accessory_assignments (
-                    id SERIAL PRIMARY KEY,
-                    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
-                    accessory_id INTEGER NOT NULL REFERENCES plant_accessories(id) ON DELETE CASCADE,
-                    is_active BOOLEAN DEFAULT TRUE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Tabla plant_accessory_assignments creada exitosamente")
-        else:
-            logger.info("✅ Tabla plant_accessory_assignments ya existe")
-
-        # ============================================
-        # PASO 8: CREAR TABLA ACHIEVEMENTS
-        # ============================================
-        if "achievements" not in tables:
-            logger.info("📋 Creando tabla achievements...")
-            await db.create_table("achievements", {
-                "id": "SERIAL PRIMARY KEY",
-                "name": "VARCHAR(100) NOT NULL",
-                "description": "TEXT",
-                "icon_url": "TEXT",
-                "points": "INTEGER DEFAULT 0",
-                "requirement_type": "VARCHAR(50)",
-                "requirement_value": "INTEGER"
-            })
+            logger.info("✅ Tabla pokedex_catalog creada exitosamente")
             
-            # Insertar achievements por defecto
-            logger.info("📋 Insertando achievements por defecto...")
-            await db.execute_query("""
-                INSERT INTO achievements (name, description, points, requirement_type, requirement_value) VALUES
-                ('Primera Planta', 'Registra tu primera planta', 10, 'plants_count', 1),
-                ('Jardinero Dedicado', 'Riega una planta 7 días seguidos', 50, 'water_streak', 7),
-                ('Pulgar Verde', 'Mantén una planta saludable 30 días', 100, 'days_alive', 30),
-                ('Coleccionista', 'Registra 5 plantas diferentes', 75, 'plants_count', 5),
-                ('Hidratación Perfecta', 'Mantén la humedad ideal por 14 días', 60, 'optimal_humidity_streak', 14),
-                ('Maestro Botánico', 'Identifica 10 plantas diferentes', 80, 'plants_identified', 10),
-                ('Guardián del Jardín', 'Mantén 3 plantas saludables simultáneamente', 90, 'healthy_plants_simultaneous', 3)
-            """)
-            logger.info("✅ Tabla achievements creada con logros por defecto")
+            # Insertar las 100 plantas predefinidas
+            await _seed_pokedex_catalog(db)
         else:
-            logger.info("✅ Tabla achievements ya existe")
+            logger.info("✅ Tabla pokedex_catalog ya existe")
         
         # ============================================
-        # PASO 9: CREAR TABLA USER_ACHIEVEMENTS
+        # PASO 6: CREAR TABLA POKEDEX_USER_UNLOCKS (plantas desbloqueadas por usuario)
         # ============================================
-        if "user_achievements" not in tables:
-            logger.info("📋 Creando tabla user_achievements...")
-            await db.create_table("user_achievements", {
+        if "pokedex_user_unlocks" not in tables:
+            logger.info("📋 Creando tabla pokedex_user_unlocks...")
+            await db.create_table("pokedex_user_unlocks", {
                 "id": "SERIAL PRIMARY KEY",
                 "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
-                "achievement_id": "INTEGER REFERENCES achievements(id) ON DELETE CASCADE",
-                "earned_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                "catalog_entry_id": "INTEGER REFERENCES pokedex_catalog(id) ON DELETE CASCADE",
+                "discovered_photo_url": "TEXT",  # Foto que el usuario escaneó
+                "discovered_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             })
-            
-            # Crear constraint único
-            try:
-                await db.execute_query("""
-                    ALTER TABLE user_achievements 
-                    ADD CONSTRAINT user_achievements_unique UNIQUE(user_id, achievement_id)
-                """)
-                logger.info("✅ Constraint único agregado a user_achievements")
-            except Exception as e:
-                logger.warning(f"Constraint único ya existe: {e}")
-            
-            logger.info("✅ Tabla user_achievements creada exitosamente")
+            # Constraint único: un usuario solo puede desbloquear una entrada una vez
+            await db.execute_query("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_pokedex_user_unlocks_unique 
+                ON pokedex_user_unlocks(user_id, catalog_entry_id)
+            """)
+            # Índices para consultas rápidas
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_pokedex_user_unlocks_user_id 
+                ON pokedex_user_unlocks(user_id)
+            """)
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_pokedex_user_unlocks_catalog_id 
+                ON pokedex_user_unlocks(catalog_entry_id)
+            """)
+            logger.info("✅ Tabla pokedex_user_unlocks creada exitosamente")
         else:
-            logger.info("✅ Tabla user_achievements ya existe")
+            logger.info("✅ Tabla pokedex_user_unlocks ya existe")
+        
+        # NOTA: Las tablas sensors, sensor_readings, etc. se crean más adelante en esta función
+        # pero necesitamos que la función _create_tables continúe después de este punto.
+        # (Este código se mueve más abajo para mantener el orden correcto de creación)
         
         # ============================================
-        # PASO 10: CREAR TABLA NOTIFICATIONS
-        # ============================================
-        if "notifications" not in tables:
-            logger.info("📋 Creando tabla notifications...")
-            await db.create_table("notifications", {
-                "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
-                "plant_id": "INTEGER REFERENCES plants(id) ON DELETE CASCADE",
-                "notification_type": "VARCHAR(50)",
-                "message": "TEXT NOT NULL",
-                "is_read": "BOOLEAN DEFAULT FALSE",
-                "sent_via_email": "BOOLEAN DEFAULT FALSE",
-                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-            })
-            logger.info("✅ Tabla notifications creada exitosamente")
-        else:
-            logger.info("✅ Tabla notifications ya existe")
-        
-        # ============================================
-        # PASO 11: CREAR TABLA EMAIL_VERIFICATION_TOKENS
-        # ============================================
-        if "email_verification_tokens" not in tables:
-            logger.info("📋 Creando tabla email_verification_tokens...")
-            await db.create_table("email_verification_tokens", {
-                "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
-                "token": "VARCHAR(255) UNIQUE NOT NULL",
-                "expires_at": "TIMESTAMP NOT NULL",
-                "used_at": "TIMESTAMP",
-                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-            })
-            logger.info("✅ Tabla email_verification_tokens creada exitosamente")
-        else:
-            logger.info("✅ Tabla email_verification_tokens ya existe")
-        
-        # ============================================
-        # TABLA: email_change_requests (para cambio de email con verificación)
-        # ============================================
-        if "email_change_requests" not in tables:
-            logger.info("📋 Creando tabla email_change_requests...")
-            await db.create_table("email_change_requests", {
-                "id": "SERIAL PRIMARY KEY",
-                "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
-                "new_email": "VARCHAR(255) NOT NULL",
-                "token": "VARCHAR(4) NOT NULL",
-                "expires_at": "TIMESTAMP NOT NULL",
-                "used_at": "TIMESTAMP",
-                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-            })
-            logger.info("✅ Tabla email_change_requests creada exitosamente")
-        else:
-            logger.info("✅ Tabla email_change_requests ya existe")
-        
-        # ============================================
-        # PASO 12: INSERTAR MODELOS 3D PREDETERMINADOS
+        # PASO 7: INSERTAR MODELOS 3D PREDETERMINADOS (si no existen)
         # ============================================
         await _seed_plant_models(db)
             
@@ -658,221 +400,155 @@ async def _create_tables(db: AsyncPgDbToolkit):
         log_error_with_context(e, "create_tables")
         raise
 
-async def _seed_plant_models(db: AsyncPgDbToolkit):
-    """Inserta modelos 3D predeterminados para tipos de plantas comunes"""
+async def _seed_pokedex_catalog(db: AsyncPgDbToolkit):
+    """Inserta las 100 plantas predefinidas en el catálogo de pokedex"""
     try:
-        logger.info("🌱 Insertando modelos 3D predeterminados...")
+        logger.info("🌱 Insertando 100 plantas predefinidas en pokedex_catalog...")
         
-        # Verificar si ya existen modelos
-        existing_models = await db.execute_query(
-            "SELECT COUNT(*) as count FROM plant_models"
-        )
-        
-        if existing_models is not None and not existing_models.empty:
-            count = existing_models.iloc[0]["count"]
+        # Verificar si ya existen entradas
+        existing_count = await db.execute_query("SELECT COUNT(*) as count FROM pokedex_catalog")
+        if existing_count is not None and not existing_count.empty:
+            count = existing_count.iloc[0]["count"]
             if count > 0:
-                logger.info(f"✅ Ya existen {count} modelos 3D en la base de datos, omitiendo inserción")
+                logger.info(f"✅ Ya existen {count} plantas en el catálogo, omitiendo inserción")
                 return
         
-        # Modelos base con URLs placeholder
-        models = [
-            {
-                "plant_type": "Cactus",
-                "name": "Cactus Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/cactus_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/cactus_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "succulent", "scale": 1.0}
-            },
-            {
-                "plant_type": "Suculenta",
-                "name": "Suculenta Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/suculenta_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/suculenta_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "succulent", "scale": 1.0}
-            },
-            {
-                "plant_type": "Monstera",
-                "name": "Monstera Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/monstera_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/monstera_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "tropical", "scale": 1.2}
-            },
-            {
-                "plant_type": "Helecho",
-                "name": "Helecho Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/helecho_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/helecho_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "fern", "scale": 1.1}
-            },
-            {
-                "plant_type": "Rosa",
-                "name": "Rosa Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/rosa_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/rosa_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "flower", "scale": 0.8}
-            },
-            {
-                "plant_type": "Planta",
-                "name": "Planta Genérica",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/planta_generica.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/planta_generica_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "generic", "scale": 1.0}
-            }
+        # Lista de 100 plantas comunes con sus datos
+        plants_catalog = [
+            # Entry 1-20: Araceae (Monstera, Pothos, Philodendron, etc.)
+            (1, "Monstera deliciosa", "Monstera deliciosa", "Monstera, Costilla de Adán, Ceriman", "Araceae", "Fácil", "Luz indirecta brillante; Riego moderado cuando el suelo se seca; Humedad alta", 60.0, 80.0, 18.0, 27.0),
+            (2, "Monstera adansonii", "Monstera adansonii", "Monstera Adansonii, Swiss Cheese Vine", "Araceae", "Fácil", "Luz indirecta; Mantener suelo húmedo; Prefiere humedad alta", 60.0, 80.0, 18.0, 27.0),
+            (3, "Epipremnum aureum", "Epipremnum aureum", "Pothos, Potus, Hiedra del Diablo", "Araceae", "Fácil", "Luz indirecta; Riego cuando el suelo se seca; Tolera poca luz", 40.0, 70.0, 15.0, 30.0),
+            (4, "Philodendron hederaceum", "Philodendron hederaceum", "Philodendron Trepador, Philodendron Cordatum", "Araceae", "Fácil", "Luz indirecta; Mantener suelo húmedo; Podar regularmente", 50.0, 70.0, 18.0, 27.0),
+            (5, "Philodendron bipinnatifidum", "Philodendron bipinnatifidum", "Philodendron Selloum, Tree Philodendron", "Araceae", "Medio", "Luz indirecta brillante; Riego moderado; Espacio amplio", 50.0, 70.0, 18.0, 27.0),
+            (6, "Anthurium andraeanum", "Anthurium andraeanum", "Anturio, Flamingo Flower", "Araceae", "Medio", "Luz indirecta brillante; Alta humedad; Riego regular", 60.0, 80.0, 18.0, 27.0),
+            (7, "Spathiphyllum wallisii", "Spathiphyllum wallisii", "Espatifilo, Lirio de la Paz", "Araceae", "Fácil", "Luz indirecta; Mantener suelo húmedo; Alta humedad", 50.0, 70.0, 18.0, 27.0),
+            (8, "Zamioculcas zamiifolia", "Zamioculcas zamiifolia", "Zamioculca, ZZ Plant", "Araceae", "Fácil", "Luz baja a brillante; Riego muy espaciado; Tolera sequía", 30.0, 60.0, 15.0, 30.0),
+            (9, "Aglaonema commutatum", "Aglaonema commutatum", "Aglaonema, Chinese Evergreen", "Araceae", "Fácil", "Luz indirecta; Riego moderado; Alta humedad", 50.0, 70.0, 18.0, 27.0),
+            (10, "Dieffenbachia seguine", "Dieffenbachia seguine", "Dieffenbachia, Dumb Cane", "Araceae", "Medio", "Luz indirecta brillante; Mantener húmedo; Alta humedad", 50.0, 70.0, 18.0, 27.0),
+            (11, "Syngonium podophyllum", "Syngonium podophyllum", "Syngonium, Arrowhead Plant", "Araceae", "Fácil", "Luz indirecta; Riego regular; Podar para mantener forma", 50.0, 70.0, 18.0, 27.0),
+            (12, "Alocasia amazonica", "Alocasia amazonica", "Alocasia, Elephant Ear", "Araceae", "Medio", "Luz indirecta brillante; Alta humedad; Riego regular", 60.0, 80.0, 20.0, 27.0),
+            (13, "Caladium bicolor", "Caladium bicolor", "Caladium, Angel Wings", "Araceae", "Medio", "Luz indirecta brillante; Alta humedad; Mantener húmedo", 60.0, 80.0, 20.0, 27.0),
+            (14, "Colocasia esculenta", "Colocasia esculenta", "Colocasia, Taro", "Araceae", "Medio", "Luz indirecta brillante; Suelo muy húmedo; Alta humedad", 60.0, 80.0, 18.0, 27.0),
+            (15, "Xanthosoma sagittifolium", "Xanthosoma sagittifolium", "Xanthosoma, Elephant Ear", "Araceae", "Medio", "Luz indirecta brillante; Suelo húmedo; Alta humedad", 60.0, 80.0, 18.0, 27.0),
+            (16, "Epipremnum pinnatum", "Epipremnum pinnatum", "Epipremnum Pinnatum, Dragon Tail", "Araceae", "Fácil", "Luz indirecta; Riego moderado; Prefiere humedad", 50.0, 70.0, 18.0, 27.0),
+            (17, "Scindapsus pictus", "Scindapsus pictus", "Scindapsus, Satin Pothos", "Araceae", "Fácil", "Luz indirecta; Riego cuando se seca; Similar al Pothos", 40.0, 70.0, 18.0, 27.0),
+            (18, "Rhaphidophora tetrasperma", "Rhaphidophora tetrasperma", "Mini Monstera, Philodendron Ginny", "Araceae", "Fácil", "Luz indirecta brillante; Riego moderado; Humedad media", 50.0, 70.0, 18.0, 27.0),
+            (19, "Pothos Marble Queen", "Epipremnum aureum", "Pothos Marble Queen, Variegated Pothos", "Araceae", "Fácil", "Luz indirecta brillante; Riego moderado; Más luz para variegación", 40.0, 70.0, 18.0, 27.0),
+            (20, "Philodendron Xanadu", "Philodendron xanadu", "Philodendron Xanadu, Winterbourn", "Araceae", "Fácil", "Luz indirecta; Riego moderado; Espacio medio", 50.0, 70.0, 18.0, 27.0),
+            
+            # Entry 21-40: Ficus
+            (21, "Ficus lyrata", "Ficus lyrata", "Ficus Lira, Fiddle Leaf Fig", "Moraceae", "Medio", "Luz indirecta brillante; Riego cuando se seca; No mover frecuentemente", 50.0, 70.0, 18.0, 27.0),
+            (22, "Ficus elastica", "Ficus elastica", "Ficus de Goma, Rubber Plant", "Moraceae", "Fácil", "Luz indirecta brillante; Riego moderado; Limpiar hojas", 40.0, 70.0, 18.0, 27.0),
+            (23, "Ficus benjamina", "Ficus benjamina", "Ficus Benjamina, Weeping Fig", "Moraceae", "Medio", "Luz indirecta brillante; Riego regular; No cambios bruscos", 50.0, 70.0, 18.0, 27.0),
+            (24, "Ficus microcarpa", "Ficus microcarpa", "Ficus Microcarpa, Chinese Banyan", "Moraceae", "Fácil", "Luz indirecta; Riego moderado; Podar para forma", 40.0, 70.0, 18.0, 27.0),
+            (25, "Ficus pumila", "Ficus pumila", "Ficus Pumila, Creeping Fig", "Moraceae", "Fácil", "Luz indirecta; Mantener húmedo; Trepadora", 50.0, 70.0, 15.0, 27.0),
+            (26, "Ficus audrey", "Ficus benghalensis", "Ficus Audrey, Banyan Fig", "Moraceae", "Medio", "Luz indirecta brillante; Riego moderado; Espacio amplio", 50.0, 70.0, 18.0, 27.0),
+            (27, "Ficus altissima", "Ficus altissima", "Ficus Altissima, Council Tree", "Moraceae", "Medio", "Luz indirecta brillante; Riego regular; Alta humedad", 50.0, 70.0, 18.0, 27.0),
+            (28, "Ficus triangularis", "Ficus triangularis", "Ficus Triangularis, Triangle Fig", "Moraceae", "Medio", "Luz indirecta brillante; Riego moderado; Forma triangular", 50.0, 70.0, 18.0, 27.0),
+            
+            # Entry 29-50: Suculentas y Cactus
+            (29, "Echeveria elegans", "Echeveria elegans", "Echeveria, Rosa de Alabastro", "Crassulaceae", "Fácil", "Luz directa a indirecta brillante; Riego espaciado; Drenaje excelente", 30.0, 50.0, 10.0, 27.0),
+            (30, "Crassula ovata", "Crassula ovata", "Árbol de Jade, Jade Plant", "Crassulaceae", "Fácil", "Luz brillante; Riego muy espaciado; Tolerante a sequía", 30.0, 50.0, 10.0, 27.0),
+            (31, "Aloe vera", "Aloe vera", "Aloe Vera, Sábila", "Asphodelaceae", "Fácil", "Luz brillante; Riego espaciado; Propiedades medicinales", 30.0, 50.0, 10.0, 27.0),
+            (32, "Haworthia fasciata", "Haworthia fasciata", "Haworthia, Zebra Plant", "Asphodelaceae", "Fácil", "Luz indirecta brillante; Riego espaciado; Tamaño pequeño", 30.0, 50.0, 10.0, 27.0),
+            (33, "Kalanchoe blossfeldiana", "Kalanchoe blossfeldiana", "Kalanchoe, Calanchoe", "Crassulaceae", "Fácil", "Luz brillante; Riego moderado; Florece en invierno", 40.0, 60.0, 15.0, 27.0),
+            (34, "Sedum morganianum", "Sedum morganianum", "Sedum, Cola de Burro, Donkey Tail", "Crassulaceae", "Fácil", "Luz brillante; Riego espaciado; Colgante", 30.0, 50.0, 10.0, 27.0),
+            (35, "Schlumbergera truncata", "Schlumbergera truncata", "Cactus de Navidad, Christmas Cactus", "Cactaceae", "Fácil", "Luz indirecta; Riego regular; Florece en invierno", 40.0, 60.0, 18.0, 24.0),
+            (36, "Opuntia ficus-indica", "Opuntia ficus-indica", "Nopal, Prickly Pear", "Cactaceae", "Fácil", "Luz directa; Riego muy espaciado; Resistente", 20.0, 40.0, 10.0, 35.0),
+            (37, "Mammillaria", "Mammillaria", "Mammillaria, Cactus esférico", "Cactaceae", "Fácil", "Luz directa brillante; Riego espaciado; Varias especies", 20.0, 40.0, 10.0, 32.0),
+            (38, "Echinocactus grusonii", "Echinocactus grusonii", "Cactus Barril Dorado, Golden Barrel", "Cactaceae", "Fácil", "Luz directa; Riego muy espaciado; Forma esférica", 20.0, 40.0, 10.0, 35.0),
+            (39, "Cereus", "Cereus", "Cereus, Cactus columnar", "Cactaceae", "Fácil", "Luz directa; Riego espaciado; Crecimiento vertical", 20.0, 40.0, 10.0, 35.0),
+            (40, "Gymnocalycium", "Gymnocalycium", "Gymnocalycium, Moon Cactus", "Cactaceae", "Fácil", "Luz brillante; Riego espaciado; Varios colores", 30.0, 50.0, 10.0, 30.0),
+            (41, "Echeveria Perle von Nürnberg", "Echeveria 'Perle von Nürnberg'", "Echeveria Perla de Núremberg", "Crassulaceae", "Fácil", "Luz brillante; Riego espaciado; Colores rosados", 30.0, 50.0, 10.0, 27.0),
+            (42, "Crassula tetragona", "Crassula tetragona", "Crassula Tetragona, Mini Pine Tree", "Crassulaceae", "Fácil", "Luz brillante; Riego espaciado; Forma de árbol", 30.0, 50.0, 10.0, 27.0),
+            (43, "Graptopetalum paraguayense", "Graptopetalum paraguayense", "Graptopetalum, Ghost Plant", "Crassulaceae", "Fácil", "Luz brillante; Riego espaciado; Colores pastel", 30.0, 50.0, 10.0, 27.0),
+            (44, "Aeonium", "Aeonium", "Aeonium, Rosa Negra", "Crassulaceae", "Fácil", "Luz brillante; Riego moderado; Rosetas", 40.0, 60.0, 10.0, 27.0),
+            (45, "Sempervivum", "Sempervivum", "Sempervivum, Siempreviva", "Crassulaceae", "Fácil", "Luz brillante; Riego espaciado; Resistente al frío", 30.0, 50.0, 5.0, 27.0),
+            (46, "Lithops", "Lithops", "Lithops, Piedras Vivas", "Aizoaceae", "Medio", "Luz brillante; Riego muy espaciado; Apariencia de piedra", 20.0, 40.0, 10.0, 27.0),
+            (47, "Senecio rowleyanus", "Senecio rowleyanus", "Senecio, String of Pearls", "Asteraceae", "Fácil", "Luz brillante; Riego espaciado; Colgante", 30.0, 50.0, 15.0, 27.0),
+            (48, "Senecio radicans", "Senecio radicans", "String of Bananas, Plátanos Colgantes", "Asteraceae", "Fácil", "Luz brillante; Riego espaciado; Colgante", 30.0, 50.0, 15.0, 27.0),
+            (49, "Portulacaria afra", "Portulacaria afra", "Portulacaria, Elefante Enano", "Portulacaceae", "Fácil", "Luz brillante; Riego espaciado; Similar a Jade", 30.0, 50.0, 10.0, 27.0),
+            (50, "Hoya carnosa", "Hoya carnosa", "Hoya, Wax Plant", "Apocynaceae", "Fácil", "Luz indirecta brillante; Riego moderado; Flores fragantes", 40.0, 60.0, 18.0, 27.0),
+            
+            # Entry 51-70: Sansevieria, Dracaena, Helechos
+            (51, "Sansevieria trifasciata", "Sansevieria trifasciata", "Sansevieria, Lengua de Suegra, Snake Plant", "Asparagaceae", "Fácil", "Luz baja a brillante; Riego muy espaciado; Muy resistente", 30.0, 60.0, 10.0, 30.0),
+            (52, "Sansevieria cylindrica", "Sansevieria cylindrica", "Sansevieria Cilíndrica, Spear Sansevieria", "Asparagaceae", "Fácil", "Luz brillante; Riego espaciado; Forma cilíndrica", 30.0, 60.0, 10.0, 30.0),
+            (53, "Sansevieria laurentii", "Sansevieria trifasciata 'Laurentii'", "Sansevieria Laurentii, Variegated Snake Plant", "Asparagaceae", "Fácil", "Luz brillante; Riego espaciado; Bordes amarillos", 30.0, 60.0, 10.0, 30.0),
+            (54, "Dracaena marginata", "Dracaena marginata", "Dracaena Marginata, Madagascar Dragon Tree", "Asparagaceae", "Fácil", "Luz indirecta; Riego moderado; Hojas estrechas", 40.0, 70.0, 18.0, 27.0),
+            (55, "Dracaena fragrans", "Dracaena fragrans", "Dracaena Fragrans, Corn Plant", "Asparagaceae", "Fácil", "Luz indirecta; Riego moderado; Hojas anchas", 40.0, 70.0, 18.0, 27.0),
+            (56, "Dracaena deremensis", "Dracaena deremensis", "Dracaena Deremensis, Janet Craig", "Asparagaceae", "Fácil", "Luz indirecta; Riego moderado; Hojas verdes oscuras", 40.0, 70.0, 18.0, 27.0),
+            (57, "Nephrolepis exaltata", "Nephrolepis exaltata", "Helecho Espada, Boston Fern", "Nephrolepidaceae", "Medio", "Luz indirecta; Alta humedad; Mantener húmedo", 60.0, 80.0, 18.0, 24.0),
+            (58, "Adiantum capillus-veneris", "Adiantum capillus-veneris", "Culantrillo, Maidenhair Fern", "Pteridaceae", "Medio", "Luz indirecta; Alta humedad constante; Frágil", 70.0, 85.0, 18.0, 24.0),
+            (59, "Pteris cretica", "Pteris cretica", "Pteris, Helecho Creta", "Pteridaceae", "Fácil", "Luz indirecta; Humedad media; Riego regular", 50.0, 70.0, 18.0, 24.0),
+            (60, "Asplenium nidus", "Asplenium nidus", "Asplenium, Nido de Ave", "Aspleniaceae", "Fácil", "Luz indirecta; Alta humedad; Hojas en forma de nido", 60.0, 80.0, 18.0, 27.0),
+            (61, "Platycerium bifurcatum", "Platycerium bifurcatum", "Cuerno de Alce, Staghorn Fern", "Polypodiaceae", "Medio", "Luz indirecta brillante; Alta humedad; Epífita", 60.0, 80.0, 18.0, 27.0),
+            (62, "Davallia fejeensis", "Davallia fejeensis", "Davallia, Helecho de Conejo", "Davalliaceae", "Medio", "Luz indirecta; Alta humedad; Rizomas aéreos", 60.0, 80.0, 18.0, 24.0),
+            
+            # Entry 63-80: Otras plantas comunes
+            (63, "Pilea peperomioides", "Pilea peperomioides", "Pilea, Planta del Dólar, Chinese Money Plant", "Urticaceae", "Fácil", "Luz indirecta brillante; Riego moderado; Hojas circulares", 40.0, 60.0, 15.0, 27.0),
+            (64, "Peperomia obtusifolia", "Peperomia obtusifolia", "Peperomia, Baby Rubber Plant", "Piperaceae", "Fácil", "Luz indirecta; Riego moderado; Hojas gruesas", 40.0, 60.0, 18.0, 27.0),
+            (65, "Calathea orbifolia", "Calathea orbifolia", "Calathea Orbifolia", "Marantaceae", "Medio", "Luz indirecta; Alta humedad; Sensible al agua dura", 60.0, 80.0, 18.0, 27.0),
+            (66, "Calathea makoyana", "Calathea makoyana", "Calathea Makoyana, Peacock Plant", "Marantaceae", "Medio", "Luz indirecta; Alta humedad; Patrones llamativos", 60.0, 80.0, 18.0, 27.0),
+            (67, "Maranta leuconeura", "Maranta leuconeura", "Maranta, Prayer Plant", "Marantaceae", "Medio", "Luz indirecta; Alta humedad; Se cierra de noche", 60.0, 80.0, 18.0, 27.0),
+            (68, "Stromanthe sanguinea", "Stromanthe sanguinea", "Stromanthe, Triostar", "Marantaceae", "Medio", "Luz indirecta brillante; Alta humedad; Colores vibrantes", 60.0, 80.0, 18.0, 27.0),
+            (69, "Tradescantia zebrina", "Tradescantia zebrina", "Tradescantia, Zebrina, Inch Plant", "Commelinaceae", "Fácil", "Luz indirecta brillante; Riego regular; Colgante", 40.0, 60.0, 15.0, 27.0),
+            (70, "Chlorophytum comosum", "Chlorophytum comosum", "Cinta, Spider Plant", "Asparagaceae", "Fácil", "Luz indirecta; Riego regular; Produce hijuelos", 40.0, 60.0, 15.0, 27.0),
+            (71, "Hedera helix", "Hedera helix", "Hiedra, English Ivy", "Araliaceae", "Fácil", "Luz indirecta; Riego moderado; Trepadora", 40.0, 60.0, 10.0, 24.0),
+            (72, "Schefflera arboricola", "Schefflera arboricola", "Schefflera, Umbrella Tree", "Araliaceae", "Fácil", "Luz indirecta brillante; Riego moderado; Hojas palmeadas", 40.0, 70.0, 15.0, 27.0),
+            (73, "Yucca elephantipes", "Yucca elephantipes", "Yuca, Spineless Yucca", "Asparagaceae", "Fácil", "Luz brillante; Riego espaciado; Forma de árbol", 30.0, 60.0, 10.0, 30.0),
+            (74, "Beaucarnea recurvata", "Beaucarnea recurvata", "Nolina, Ponytail Palm", "Asparagaceae", "Fácil", "Luz brillante; Riego muy espaciado; Base hinchada", 30.0, 50.0, 10.0, 30.0),
+            (75, "Aspidistra elatior", "Aspidistra elatior", "Aspidistra, Iron Plant", "Asparagaceae", "Fácil", "Luz baja; Riego moderado; Muy resistente", 40.0, 60.0, 10.0, 24.0),
+            (76, "Cyperus alternifolius", "Cyperus alternifolius", "Cyperus, Umbrella Plant", "Cyperaceae", "Medio", "Luz indirecta brillante; Mantener suelo muy húmedo; Acuática", 60.0, 80.0, 18.0, 27.0),
+            
+            # Entry 77-100: Hierbas, aromáticas y otras
+            (77, "Lavandula angustifolia", "Lavandula angustifolia", "Lavanda, Lavender", "Lamiaceae", "Medio", "Luz directa brillante; Riego moderado; Aromática", 30.0, 50.0, 15.0, 27.0),
+            (78, "Rosmarinus officinalis", "Rosmarinus officinalis", "Romero, Rosemary", "Lamiaceae", "Fácil", "Luz directa brillante; Riego espaciado; Aromática", 30.0, 50.0, 10.0, 27.0),
+            (79, "Mentha", "Mentha", "Menta, Mint", "Lamiaceae", "Fácil", "Luz indirecta a brillante; Mantener húmedo; Aromática", 50.0, 70.0, 15.0, 24.0),
+            (80, "Ocimum basilicum", "Ocimum basilicum", "Albahaca, Basil", "Lamiaceae", "Fácil", "Luz brillante; Riego regular; Aromática culinaria", 50.0, 70.0, 18.0, 27.0),
+            (81, "Petroselinum crispum", "Petroselinum crispum", "Perejil, Parsley", "Apiaceae", "Fácil", "Luz brillante; Riego regular; Culinaria", 50.0, 70.0, 10.0, 24.0),
+            (82, "Thymus vulgaris", "Thymus vulgaris", "Tomillo, Thyme", "Lamiaceae", "Fácil", "Luz directa brillante; Riego espaciado; Aromática", 30.0, 50.0, 10.0, 27.0),
+            (83, "Origanum vulgare", "Origanum vulgare", "Orégano, Oregano", "Lamiaceae", "Fácil", "Luz directa brillante; Riego moderado; Aromática", 30.0, 50.0, 10.0, 27.0),
+            (84, "Salvia officinalis", "Salvia officinalis", "Salvia, Sage", "Lamiaceae", "Fácil", "Luz directa brillante; Riego moderado; Aromática", 30.0, 50.0, 10.0, 27.0),
+            (85, "Howea forsteriana", "Howea forsteriana", "Palma de Kentia, Kentia Palm", "Arecaceae", "Fácil", "Luz indirecta; Riego moderado; Muy elegante", 40.0, 70.0, 15.0, 27.0),
+            (86, "Chamaedorea elegans", "Chamaedorea elegans", "Palma de Salón, Parlor Palm", "Arecaceae", "Fácil", "Luz indirecta; Riego moderado; Compacta", 40.0, 70.0, 18.0, 27.0),
+            (87, "Dypsis lutescens", "Dypsis lutescens", "Palma Areca, Areca Palm", "Arecaceae", "Medio", "Luz indirecta brillante; Riego regular; Alta humedad", 50.0, 70.0, 18.0, 27.0),
+            (88, "Phoenix roebelenii", "Phoenix roebelenii", "Palmera Enana, Pygmy Date Palm", "Arecaceae", "Medio", "Luz indirecta brillante; Riego moderado; Tamaño pequeño", 40.0, 70.0, 18.0, 27.0),
+            (89, "Tulipa", "Tulipa", "Tulipán, Tulip", "Liliaceae", "Medio", "Luz brillante; Riego moderado; Bulbosa de primavera", 40.0, 60.0, 10.0, 20.0),
+            (90, "Rosa", "Rosa", "Rosa, Rose", "Rosaceae", "Medio", "Luz directa brillante; Riego regular; Florece", 40.0, 70.0, 15.0, 27.0),
+            (91, "Pelargonium", "Pelargonium", "Geranio, Geranium", "Geraniaceae", "Fácil", "Luz directa brillante; Riego moderado; Flores coloridas", 40.0, 60.0, 15.0, 27.0),
+            (92, "Begonia", "Begonia", "Begonia", "Begoniaceae", "Medio", "Luz indirecta brillante; Riego regular; Muchas variedades", 50.0, 70.0, 18.0, 24.0),
+            (93, "Impatiens walleriana", "Impatiens walleriana", "Impatiens, Balsamina", "Balsaminaceae", "Fácil", "Luz indirecta; Riego regular; Flores todo el año", 50.0, 70.0, 18.0, 27.0),
+            (94, "Petunia", "Petunia", "Petunia", "Solanaceae", "Fácil", "Luz directa brillante; Riego regular; Flores abundantes", 40.0, 60.0, 15.0, 27.0),
+            (95, "Coleus scutellarioides", "Coleus scutellarioides", "Coleo, Coleus", "Lamiaceae", "Fácil", "Luz indirecta brillante; Riego regular; Hojas coloridas", 50.0, 70.0, 18.0, 27.0),
+            (96, "Pachira aquatica", "Pachira aquatica", "Pachira, Money Tree", "Malvaceae", "Fácil", "Luz indirecta brillante; Riego moderado; Tronco trenzado", 40.0, 70.0, 15.0, 27.0),
+            (97, "Codiaeum variegatum", "Codiaeum variegatum", "Croton, Crotón", "Euphorbiaceae", "Medio", "Luz brillante; Alta humedad; Hojas muy coloridas", 50.0, 70.0, 18.0, 27.0),
+            (98, "Caladium", "Caladium", "Caladium, Corazón de María", "Araceae", "Medio", "Luz indirecta brillante; Alta humedad; Hojas decorativas", 60.0, 80.0, 20.0, 27.0),
+            (99, "Cyclamen persicum", "Cyclamen persicum", "Ciclamen, Cyclamen", "Primulaceae", "Medio", "Luz indirecta brillante; Riego desde abajo; Flor de invierno", 50.0, 60.0, 10.0, 18.0),
+            (100, "Pteris ensiformis", "Pteris ensiformis", "Pteris Ensiformis, Sword Brake Fern", "Pteridaceae", "Fácil", "Luz indirecta; Humedad media; Helecho ornamental", 50.0, 70.0, 18.0, 24.0),
         ]
         
-        # Insertar modelos usando execute_query
-        for model in models:
-            try:
-                await db.execute_query("""
-                    INSERT INTO plant_models (plant_type, name, model_3d_url, default_render_url, is_default, metadata)
-                    VALUES (%s, %s, %s, %s, %s, %s::jsonb)
-                    ON CONFLICT DO NOTHING
-                """, (
-                    model["plant_type"],
-                    model["name"],
-                    model["model_3d_url"],
-                    model.get("default_render_url"),
-                    model["is_default"],
-                    json.dumps(model.get("metadata", {}))
-                ))
-            except Exception as e:
-                logger.warning(f"Error insertando modelo {model['name']}: {e}")
+        # Insertar las 100 plantas
+        for entry in plants_catalog:
+            entry_num, plant_type, scientific_name, common_names, family, care_level, care_tips, hum_min, hum_max, temp_min, temp_max = entry
+            await db.execute_query("""
+                INSERT INTO pokedex_catalog (
+                    entry_number, plant_type, scientific_name, common_names, family,
+                    care_level, care_tips, optimal_humidity_min, optimal_humidity_max,
+                    optimal_temp_min, optimal_temp_max
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (entry_number) DO NOTHING
+            """, (
+                entry_num, plant_type, scientific_name, common_names, family,
+                care_level, care_tips, hum_min, hum_max, temp_min, temp_max
+            ))
         
-        logger.info(f"✅ Modelos 3D predeterminados insertados: {len(models)} modelos")
+        logger.info(f"✅ 100 plantas predefinidas insertadas en pokedex_catalog")
         
     except Exception as e:
-        logger.error(f"❌ Error insertando modelos 3D predeterminados: {e}")
-        # No lanzar excepción - los modelos pueden insertarse manualmente después
-        logger.warning("⚠️ Continuando sin modelos predeterminados (pueden insertarse manualmente después)")
+        logger.error(f"❌ Error insertando catálogo de pokedex: {e}", exc_info=True)
 
-
-async def _create_indexes(db: AsyncPgDbToolkit):
-    """Crea índices para optimizar las consultas"""
-    try:
-        logger.info("🔍 Creando índices de optimización...")
-        
-        # Índices para roles
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_roles_name ON roles(name);
-        """)
-        logger.info("✅ Índices para tabla roles creados")
-        
-        # Índices para usuarios
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-            CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
-            CREATE INDEX IF NOT EXISTS idx_users_is_verified ON users(is_verified);
-            CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
-            CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
-        """)
-        logger.info("✅ Índices para tabla users creados")
-        
-        # Índices para sensores (v2 - ya se crean en _create_tables, pero por si acaso)
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_sensors_device_id ON sensors(device_id);
-            CREATE INDEX IF NOT EXISTS idx_sensors_user_id ON sensors(user_id);
-            CREATE INDEX IF NOT EXISTS idx_sensors_plant_id ON sensors(plant_id);
-            CREATE INDEX IF NOT EXISTS idx_sensors_status ON sensors(status);
-        """)
-        logger.info("✅ Índices para tabla sensors creados")
-        
-        # Índices para plantas
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_plants_user_id ON plants(user_id);
-            CREATE INDEX IF NOT EXISTS idx_plants_sensor_id ON plants(sensor_id);
-            CREATE INDEX IF NOT EXISTS idx_plants_health_status ON plants(health_status);
-            CREATE INDEX IF NOT EXISTS idx_plants_character_mood ON plants(character_mood);
-            CREATE INDEX IF NOT EXISTS idx_plants_created_at ON plants(created_at DESC);
-        """)
-        logger.info("✅ Índices para tabla plants creados")
-        
-        # Índices para modelos 3D y accesorios
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_plant_models_plant_type ON plant_models(plant_type);
-            CREATE INDEX IF NOT EXISTS idx_plant_models_is_default ON plant_models(is_default);
-            CREATE INDEX IF NOT EXISTS idx_plant_accessories_code ON plant_accessories(code);
-            CREATE INDEX IF NOT EXISTS idx_plant_model_assignments_plant_id ON plant_model_assignments(plant_id);
-            CREATE INDEX IF NOT EXISTS idx_plant_model_assignments_model_id ON plant_model_assignments(model_id);
-            CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_plant_id ON plant_accessory_assignments(plant_id);
-            CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_accessory_id ON plant_accessory_assignments(accessory_id);
-            CREATE INDEX IF NOT EXISTS idx_plant_accessory_assignments_is_active ON plant_accessory_assignments(is_active);
-        """)
-        logger.info("✅ Índices para tablas de modelos 3D y accesorios creados")
-        
-        # Índices para sensors (v2)
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_sensors_device_id ON sensors(device_id);
-            CREATE INDEX IF NOT EXISTS idx_sensors_user_id ON sensors(user_id);
-            CREATE INDEX IF NOT EXISTS idx_sensors_plant_id ON sensors(plant_id);
-            CREATE INDEX IF NOT EXISTS idx_sensors_status ON sensors(status);
-        """)
-        logger.info("✅ Índices para tabla sensors creados")
-        
-        # Índices para sensor_readings (v2)
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_id ON sensor_readings(sensor_id);
-            CREATE INDEX IF NOT EXISTS idx_sensor_readings_user_id ON sensor_readings(user_id);
-            CREATE INDEX IF NOT EXISTS idx_sensor_readings_plant_id ON sensor_readings(plant_id);
-            CREATE INDEX IF NOT EXISTS idx_sensor_readings_timestamp ON sensor_readings(timestamp DESC);
-            CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_timestamp ON sensor_readings(sensor_id, timestamp DESC);
-            CREATE INDEX IF NOT EXISTS idx_sensor_readings_user_timestamp ON sensor_readings(user_id, timestamp DESC);
-            CREATE INDEX IF NOT EXISTS idx_sensor_readings_plant_timestamp ON sensor_readings(plant_id, timestamp DESC);
-        """)
-        logger.info("✅ Índices para tabla sensor_readings creados")
-        
-        # Índices para plant_photos
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_plant_photos_plant_id ON plant_photos(plant_id);
-            CREATE INDEX IF NOT EXISTS idx_plant_photos_taken_at ON plant_photos(taken_at DESC);
-        """)
-        logger.info("✅ Índices para tabla plant_photos creados")
-        
-        # Índices para achievements
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_achievements_requirement_type ON achievements(requirement_type);
-            CREATE INDEX IF NOT EXISTS idx_achievements_points ON achievements(points DESC);
-        """)
-        logger.info("✅ Índices para tabla achievements creados")
-        
-        # Índices para user_achievements
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);
-            CREATE INDEX IF NOT EXISTS idx_user_achievements_achievement_id ON user_achievements(achievement_id);
-            CREATE INDEX IF NOT EXISTS idx_user_achievements_earned_at ON user_achievements(earned_at DESC);
-        """)
-        logger.info("✅ Índices para tabla user_achievements creados")
-        
-        # Índices para notifications
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-            CREATE INDEX IF NOT EXISTS idx_notifications_plant_id ON notifications(plant_id);
-            CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
-            CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(notification_type);
-            CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;
-        """)
-        logger.info("✅ Índices para tabla notifications creados")
-        
-        # Índices para email_verification_tokens
-        await db.execute_query("""
-            CREATE INDEX IF NOT EXISTS idx_email_tokens_user_id ON email_verification_tokens(user_id);
-            CREATE INDEX IF NOT EXISTS idx_email_tokens_token ON email_verification_tokens(token);
-            CREATE INDEX IF NOT EXISTS idx_email_tokens_expires_at ON email_verification_tokens(expires_at);
-            CREATE INDEX IF NOT EXISTS idx_email_tokens_used_at ON email_verification_tokens(used_at);
-        """)
-        logger.info("✅ Índices para tabla email_verification_tokens creados")
-        
-        logger.info("✅ Todos los índices creados exitosamente")
-        
-    except Exception as e:
-        log_error_with_context(e, "create_indexes")
-        logger.warning(f"Algunos índices no se pudieron crear: {str(e)}")
 
 async def get_db() -> AsyncPgDbToolkit:
     """

@@ -100,21 +100,48 @@ class PlantResponse(BaseModel):
         from_attributes = True
 
 
-class PokedexEntryResponse(BaseModel):
-    """Respuesta con información de una entrada en la pokedex"""
+class PokedexCatalogEntry(BaseModel):
+    """Entrada del catálogo maestro de pokedex (100 plantas predefinidas)"""
     id: int
-    user_id: int
+    entry_number: int  # 001, 002, ..., 100
     plant_type: str
-    scientific_name: Optional[str] = None
+    scientific_name: str
+    common_names: Optional[str] = None
+    family: Optional[str] = None
     care_level: Optional[str] = None
     care_tips: Optional[str] = None
-    original_photo_url: Optional[str] = None
     optimal_humidity_min: Optional[float] = None
     optimal_humidity_max: Optional[float] = None
     optimal_temp_min: Optional[float] = None
     optimal_temp_max: Optional[float] = None
+    silhouette_url: Optional[str] = None
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
+
+
+class PokedexEntryResponse(BaseModel):
+    """Respuesta con información de una entrada de pokedex del usuario (con estado de desbloqueo)"""
+    catalog_entry: PokedexCatalogEntry  # Información del catálogo
+    is_unlocked: bool  # Si el usuario ha desbloqueado esta planta
+    discovered_at: Optional[datetime] = None  # Fecha de descubrimiento (si está desbloqueada)
+    discovered_photo_url: Optional[str] = None  # Foto que el usuario escaneó (si está desbloqueada)
+    unlock_id: Optional[int] = None  # ID del registro de desbloqueo
+    
+    class Config:
+        from_attributes = True
+
+
+class PokedexUnlockResponse(BaseModel):
+    """Respuesta cuando se desbloquea una planta"""
+    unlock_id: int
+    catalog_entry_id: int
+    entry_number: int
+    plant_type: str
+    scientific_name: str
+    discovered_photo_url: str
     discovered_at: datetime
-    updated_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
