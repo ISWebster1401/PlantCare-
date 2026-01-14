@@ -26,35 +26,58 @@ export default function EditProfileScreen() {
   const { user, refreshUser } = useAuth();
   
   const [fullName, setFullName] = useState(user?.full_name || '');
+  const [phone, setPhone] = useState((user as any)?.phone || '');
+  const [bio, setBio] = useState((user as any)?.bio || '');
+  const [location, setLocation] = useState((user as any)?.location || '');
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [savingField, setSavingField] = useState<string | null>(null);
   
   const styles = createStyles(theme.colors);
 
-  const handleSaveName = async () => {
-    if (!fullName.trim() || fullName.trim() === user?.full_name) {
-      return;
-    }
-
-    if (fullName.trim().length < 2) {
+  const handleSaveField = async (field: 'full_name' | 'phone' | 'bio' | 'location', value: string) => {
+    const trimmedValue = value.trim();
+    
+    // Validaciones
+    if (field === 'full_name' && trimmedValue.length < 2) {
       Alert.alert('Error', 'El nombre debe tener al menos 2 caracteres');
       return;
     }
+    
+    if (field === 'phone' && trimmedValue && trimmedValue.length > 20) {
+      Alert.alert('Error', 'El teléfono no puede tener más de 20 caracteres');
+      return;
+    }
+    
+    if (field === 'bio' && trimmedValue.length > 500) {
+      Alert.alert('Error', 'La biografía no puede tener más de 500 caracteres');
+      return;
+    }
+    
+    if (field === 'location' && trimmedValue.length > 100) {
+      Alert.alert('Error', 'La ubicación no puede tener más de 100 caracteres');
+      return;
+    }
 
+    // Verificar si hay cambios
+    const currentValue = field === 'full_name' ? user?.full_name : (user as any)?.[field] || '';
+    if (trimmedValue === currentValue) {
+      return;
+    }
+
+    setSavingField(field);
     setIsSaving(true);
     try {
-      const updatedUser = await authAPI.updateMe(fullName.trim());
+      const updateData: any = { [field]: trimmedValue || null };
+      const updatedUser = await authAPI.updateMe(updateData);
       try {
         await refreshUser();
       } catch (refreshError) {
-        // Si refreshUser falla (puede ser por token expirado), no es crítico
-        // El usuario ya se actualizó en el backend
         console.warn('No se pudo refrescar usuario, pero la actualización fue exitosa:', refreshError);
       }
-      Alert.alert('Éxito', 'Nombre actualizado correctamente');
+      Alert.alert('Éxito', `${field === 'full_name' ? 'Nombre' : field === 'phone' ? 'Teléfono' : field === 'bio' ? 'Biografía' : 'Ubicación'} actualizado correctamente`);
     } catch (error: any) {
-      console.error('Error actualizando nombre:', error);
-      // Si es 401, el interceptor ya limpió la sesión
+      console.error(`Error actualizando ${field}:`, error);
       if (error.response?.status === 401 || error.response?.status === 403) {
         Alert.alert(
           'Sesión expirada',
@@ -64,11 +87,12 @@ export default function EditProfileScreen() {
       } else {
         Alert.alert(
           'Error',
-          error.response?.data?.detail || 'No se pudo actualizar el nombre'
+          error.response?.data?.detail || `No se pudo actualizar ${field === 'full_name' ? 'el nombre' : field === 'phone' ? 'el teléfono' : field === 'bio' ? 'la biografía' : 'la ubicación'}`
         );
       }
     } finally {
       setIsSaving(false);
+      setSavingField(null);
     }
   };
 
@@ -150,16 +174,103 @@ export default function EditProfileScreen() {
             editable={!isSaving}
           />
           <TouchableOpacity
-            style={[styles.saveButton, isSaving && styles.buttonDisabled]}
-            onPress={handleSaveName}
+            style={[styles.saveButton, (isSaving && savingField === 'full_name') && styles.buttonDisabled]}
+            onPress={() => handleSaveField('full_name', fullName)}
             disabled={isSaving || fullName.trim() === user?.full_name || !fullName.trim()}
           >
-            {isSaving ? (
+            {(isSaving && savingField === 'full_name') ? (
               <ActivityIndicator color={theme.colors.text} />
             ) : (
               <>
                 <Ionicons name="checkmark" size={20} color={theme.colors.text} />
                 <Text style={styles.saveButtonText}>Guardar Nombre</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Sección de Teléfono */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Teléfono</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Tu número de teléfono (opcional)"
+            placeholderTextColor={theme.colors.textTertiary}
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            editable={!isSaving}
+          />
+          <TouchableOpacity
+            style={[styles.saveButton, (isSaving && savingField === 'phone') && styles.buttonDisabled]}
+            onPress={() => handleSaveField('phone', phone)}
+            disabled={isSaving || phone.trim() === ((user as any)?.phone || '')}
+          >
+            {(isSaving && savingField === 'phone') ? (
+              <ActivityIndicator color={theme.colors.text} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={20} color={theme.colors.text} />
+                <Text style={styles.saveButtonText}>Guardar Teléfono</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Sección de Biografía */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Biografía</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Cuéntanos sobre ti (opcional, máx. 500 caracteres)"
+            placeholderTextColor={theme.colors.textTertiary}
+            value={bio}
+            onChangeText={setBio}
+            multiline
+            numberOfLines={4}
+            maxLength={500}
+            editable={!isSaving}
+          />
+          <Text style={styles.charCount}>{bio.length}/500</Text>
+          <TouchableOpacity
+            style={[styles.saveButton, (isSaving && savingField === 'bio') && styles.buttonDisabled]}
+            onPress={() => handleSaveField('bio', bio)}
+            disabled={isSaving || bio.trim() === ((user as any)?.bio || '')}
+          >
+            {(isSaving && savingField === 'bio') ? (
+              <ActivityIndicator color={theme.colors.text} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={20} color={theme.colors.text} />
+                <Text style={styles.saveButtonText}>Guardar Biografía</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Sección de Ubicación */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Ubicación</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Tu ubicación (opcional, ej: Ciudad, País)"
+            placeholderTextColor={theme.colors.textTertiary}
+            value={location}
+            onChangeText={setLocation}
+            editable={!isSaving}
+            maxLength={100}
+          />
+          <TouchableOpacity
+            style={[styles.saveButton, (isSaving && savingField === 'location') && styles.buttonDisabled]}
+            onPress={() => handleSaveField('location', location)}
+            disabled={isSaving || location.trim() === ((user as any)?.location || '')}
+          >
+            {(isSaving && savingField === 'location') ? (
+              <ActivityIndicator color={theme.colors.text} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={20} color={theme.colors.text} />
+                <Text style={styles.saveButtonText}>Guardar Ubicación</Text>
               </>
             )}
           </TouchableOpacity>
@@ -314,5 +425,15 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  charCount: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    textAlign: 'right',
+    marginBottom: 8,
   },
 });

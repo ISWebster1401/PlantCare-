@@ -138,8 +138,8 @@ export const authAPI = {
     return response.data;
   },
 
-  updateMe: async (fullName: string): Promise<UserResponse> => {
-    const response = await api.put('/auth/me', { full_name: fullName });
+  updateMe: async (data: { full_name?: string; phone?: string; bio?: string; location?: string; avatar_url?: string }): Promise<UserResponse> => {
+    const response = await api.put('/auth/me', data);
     return response.data;
   },
 

@@ -29,7 +29,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Model3DViewer } from '../components/Model3DViewer';
-import { AIIcon } from '../components/AIIcon';
+import { PlantAIIcon } from '../components/PlantAIIcon';
 
 interface AIMessage {
   id: string | number;
@@ -151,10 +151,6 @@ const MessageAvatar: React.FC<{ type: 'user' | 'ai'; colors: any }> = ({ type, c
     justifyContent: 'center' as const,
   };
 
-  const aiAvatarTextStyle = {
-    fontSize: 16,
-  };
-
   if (type === 'user') {
     return (
       <View style={userAvatarStyle}>
@@ -169,7 +165,7 @@ const MessageAvatar: React.FC<{ type: 'user' | 'ai'; colors: any }> = ({ type, c
       end={{ x: 1, y: 1 }}
       style={aiAvatarStyle}
     >
-      <AIIcon size={16} color="#0f172a" />
+      <PlantAIIcon size={16} color="#0f172a" />
     </LinearGradient>
   );
 };
@@ -737,7 +733,7 @@ export default function AIChatScreen() {
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {!selectedPlant && <AIIcon size={20} color={theme.colors.text} />}
+              {!selectedPlant && <PlantAIIcon size={20} color={theme.colors.text} />}
               <Text style={styles.headerTitle}>
                 {selectedPlant ? `💬 ${selectedPlant.plant_name}` : 'PlantCare AI'}
               </Text>
@@ -802,7 +798,7 @@ export default function AIChatScreen() {
               }
             />
 
-            <SafeAreaView edges={['bottom']} style={styles.inputSafeArea}>
+            <View style={styles.inputSafeArea}>
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
@@ -866,7 +862,7 @@ export default function AIChatScreen() {
                   </TouchableOpacity>
                 </Animated.View>
               </View>
-            </SafeAreaView>
+            </View>
           </KeyboardAvoidingView>
         )}
       </View>
@@ -1066,8 +1062,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 4 : 8,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     alignItems: 'flex-end',

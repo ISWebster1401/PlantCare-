@@ -17,9 +17,12 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { notificationsAPI } from '../services/api';
 import { NotificationResponse } from '../types';
+import { useTheme } from '../context/ThemeContext';
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = createStyles(theme.colors);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -109,7 +112,7 @@ export default function NotificationsScreen() {
           />
         ) : (
           <View style={styles.plantImagePlaceholder}>
-            <Ionicons name="leaf-outline" size={24} color="#4caf50" />
+            <Ionicons name="leaf-outline" size={24} color={theme.colors.primary} />
           </View>
         )}
         
@@ -135,13 +138,13 @@ export default function NotificationsScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Notificaciones</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4caf50" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       </View>
     );
@@ -151,7 +154,7 @@ export default function NotificationsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notificaciones</Text>
         <View style={styles.placeholder} />
@@ -176,7 +179,7 @@ export default function NotificationsScreen() {
 
       {notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-off-outline" size={64} color="#64748b" />
+          <Ionicons name="notifications-off-outline" size={64} color={theme.colors.iconSecondary} />
           <Text style={styles.emptyText}>No hay notificaciones</Text>
           <Text style={styles.emptySubtext}>Tus notificaciones aparecerán aquí</Text>
         </View>
@@ -190,7 +193,7 @@ export default function NotificationsScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor="#4caf50"
+              tintColor={theme.colors.primary}
             />
           }
         />
@@ -199,10 +202,10 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -212,7 +215,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   backButton: {
     padding: 8,
@@ -220,7 +224,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
   },
   placeholder: {
     width: 40,
@@ -229,7 +233,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     margin: 16,
     padding: 12,
     borderRadius: 12,
@@ -244,15 +248,15 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   notificationItem: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   notificationUnread: {
-    borderColor: '#4caf50',
+    borderColor: colors.primary,
     borderWidth: 2,
   },
   notificationContent: {
@@ -264,14 +268,14 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     marginRight: 12,
-    backgroundColor: '#334155',
+    backgroundColor: colors.surfaceSecondary,
   },
   plantImagePlaceholder: {
     width: 48,
     height: 48,
     borderRadius: 24,
     marginRight: 12,
-    backgroundColor: '#334155',
+    backgroundColor: colors.surfaceSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -280,28 +284,28 @@ const styles = StyleSheet.create({
   },
   notificationMessage: {
     fontSize: 16,
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   notificationMessageUnread: {
-    color: '#fff',
+    color: colors.text,
     fontWeight: '600',
   },
   plantName: {
     fontSize: 14,
-    color: '#4caf50',
+    color: colors.primary,
     marginBottom: 4,
   },
   notificationTime: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textTertiary,
     marginTop: 4,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     marginLeft: 8,
     marginTop: 4,
   },
@@ -314,13 +318,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#cbd5e1',
+    color: colors.text,
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   loadingContainer: {
