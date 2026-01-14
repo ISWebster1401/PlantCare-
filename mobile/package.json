@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --tunnel",
-    "start:lan": "expo start --lan",
-    "android": "expo start --android --tunnel",
+    "start": "expo start --lan",
+    "start:tunnel": "expo start --tunnel",
+    "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
   },
