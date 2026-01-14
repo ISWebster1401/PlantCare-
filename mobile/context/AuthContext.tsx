@@ -5,6 +5,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../services/api';
 import { UserResponse, LoginCredentials, UserRegistration, AuthResponse } from '../types';
+import { registerForPushNotificationsAsync, getExpoPushTokenAsync } from '../services/notificationsService';
 
 interface AuthContextType {
   user: UserResponse | null;
@@ -52,6 +53,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (storedToken[1] && storedUser[1]) {
         setToken(storedToken[1]);
         setUser(JSON.parse(storedUser[1]));
+        
+        // Registrar permisos de notificaciones si el usuario ya está autenticado
+        registerForPushNotificationsAsync().then((hasPermissions) => {
+          if (hasPermissions) {
+            getExpoPushTokenAsync().then((token) => {
+              if (token) {
+                console.log('Token de push notificaciones obtenido:', token);
+              }
+            });
+          }
+        });
       } else {
         setToken(null);
         setUser(null);
@@ -75,6 +87,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       setUser(response.user);
       setToken(response.access_token);
+
+      // Registrar permisos de notificaciones después de login exitoso
+      registerForPushNotificationsAsync().then((hasPermissions) => {
+        if (hasPermissions) {
+          getExpoPushTokenAsync().then((token) => {
+            if (token) {
+              console.log('Token de push notificaciones obtenido:', token);
+              // El token se guarda automáticamente en AsyncStorage por getExpoPushTokenAsync
+            }
+          });
+        }
+      });
     } catch (error) {
       console.error('Error guardando sesión:', error);
       throw error;

@@ -14,6 +14,7 @@ import {
 import { PlantResponse } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { Model3DViewer } from './Model3DViewer';
 
 interface PlantCardProps {
   plant: PlantResponse;
@@ -143,9 +144,14 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, index = 0 
             onError={() => console.log('Error cargando default_render_url')}
           />
         ) : plant.model_3d_url ? (
-          // Si hay model_3d_url pero no default_render_url, mostrar un indicador visual
-          <View style={[styles.image, styles.model3dPreview, { backgroundColor: `${getHealthColor(plant.health_status)}20` }]}>
-            <Ionicons name="cube" size={32} color={getHealthColor(plant.health_status)} />
+          // Usar Model3DViewer para mostrar el modelo 3D real
+          <View style={styles.image}>
+            <Model3DViewer
+              modelUrl={plant.model_3d_url}
+              style={styles.image}
+              autoRotate={true}
+              characterMood={plant.character_mood}
+            />
           </View>
         ) : (
           <View style={[styles.placeholder, { backgroundColor: `${getHealthColor(plant.health_status)}15` }]}>
