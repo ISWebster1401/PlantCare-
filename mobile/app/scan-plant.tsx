@@ -20,11 +20,14 @@ import { plantsAPI } from '../services/api';
 import { PlantIdentify } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 import { PlantSpeciesAutocomplete } from '../components/PlantSpeciesAutocomplete';
+import { useTheme } from '../context/ThemeContext';
 
 type Step = 'name' | 'photo' | 'identifying' | 'results' | 'creating';
 
 export default function ScanPlantScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = createStyles(theme.colors);
   const [step, setStep] = useState<Step>('name');
   const [plantName, setPlantName] = useState('');
   const [plantSpecies, setPlantSpecies] = useState(''); // Campo opcional para especie
@@ -186,7 +189,7 @@ export default function ScanPlantScreen() {
             <TextInput
               style={styles.input}
               placeholder="Nombre de la planta (ej: Pepito, Rosita...)"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={theme.colors.textTertiary}
               value={plantName}
               onChangeText={setPlantName}
               autoFocus
@@ -206,7 +209,7 @@ export default function ScanPlantScreen() {
               disabled={!plantName.trim()}
             >
               <Text style={styles.buttonText}>Continuar</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
+              <Ionicons name="arrow-forward" size={20} color={theme.colors.text} style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </ScrollView>
         );
@@ -316,7 +319,7 @@ export default function ScanPlantScreen() {
             </View>
 
             <TouchableOpacity style={styles.button} onPress={createPlant} activeOpacity={0.8}>
-              <Ionicons name="add-circle" size={24} color="#fff" />
+              <Ionicons name="add-circle" size={24} color={theme.colors.text} />
               <Text style={styles.buttonText}>Agregar a Mi Jardín</Text>
             </TouchableOpacity>
 
@@ -357,7 +360,7 @@ export default function ScanPlantScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color={theme.colors.icon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Escanear Planta</Text>
         <View style={styles.closeButton} />
@@ -368,10 +371,10 @@ export default function ScanPlantScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -380,13 +383,13 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 48,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
-    backgroundColor: '#0f172a',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#fff',
+    color: colors.text,
     letterSpacing: 0.5,
   },
   closeButton: {
@@ -395,7 +398,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 20,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surfaceSecondary,
   },
   stepContainer: {
     flex: 1,
@@ -422,34 +425,34 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 12,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
   stepDescription: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 22,
   },
   input: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 18,
     fontSize: 16,
-    color: '#fff',
+    color: colors.text,
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   inputSecondary: {
     marginBottom: 12,
   },
   hintText: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textTertiary,
     textAlign: 'center',
     marginBottom: 24,
     paddingHorizontal: 16,
@@ -464,11 +467,11 @@ const styles = StyleSheet.create({
   photoButton: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 24,
     borderWidth: 2,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
   photoButtonIcon: {
     width: 80,
@@ -480,19 +483,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   photoButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
   button: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     borderRadius: 16,
     padding: 18,
     alignItems: 'center',
     marginBottom: 16,
     flexDirection: 'row',
     justifyContent: 'center',
-    shadowColor: '#4caf50',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -532,14 +535,14 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   loadingText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 20,
     textAlign: 'center',
     marginTop: 16,
     fontWeight: '600',
   },
   loadingSubtext: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 15,
     textAlign: 'center',
     marginTop: 8,
@@ -559,7 +562,7 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: 320,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
   },
   imageOverlay: {
     position: 'absolute',
@@ -570,12 +573,12 @@ const styles = StyleSheet.create({
     background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)',
   },
   resultCard: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -599,7 +602,7 @@ const styles = StyleSheet.create({
   },
   resultSubtitle: {
     fontSize: 15,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
   careLevelBadge: {
@@ -622,12 +625,12 @@ const styles = StyleSheet.create({
   resultCardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
+    color: colors.text,
     marginLeft: 10,
   },
   resultText: {
     fontSize: 15,
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     lineHeight: 24,
   },
   conditionsRow: {
@@ -638,7 +641,7 @@ const styles = StyleSheet.create({
   conditionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surfaceSecondary,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
@@ -646,7 +649,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   conditionText: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,

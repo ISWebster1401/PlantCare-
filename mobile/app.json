@@ -30,7 +30,7 @@
       "favicon": "./assets/favicon.png"
     },
     "packagerOpts": {
-      "hostType": "lan"
+      "hostType": "tunnel"
     },
     "plugins": [
       "expo-router",
