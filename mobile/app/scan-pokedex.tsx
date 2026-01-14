@@ -125,10 +125,31 @@ export default function ScanPokedexScreen() {
       setStep('results');
     } catch (error: any) {
       console.error('Error escaneando planta:', error);
-      Alert.alert(
-        'Error de escaneo',
-        error.response?.data?.detail || 'No se pudo identificar la planta. Intenta con otra foto.'
-      );
+      
+      // Manejar error 404 de forma amigable
+      if (error.response?.status === 404 || error.response?.statusCode === 404) {
+        Alert.alert(
+          '🌱 Planta no encontrada',
+          'Esta planta aún no está en nuestra Pokedex. ¡Pronto la agregaremos! Mientras tanto, puedes intentar con otra planta.',
+          [
+            {
+              text: 'OK',
+              onPress: () => setStep('photo'),
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Error de escaneo',
+          error.response?.data?.detail || 'No se pudo identificar la planta. Intenta con otra foto.',
+          [
+            {
+              text: 'OK',
+              onPress: () => setStep('photo'),
+            },
+          ]
+        );
+      }
       setStep('photo');
     } finally {
       setIsLoading(false);

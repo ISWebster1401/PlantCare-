@@ -28,6 +28,7 @@ import { PlantResponse } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { Model3DViewer } from '../components/Model3DViewer';
 
 interface AIMessage {
   id: string | number;
@@ -191,6 +192,7 @@ export default function AIChatScreen() {
   const streamingMessageIdRef = useRef<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const messageAnimations = useRef<Map<string | number, Animated.Value>>(new Map());
+  const sendButtonScale = useRef(new Animated.Value(1)).current;
 
   const styles = createStyles(theme.colors);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -307,10 +309,11 @@ export default function AIChatScreen() {
     const animValue = new Animated.Value(0);
     messageAnimations.current.set(message.id, animValue);
     
-    Animated.timing(animValue, {
+    Animated.spring(animValue, {
       toValue: 1,
-      duration: 300,
       useNativeDriver: true,
+      tension: 50,
+      friction: 8,
     }).start();
 
     setConversations((prev) =>
@@ -477,19 +480,58 @@ export default function AIChatScreen() {
     }
   };
 
-  const handleSelectPlant = (plant: PlantResponse) => {
+  const handleSelectPlant = async (plant: PlantResponse) => {
     setSelectedPlant(plant);
     setShowPlantSelector(false);
-    // Crear nueva conversación con mensaje de bienvenida personalizado
-    const newConv: Conversation = {
-      id: 'new',
-      title: `Chat con ${plant.plant_name}`,
-      messages: [getWelcomeMessage(plant.plant_name)],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setConversations([newConv]);
-    setActiveConversationId('new');
+    setIsLoading(true);
+    
+    try {
+      // Buscar si ya existe una conversación para esta planta
+      const existingConv = await aiAPI.getConversationByPlant(plant.id);
+      
+      if (existingConv) {
+        // Cargar conversación existente
+        const formattedConv: Conversation = {
+          id: existingConv.id,
+          title: existingConv.title,
+          messages: existingConv.messages.map((msg: any) => ({
+            id: msg.id,
+            type: msg.role === 'user' ? 'user' : 'ai',
+            content: msg.content,
+            timestamp: msg.created_at,
+          })),
+          createdAt: existingConv.created_at,
+          updatedAt: existingConv.updated_at,
+        };
+        setConversations([formattedConv]);
+        setActiveConversationId(formattedConv.id as number);
+      } else {
+        // No existe conversación, crear una nueva local (se creará en el backend al enviar el primer mensaje)
+        const newConv: Conversation = {
+          id: 'new',
+          title: `Chat con ${plant.plant_name}`,
+          messages: [getWelcomeMessage(plant.plant_name)],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setConversations([newConv]);
+        setActiveConversationId('new');
+      }
+    } catch (error) {
+      console.error('Error cargando conversación de planta:', error);
+      // Si hay error, crear conversación local de todas formas
+      const newConv: Conversation = {
+        id: 'new',
+        title: `Chat con ${plant.plant_name}`,
+        messages: [getWelcomeMessage(plant.plant_name)],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setConversations([newConv]);
+      setActiveConversationId('new');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleNewChat = () => {
@@ -636,16 +678,32 @@ export default function AIChatScreen() {
               onPress={() => handleSelectPlant(item)}
               activeOpacity={0.7}
             >
-              {item.character_image_url ? (
-                <Image
-                  source={{ uri: item.character_image_url }}
-                  style={styles.plantCardImage}
-                />
-              ) : (
-                <View style={styles.plantCardImagePlaceholder}>
-                  <Ionicons name="leaf" size={32} color={theme.colors.primary} />
-                </View>
-              )}
+              <View style={styles.plantCardImageContainer}>
+                {item.model_3d_url ? (
+                  <Model3DViewer
+                    modelUrl={item.model_3d_url}
+                    style={styles.plantCardImage}
+                    autoRotate={true}
+                    characterMood={item.character_mood}
+                  />
+                ) : item.character_image_url ? (
+                  <Image
+                    source={{ uri: item.character_image_url }}
+                    style={styles.plantCardImage}
+                    resizeMode="cover"
+                  />
+                ) : item.default_render_url ? (
+                  <Image
+                    source={{ uri: item.default_render_url }}
+                    style={styles.plantCardImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.plantCardImagePlaceholder}>
+                    <Ionicons name="leaf" size={32} color={theme.colors.primary} />
+                  </View>
+                )}
+              </View>
               <View style={styles.plantCardContent}>
                 <Text style={styles.plantCardName}>{item.plant_name}</Text>
                 {item.plant_type && (
@@ -756,30 +814,53 @@ export default function AIChatScreen() {
                     }, 300);
                   }}
                 />
-                <TouchableOpacity
-                  onPress={sendMessage}
-                  disabled={!inputMessage.trim() || isLoading || isStreaming}
-                  style={[
-                    styles.sendButton,
-                    (!inputMessage.trim() || isLoading || isStreaming) && styles.sendButtonDisabled,
-                  ]}
-                  activeOpacity={0.8}
+                <Animated.View
+                  style={{
+                    transform: [{ scale: sendButtonScale }],
+                  }}
                 >
-                  <LinearGradient
-                    colors={inputMessage.trim() && !isLoading && !isStreaming 
-                      ? ['#4ade80', '#22c55e'] 
-                      : ['#94a3b8', '#64748b']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sendButtonGradient}
+                  <TouchableOpacity
+                    onPress={() => {
+                      // Animación de scale al presionar
+                      Animated.sequence([
+                        Animated.spring(sendButtonScale, {
+                          toValue: 0.9,
+                          useNativeDriver: true,
+                          tension: 300,
+                          friction: 10,
+                        }),
+                        Animated.spring(sendButtonScale, {
+                          toValue: 1,
+                          useNativeDriver: true,
+                          tension: 300,
+                          friction: 10,
+                        }),
+                      ]).start();
+                      sendMessage();
+                    }}
+                    disabled={!inputMessage.trim() || isLoading || isStreaming}
+                    style={[
+                      styles.sendButton,
+                      (!inputMessage.trim() || isLoading || isStreaming) && styles.sendButtonDisabled,
+                    ]}
+                    activeOpacity={1}
                   >
-                    {(isLoading || isStreaming) ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Ionicons name="send" size={22} color="#fff" />
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={inputMessage.trim() && !isLoading && !isStreaming
+                        ? ['#4ade80', '#22c55e']
+                        : ['#94a3b8', '#64748b']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.sendButtonGradient}
+                    >
+                      {(isLoading || isStreaming) ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Ionicons name="send" size={22} color="#fff" />
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
             </SafeAreaView>
           </KeyboardAvoidingView>
@@ -1060,6 +1141,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  plantCardImageContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.background,
   },
   plantCardImage: {
     width: 60,
