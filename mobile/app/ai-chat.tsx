@@ -29,6 +29,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Model3DViewer } from '../components/Model3DViewer';
+import { AIIcon } from '../components/AIIcon';
 
 interface AIMessage {
   id: string | number;
@@ -168,7 +169,7 @@ const MessageAvatar: React.FC<{ type: 'user' | 'ai'; colors: any }> = ({ type, c
       end={{ x: 1, y: 1 }}
       style={aiAvatarStyle}
     >
-      <Text style={aiAvatarTextStyle}>🤖</Text>
+      <AIIcon size={16} color="#0f172a" />
     </LinearGradient>
   );
 };
@@ -735,9 +736,12 @@ export default function AIChatScreen() {
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>
-              {selectedPlant ? `💬 ${selectedPlant.plant_name}` : '🤖 PlantCare AI'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {!selectedPlant && <AIIcon size={20} color={theme.colors.text} />}
+              <Text style={styles.headerTitle}>
+                {selectedPlant ? `💬 ${selectedPlant.plant_name}` : 'PlantCare AI'}
+              </Text>
+            </View>
             {(isLoading || isStreaming) && (
               <View style={styles.statusIndicator}>
                 <View style={[styles.statusDot, { backgroundColor: theme.colors.primary }]} />

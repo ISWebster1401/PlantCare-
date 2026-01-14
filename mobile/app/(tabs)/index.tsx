@@ -17,6 +17,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { plantsAPI, sensorsAPI } from '../../services/api';
 import { PlantResponse } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
+import { AIIcon } from '../../components/AIIcon';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -198,9 +199,9 @@ export default function HomeScreen() {
             activeOpacity={0.8}
           >
             <View style={[styles.actionButtonIcon, { backgroundColor: '#9c27b015' }]}>
-              <Ionicons name="chatbubbles" size={24} color="#9c27b0" />
+              <AIIcon size={24} color="#9c27b0" />
             </View>
-            <Text style={styles.actionButtonText}>🤖 Chat con IA</Text>
+            <Text style={styles.actionButtonText}>Chat con IA</Text>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
           </TouchableOpacity>
         </Animated.View>
