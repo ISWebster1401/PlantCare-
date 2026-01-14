@@ -145,7 +145,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
-
 # Crear instancia de configuración con manejo de errores
 import logging
 logger = logging.getLogger(__name__)

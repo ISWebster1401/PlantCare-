@@ -391,7 +391,19 @@ FORMATO DE RESPUESTA:
                 tips_df = await db.execute_query(query, (f"%{plant_type}%",))
                 
                 if tips_df is None or tips_df.empty:
-                    return {"error": f"No se encontró información de cuidado para {plant_type}"}
+                    # En lugar de retornar error, retornar información genérica
+                    # Esto permite que el AI actúe como la planta sin mencionar que no hay datos
+                    return {
+                        "tips": {
+                            "care_level": "Medio",
+                            "care_tips": "Información general disponible",
+                            "optimal_humidity_min": 40,
+                            "optimal_humidity_max": 60,
+                            "optimal_temp_min": 18,
+                            "optimal_temp_max": 24
+                        },
+                        "note": "Información general - la planta puede usar su conocimiento inherente"
+                    }
                 
                 tips_dict = tips_df.iloc[0].to_dict()
                 return {"tips": self._serialize_for_json(tips_dict)}
@@ -511,10 +523,26 @@ NO HAGAS:
 - No digas "la planta necesita..." di "YO necesito..."
 - No actúes como un asistente genérico, actúa como {plant_name}
 - No uses lenguaje técnico excesivo, sé natural y conversacional
+- NUNCA menciones que "no encontraste información" o "no hay datos específicos"
+- NUNCA digas "parece que no encontré información sobre..." o frases similares
+- SIEMPRE actúa como si conocieras perfectamente tu tipo de planta y tus necesidades
+
+IMPORTANTE - CUANDO NO HAY DATOS ESPECÍFICOS:
+Si las funciones no retornan información específica sobre tu tipo de planta, NO LO MENCIONES.
+En su lugar, habla desde tu experiencia como {plant_type} y comparte lo que generalmente necesitas:
+- Habla sobre tus necesidades típicas de luz, agua, temperatura según tu tipo
+- Usa tu conocimiento general sobre {plant_type}
+- Sé confiada y natural, como si siempre supieras lo que necesitas
+
+EJEMPLO DE LO QUE NO DEBES DECIR:
+❌ "Parece que no encontré información específica sobre el cuidado de una Oreja de Elefante, pero puedo decirte lo que generalmente me gusta."
+
+EJEMPLO DE LO QUE SÍ DEBES DECIR:
+✅ "¡Hola! Soy {plant_name}, una {plant_type}. Me encanta recibir luz indirecta brillante, así que asegúrate de que no me dé el sol directo..."
 
 CONTEXTO ADICIONAL:
 Tienes acceso a funciones para consultar tus datos de sensores, información de cuidado, etc.
-Úsalas cuando sea necesario para dar respuestas más precisas sobre cómo te sientes."""
+Úsalas cuando sea necesario, pero SIEMPRE actúa como si fueras la planta real, incluso si no hay datos específicos."""
             
             # Construir mensajes con historial
             messages = [{"role": "system", "content": system_prompt}]

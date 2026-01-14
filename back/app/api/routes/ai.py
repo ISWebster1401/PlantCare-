@@ -305,15 +305,42 @@ async def chat_with_memory(
         # Crear o obtener conversación
         conversation_id = request.conversation_id
         if not conversation_id:
-            # Crear nueva conversación
-            title = request.message[:50] if len(request.message) > 50 else request.message
-            conv_result = await db.execute_query("""
-                INSERT INTO ai_conversations (user_id, title)
-                VALUES (%s, %s)
-                RETURNING id
-            """, (current_user["id"], title))
-            conversation_id = conv_result.iloc[0]["id"]
-            logger.info(f"✅ Nueva conversación creada: {conversation_id}")
+            # Si hay plant_id, buscar si ya existe una conversación para esta planta
+            if request.plant_id:
+                existing_conv = await db.execute_query("""
+                    SELECT id FROM ai_conversations
+                    WHERE user_id = %s AND plant_id = %s
+                    LIMIT 1
+                """, (current_user["id"], request.plant_id))
+                
+                if existing_conv is not None and not existing_conv.empty:
+                    conversation_id = existing_conv.iloc[0]["id"]
+                    logger.info(f"✅ Conversación existente encontrada para planta {request.plant_id}: {conversation_id}")
+                else:
+                    # Crear nueva conversación asociada con la planta
+                    plant_info = await db.execute_query("""
+                        SELECT plant_name FROM plants
+                        WHERE id = %s AND user_id = %s
+                    """, (request.plant_id, current_user["id"]))
+                    plant_name = plant_info.iloc[0]["plant_name"] if plant_info is not None and not plant_info.empty else "Planta"
+                    title = f"Chat con {plant_name}"
+                    conv_result = await db.execute_query("""
+                        INSERT INTO ai_conversations (user_id, title, plant_id)
+                        VALUES (%s, %s, %s)
+                        RETURNING id
+                    """, (current_user["id"], title, request.plant_id))
+                    conversation_id = conv_result.iloc[0]["id"]
+                    logger.info(f"✅ Nueva conversación creada para planta {request.plant_id}: {conversation_id}")
+            else:
+                # Crear nueva conversación sin planta
+                title = request.message[:50] if len(request.message) > 50 else request.message
+                conv_result = await db.execute_query("""
+                    INSERT INTO ai_conversations (user_id, title)
+                    VALUES (%s, %s)
+                    RETURNING id
+                """, (current_user["id"], title))
+                conversation_id = conv_result.iloc[0]["id"]
+                logger.info(f"✅ Nueva conversación creada: {conversation_id}")
         else:
             # Verificar que la conversación pertenece al usuario
             conv_check = await db.execute_query("""
@@ -412,6 +439,85 @@ async def list_conversations(
     except Exception as e:
         logger.error(f"❌ Error listando conversaciones: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error listando conversaciones: {str(e)}")
+
+
+@router.get("/conversations/plant/{plant_id}", response_model=AIConversationDetailResponse)
+async def get_conversation_by_plant(
+    plant_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Obtiene la conversación asociada a una planta específica, o None si no existe."""
+    try:
+        # Verificar que la planta pertenece al usuario
+        plant_check = await db.execute_query("""
+            SELECT id FROM plants
+            WHERE id = %s AND user_id = %s
+        """, (plant_id, current_user["id"]))
+        
+        if plant_check is None or plant_check.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planta no encontrada"
+            )
+        
+        # Buscar conversación para esta planta
+        conv_df = await db.execute_query("""
+            SELECT * FROM ai_conversations
+            WHERE user_id = %s AND plant_id = %s
+            LIMIT 1
+        """, (current_user["id"], plant_id))
+        
+        if conv_df is None or conv_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No existe conversación para esta planta"
+            )
+        
+        conversation = conv_df.iloc[0].to_dict()
+        conversation_id = conversation["id"]
+        
+        # Obtener mensajes
+        messages_df = await db.execute_query("""
+            SELECT * FROM ai_messages
+            WHERE conversation_id = %s
+            ORDER BY created_at ASC
+        """, (conversation_id,))
+        
+        messages = []
+        if messages_df is not None and not messages_df.empty:
+            for _, row in messages_df.iterrows():
+                msg_dict = row.to_dict()
+                metadata = None
+                if msg_dict.get("metadata"):
+                    try:
+                        metadata = json.loads(msg_dict["metadata"]) if isinstance(msg_dict["metadata"], str) else msg_dict["metadata"]
+                    except:
+                        metadata = msg_dict["metadata"]
+                
+                messages.append(AIMessageResponse(
+                    id=int(msg_dict["id"]),
+                    conversation_id=int(msg_dict["conversation_id"]),
+                    role=msg_dict["role"],
+                    content=msg_dict["content"],
+                    metadata=metadata,
+                    created_at=msg_dict["created_at"]
+                ))
+        
+        return AIConversationDetailResponse(
+            id=int(conversation["id"]),
+            user_id=int(conversation["user_id"]),
+            title=conversation["title"],
+            created_at=conversation["created_at"],
+            updated_at=conversation["updated_at"],
+            messages=messages
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo conversación por planta: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error obteniendo conversación: {str(e)}")
 
 
 @router.get("/conversations/{conversation_id}", response_model=AIConversationDetailResponse)
@@ -526,13 +632,38 @@ async def chat_stream(
             # Crear o obtener conversación
             conversation_id = request.conversation_id
             if not conversation_id:
-                title = request.message[:50] if len(request.message) > 50 else request.message
-                conv_result = await db.execute_query("""
-                    INSERT INTO ai_conversations (user_id, title)
-                    VALUES (%s, %s)
-                    RETURNING id
-                """, (current_user["id"], title))
-                conversation_id = conv_result.iloc[0]["id"]
+                # Si hay plant_id, buscar si ya existe una conversación para esta planta
+                if request.plant_id:
+                    existing_conv = await db.execute_query("""
+                        SELECT id FROM ai_conversations
+                        WHERE user_id = %s AND plant_id = %s
+                        LIMIT 1
+                    """, (current_user["id"], request.plant_id))
+                    
+                    if existing_conv is not None and not existing_conv.empty:
+                        conversation_id = existing_conv.iloc[0]["id"]
+                    else:
+                        # Crear nueva conversación asociada con la planta
+                        plant_info = await db.execute_query("""
+                            SELECT plant_name FROM plants
+                            WHERE id = %s AND user_id = %s
+                        """, (request.plant_id, current_user["id"]))
+                        plant_name = plant_info.iloc[0]["plant_name"] if plant_info is not None and not plant_info.empty else "Planta"
+                        title = f"Chat con {plant_name}"
+                        conv_result = await db.execute_query("""
+                            INSERT INTO ai_conversations (user_id, title, plant_id)
+                            VALUES (%s, %s, %s)
+                            RETURNING id
+                        """, (current_user["id"], title, request.plant_id))
+                        conversation_id = conv_result.iloc[0]["id"]
+                else:
+                    title = request.message[:50] if len(request.message) > 50 else request.message
+                    conv_result = await db.execute_query("""
+                        INSERT INTO ai_conversations (user_id, title)
+                        VALUES (%s, %s)
+                        RETURNING id
+                    """, (current_user["id"], title))
+                    conversation_id = conv_result.iloc[0]["id"]
             else:
                 # Verificar que la conversación pertenece al usuario
                 conv_check = await db.execute_query("""

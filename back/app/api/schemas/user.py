@@ -49,7 +49,19 @@ class GoogleAuthRequest(BaseModel):
 
 class UserUpdate(BaseModel):
     """Esquema para actualizar usuario (ESQUEMA V2)"""
-    full_name: Optional[str] = Field(None, min_length=2, max_length=255)
+    full_name: Optional[str] = Field(None, max_length=255)
+    
+    @field_validator('full_name')
+    @classmethod
+    def validate_full_name(cls, v):
+        if v is not None:
+            stripped = v.strip()
+            if len(stripped) < 2:
+                raise ValueError('El nombre debe tener al menos 2 caracteres')
+            if len(stripped) > 255:
+                raise ValueError('El nombre no puede tener más de 255 caracteres')
+            return stripped
+        return v
 
 class UserResponse(UserBase):
     """Esquema de respuesta para usuario (ESQUEMA V2 CON role_id)"""
