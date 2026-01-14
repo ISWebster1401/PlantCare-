@@ -141,6 +141,15 @@ async def _create_tables(db: AsyncPgDbToolkit):
                         await db.execute_query("ALTER TABLE users ADD COLUMN role_id INTEGER")
                         logger.info("✅ Columna role_id agregada")
                     
+                    # Agregar columnas adicionales para perfil
+                    for col in ['phone', 'bio', 'location']:
+                        try:
+                            await db.execute_query(f"SELECT {col} FROM users LIMIT 1")
+                        except:
+                            max_length = 20 if col == 'phone' else (500 if col == 'bio' else 100)
+                            await db.execute_query(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} VARCHAR({max_length})")
+                            logger.info(f"✅ Columna {col} agregada")
+                    
                     try:
                         await db.execute_query("SELECT is_active FROM users LIMIT 1")
                     except:

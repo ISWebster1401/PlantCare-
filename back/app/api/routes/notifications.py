@@ -4,6 +4,7 @@ Rutas para gestión de notificaciones.
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 import logging
+import pandas as pd
 
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
@@ -43,20 +44,34 @@ async def list_notifications(
         # Enriquecer con datos de la planta
         result = []
         for _, row in notifications.iterrows():
-            notif = row.to_dict()
-            
-            # Obtener datos de la planta si existe
-            if notif.get("plant_id"):
-                plants = await db.fetch_records(
-                    "plants",
-                    conditions={"id": notif["plant_id"]}
-                )
-                if plants is not None and not plants.empty:
-                    plant = plants.iloc[0].to_dict()
-                    notif["plant_name"] = plant.get("plant_name")
-                    notif["character_image_url"] = plant.get("character_image_url")
-            
-            result.append(NotificationResponse(**notif))
+            try:
+                notif = row.to_dict()
+                
+                # Inicializar campos opcionales
+                notif["plant_name"] = None
+                notif["character_image_url"] = None
+                
+                # Obtener datos de la planta si existe
+                plant_id = notif.get("plant_id")
+                if plant_id and pd.notna(plant_id):
+                    try:
+                        plants = await db.fetch_records(
+                            "plants",
+                            conditions={"id": int(plant_id)}
+                        )
+                        if plants is not None and not plants.empty:
+                            plant = plants.iloc[0].to_dict()
+                            notif["plant_name"] = plant.get("plant_name")
+                            notif["character_image_url"] = plant.get("character_image_url")
+                    except Exception as plant_error:
+                        logger.warning(f"Error obteniendo datos de planta {plant_id}: {plant_error}")
+                        # Continuar sin datos de la planta
+                
+                result.append(NotificationResponse(**notif))
+            except Exception as row_error:
+                logger.warning(f"Error procesando notificación: {row_error}")
+                # Continuar con la siguiente notificación
+                continue
         
         return result
         

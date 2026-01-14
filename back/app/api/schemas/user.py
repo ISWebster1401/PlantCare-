@@ -50,6 +50,10 @@ class GoogleAuthRequest(BaseModel):
 class UserUpdate(BaseModel):
     """Esquema para actualizar usuario (ESQUEMA V2)"""
     full_name: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=20)
+    bio: Optional[str] = Field(None, max_length=500)
+    location: Optional[str] = Field(None, max_length=100)
+    avatar_url: Optional[str] = Field(None, max_length=500)
     
     @field_validator('full_name')
     @classmethod
@@ -61,6 +65,36 @@ class UserUpdate(BaseModel):
             if len(stripped) > 255:
                 raise ValueError('El nombre no puede tener más de 255 caracteres')
             return stripped
+        return v
+    
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v):
+        if v is not None:
+            stripped = v.strip()
+            if stripped and len(stripped) > 20:
+                raise ValueError('El teléfono no puede tener más de 20 caracteres')
+            return stripped if stripped else None
+        return v
+    
+    @field_validator('bio')
+    @classmethod
+    def validate_bio(cls, v):
+        if v is not None:
+            stripped = v.strip()
+            if len(stripped) > 500:
+                raise ValueError('La biografía no puede tener más de 500 caracteres')
+            return stripped if stripped else None
+        return v
+    
+    @field_validator('location')
+    @classmethod
+    def validate_location(cls, v):
+        if v is not None:
+            stripped = v.strip()
+            if len(stripped) > 100:
+                raise ValueError('La ubicación no puede tener más de 100 caracteres')
+            return stripped if stripped else None
         return v
 
 class UserResponse(UserBase):
