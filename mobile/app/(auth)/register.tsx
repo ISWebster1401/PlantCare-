@@ -1,22 +1,24 @@
 /**
- * Pantalla de registro
+ * Pantalla de registro - Rediseñada con DesignSystem
  */
 import React, { useState } from 'react';
 import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { UserRegistration } from '../../types';
+import { Button, Card } from '../../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../../constants/DesignSystem';
 
 export default function RegisterScreen() {
   const [formData, setFormData] = useState<UserRegistration>({
@@ -50,7 +52,6 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    // Validaciones
     if (!formData.full_name.trim() || !formData.email.trim() || !formData.password || !formData.confirm_password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
@@ -96,74 +97,101 @@ export default function RegisterScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <LinearGradient
+        colors={Gradients.card}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.content}>
-          <Text style={styles.title}>🌱 PlantCare</Text>
-          <Text style={styles.subtitle}>Crea tu cuenta</Text>
-
-          <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre completo"
-              placeholderTextColor="#666"
-              value={formData.full_name}
-              onChangeText={(text) => setFormData({ ...formData, full_name: text })}
-              editable={!isLoading}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#666"
-              value={formData.email}
-              onChangeText={(text) => setFormData({ ...formData, email: text })}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Contraseña"
-              placeholderTextColor="#666"
-              value={formData.password}
-              onChangeText={(text) => setFormData({ ...formData, password: text })}
-              secureTextEntry
-              editable={!isLoading}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Confirmar contraseña"
-              placeholderTextColor="#666"
-              value={formData.confirm_password}
-              onChangeText={(text) => setFormData({ ...formData, confirm_password: text })}
-              secureTextEntry
-              editable={!isLoading}
-            />
-
-            <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Registrarse</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.back()}
-              disabled={isLoading}
-            >
-              <Text style={styles.linkText}>
-                ¿Ya tienes cuenta? <Text style={styles.linkBold}>Inicia sesión</Text>
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.header}>
+            <Text style={styles.emoji}>🌱</Text>
+            <Text style={styles.title}>Únete a PlantCare</Text>
+            <Text style={styles.subtitle}>Crea tu cuenta y comienza a cuidar tus plantas</Text>
           </View>
+
+          <Card variant="elevated" style={styles.formCard}>
+            <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <Ionicons name="person-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Nombre completo"
+                  placeholderTextColor={Colors.textMuted}
+                  value={formData.full_name}
+                  onChangeText={(text) => setFormData({ ...formData, full_name: text })}
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor={Colors.textMuted}
+                  value={formData.email}
+                  onChangeText={(text) => setFormData({ ...formData, email: text })}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Contraseña"
+                  placeholderTextColor={Colors.textMuted}
+                  value={formData.password}
+                  onChangeText={(text) => setFormData({ ...formData, password: text })}
+                  secureTextEntry
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirmar contraseña"
+                  placeholderTextColor={Colors.textMuted}
+                  value={formData.confirm_password}
+                  onChangeText={(text) => setFormData({ ...formData, confirm_password: text })}
+                  secureTextEntry
+                  editable={!isLoading}
+                />
+              </View>
+
+              <Button
+                title="Crear Cuenta"
+                onPress={handleRegister}
+                variant="primary"
+                size="lg"
+                loading={isLoading}
+                disabled={isLoading}
+                fullWidth
+                style={styles.registerButton}
+              />
+
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>¿Ya tienes cuenta? </Text>
+                <Button
+                  title="Inicia Sesión"
+                  onPress={() => router.push('/(auth)/login')}
+                  variant="ghost"
+                  size="sm"
+                  disabled={isLoading}
+                />
+              </View>
+            </View>
+          </Card>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -173,64 +201,74 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
+    padding: Spacing.lg,
   },
   content: {
-    padding: 24,
+    width: '100%',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  emoji: {
+    fontSize: 64,
+    marginBottom: Spacing.sm,
   },
   title: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#4caf50',
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.extrabold,
+    color: Colors.primary,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
-    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#b0bec5',
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.regular,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+  },
+  formCard: {
+    width: '100%',
   },
   form: {
     width: '100%',
   },
-  input: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  button: {
-    backgroundColor: '#4caf50',
-    borderRadius: 12,
-    padding: 16,
+  inputContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.backgroundLighter,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  inputIcon: {
+    marginRight: Spacing.sm,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: Typography.sizes.base,
+    color: Colors.text,
+    paddingVertical: 0,
   },
-  linkText: {
-    color: '#b0bec5',
-    textAlign: 'center',
-    fontSize: 14,
+  registerButton: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  linkBold: {
-    color: '#4caf50',
-    fontWeight: '600',
+  loginContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
   },
 });

@@ -1,301 +1,197 @@
 /**
- * Componente para mostrar una tarjeta de planta
+ * PlantCard Component - Estilo Duolingo/Pokémon
+ * 
+ * Tarjeta de planta con diseño moderno usando DesignSystem
  */
-import React, { useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  ImageSourcePropType,
-  Animated,
-} from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Card, PlantAvatar, Badge, ProgressBar } from './ui';
+import { Colors, Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType } from '../constants/DesignSystem';
 import { PlantResponse } from '../types';
-import { useTheme } from '../context/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
-import { Model3DViewer } from './Model3DViewer';
 
-interface PlantCardProps {
+export interface PlantCardProps {
   plant: PlantResponse;
   onPress?: () => void;
-  index?: number;
+  style?: ViewStyle;
 }
 
-export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, index = 0 }) => {
-  const { theme } = useTheme();
-  const styles = createStyles(theme.colors);
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const entranceAnim = useRef(new Animated.Value(0)).current;
-  const moodBadgeScale = useRef(new Animated.Value(1)).current;
-  const getMoodEmoji = (mood: string) => {
-    const moodMap: Record<string, string> = {
-      happy: '😊',
-      sad: '😢',
-      neutral: '😐',
-      excited: '🤩',
-    };
-    return moodMap[mood] || '🌱';
+export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) => {
+  const router = useRouter();
+
+  const handlePress = () => {
+    if (onPress) {
+      onPress();
+    } else {
+      router.push(`/plant-detail?id=${plant.id}`);
+    }
   };
 
-  const getHealthColor = (health: string) => {
-    const healthMap: Record<string, string> = {
-      healthy: '#4caf50',
-      warning: '#ff9800',
-      critical: '#f44336',
-    };
-    return healthMap[health] || '#b0bec5';
+  // Determinar estado de salud con validación
+  const getValidHealthStatus = (): 'healthy' | 'warning' | 'critical' => {
+    const status = plant.health_status as string;
+    if (status === 'healthy' || status === 'warning' || status === 'critical') {
+      return status;
+    }
+    return 'healthy';
   };
 
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.98,
-      useNativeDriver: true,
-      tension: 300,
-      friction: 10,
-    }).start();
+  // Determinar mood con validación defensiva
+  const getValidMood = (): PlantMoodType => {
+    const moodValue = plant.character_mood as string;
+    if (moodValue && PlantMoods[moodValue as PlantMoodType]) {
+      return moodValue as PlantMoodType;
+    }
+    // Si el mood es inválido o no existe, usar 'happy' por defecto
+    return 'happy';
   };
 
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 300,
-      friction: 10,
-    }).start();
+  const healthStatus = getValidHealthStatus();
+  const mood = getValidMood();
+
+  // Calcular progreso de salud (ejemplo: basado en días desde último riego)
+  const getHealthProgress = (): number => {
+    if (healthStatus === 'healthy') return 100;
+    if (healthStatus === 'warning') return 60;
+    return 30;
   };
 
-  useEffect(() => {
-    // Animación de entrada escalonada
-    Animated.spring(entranceAnim, {
-      toValue: 1,
-      delay: index * 50,
-      useNativeDriver: true,
-      tension: 50,
-      friction: 8,
-    }).start();
-    
-    // Animación de pulse para el mood badge
-    const pulseAnim = Animated.loop(
-      Animated.sequence([
-        Animated.spring(moodBadgeScale, {
-          toValue: 1.15,
-          useNativeDriver: true,
-          tension: 200,
-          friction: 3,
-        }),
-        Animated.spring(moodBadgeScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 200,
-          friction: 3,
-        }),
-        Animated.delay(2000),
-      ]),
-      { iterations: 1 }
+  // Calcular progreso de agua (ejemplo: basado en last_watered)
+  const getWaterProgress = (): number => {
+    if (!plant.last_watered) return 20;
+    const daysSinceWatered = Math.floor(
+      (Date.now() - new Date(plant.last_watered).getTime()) / (1000 * 60 * 60 * 24)
     );
-    
-    // Ejecutar pulse una vez al montar
-    setTimeout(() => {
-      pulseAnim.start();
-    }, 500 + index * 50);
-  }, []);
+    if (daysSinceWatered < 2) return 100;
+    if (daysSinceWatered < 5) return 60;
+    if (daysSinceWatered < 7) return 30;
+    return 10;
+  };
 
-  const opacity = entranceAnim;
-  const translateY = entranceAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [20, 0],
-  });
+  const healthProgress = getHealthProgress();
+  const waterProgress = getWaterProgress();
 
   return (
-    <Animated.View
-      style={[
-        {
-          transform: [{ scale: scaleAnim }, { translateY }],
-          opacity,
-        },
-      ]}
+    <Card
+      variant="elevated"
+      onPress={handlePress}
+      style={[styles.card, style]}
+      accessibilityLabel={`Planta ${plant.plant_name}, estado ${healthStatus}`}
     >
-      <TouchableOpacity 
-        style={[
-          styles.card,
-          {
-            borderLeftColor: getHealthColor(plant.health_status),
-          },
-        ]} 
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        activeOpacity={1}
-      >
-      <View style={styles.imageContainer}>
-        {plant.character_image_url ? (
-          <Image
-            source={{ uri: plant.character_image_url }}
-            style={styles.image}
-            resizeMode="cover"
-            onError={() => console.log('Error cargando character_image_url')}
+      <View style={styles.container}>
+        {/* Avatar y nombre */}
+        <View style={styles.header}>
+          <PlantAvatar
+            imageUrl={plant.character_image_url || plant.original_photo_url}
+            mood={mood}
+            healthStatus={healthStatus}
+            size={80}
+            showMoodEmoji={true}
+            showGlow={true}
           />
-        ) : plant.default_render_url ? (
-          <Image
-            source={{ uri: plant.default_render_url }}
-            style={styles.image}
-            resizeMode="cover"
-            onError={() => console.log('Error cargando default_render_url')}
-          />
-        ) : plant.model_3d_url ? (
-          // Usar Model3DViewer para mostrar el modelo 3D real
-          <View style={styles.image}>
-            <Model3DViewer
-              modelUrl={plant.model_3d_url}
-              style={styles.image}
-              autoRotate={true}
-              characterMood={plant.character_mood}
+          <View style={styles.nameContainer}>
+            <Text style={styles.plantName} numberOfLines={1}>
+              {plant.plant_name}
+            </Text>
+            {plant.plant_type && (
+              <Text style={styles.plantType} numberOfLines={1}>
+                {plant.plant_type}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Badge de estado */}
+        <View style={styles.badgeContainer}>
+          <Badge status={healthStatus} size="sm" />
+        </View>
+
+        {/* Barras de progreso */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressItem}>
+            <Text style={styles.progressLabel}>Salud</Text>
+            <ProgressBar
+              progress={healthProgress}
+              height={8}
+              color={HealthStatuses[healthStatus].color}
+              showShimmer={healthStatus === 'healthy'}
             />
           </View>
-        ) : (
-          <View style={[styles.placeholder, { backgroundColor: `${getHealthColor(plant.health_status)}15` }]}>
-            <Ionicons name="leaf" size={40} color={getHealthColor(plant.health_status)} />
+          <View style={styles.progressItem}>
+            <Text style={styles.progressLabel}>Agua</Text>
+            <ProgressBar
+              progress={waterProgress}
+              height={8}
+              gradient={['#64B5F6', '#4FC3F7']}
+              showShimmer={waterProgress > 80}
+            />
+          </View>
+        </View>
+
+        {/* Mensaje del mood */}
+        {PlantMoods[mood] && (
+          <View style={styles.moodContainer}>
+            <Text style={styles.moodText}>
+              {PlantMoods[mood].emoji} {PlantMoods[mood].message}
+            </Text>
           </View>
         )}
-        <Animated.View
-          style={[
-            styles.moodBadge,
-            {
-              backgroundColor: getHealthColor(plant.health_status),
-              transform: [{ scale: moodBadgeScale }],
-            },
-          ]}
-        >
-          <Text style={styles.moodEmoji}>{getMoodEmoji(plant.character_mood)}</Text>
-        </Animated.View>
       </View>
-
-      <View style={styles.content}>
-        <Text style={styles.plantName} numberOfLines={1}>
-          {plant.plant_name}
-        </Text>
-        <Text style={styles.plantType} numberOfLines={1}>
-          {plant.plant_type || 'Planta'}
-        </Text>
-
-        <View style={styles.healthContainer}>
-          <View style={[styles.healthIndicator, { backgroundColor: getHealthColor(plant.health_status) }]} />
-          <Text style={[styles.healthText, { color: getHealthColor(plant.health_status) }]}>
-            {plant.health_status === 'healthy' ? 'Saludable' : 
-             plant.health_status === 'warning' ? 'Atención' : 'Crítico'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.chevronContainer}>
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.iconSecondary} />
-      </View>
-      </TouchableOpacity>
-    </Animated.View>
+    </Card>
   );
 };
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
+    marginBottom: Spacing.md,
+  },
+  container: {
+    width: '100%',
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    marginBottom: Spacing.md,
   },
-  imageContainer: {
-    position: 'relative',
-    marginRight: 16,
-  },
-  image: {
-    width: 88,
-    height: 88,
-    borderRadius: 16,
-    backgroundColor: colors.background,
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  placeholder: {
-    width: 88,
-    height: 88,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  model3dPreview: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: `${colors.primary}10`,
-  },
-  moodBadge: {
-    position: 'absolute',
-    bottom: -6,
-    right: -6,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: colors.surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  moodEmoji: {
-    fontSize: 18,
-  },
-  content: {
+  nameContainer: {
     flex: 1,
+    marginLeft: Spacing.md,
   },
   plantName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 6,
-    letterSpacing: 0.3,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
   },
   plantType: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    marginBottom: 10,
-    fontWeight: '500',
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.regular,
+    color: Colors.textSecondary,
   },
-  healthContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${colors.primary}10`,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
+  badgeContainer: {
+    marginBottom: Spacing.md,
   },
-  healthIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
+  progressContainer: {
+    marginBottom: Spacing.md,
   },
-  healthText: {
-    fontSize: 13,
-    fontWeight: '600',
+  progressItem: {
+    marginBottom: Spacing.sm,
   },
-  chevronContainer: {
-    marginLeft: 8,
-    opacity: 0.5,
+  progressLabel: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  moodContainer: {
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.backgroundLighter,
+  },
+  moodText: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
 });
