@@ -67,17 +67,29 @@ export async function getExpoPushTokenAsync(): Promise<string | null> {
     }
 
     // Obtener el token
-    // Expo automáticamente detecta el projectId desde app.json
-    const tokenData = await Notifications.getExpoPushTokenAsync();
-
-    const token = tokenData.data;
-    
-    // Guardar el token en AsyncStorage para uso posterior
-    await AsyncStorage.setItem('expo_push_token', token);
-    
-    return token;
+    // En Expo Go, projectId puede no estar disponible, manejar error silenciosamente
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync();
+      const token = tokenData.data;
+      
+      // Guardar el token en AsyncStorage para uso posterior
+      await AsyncStorage.setItem('expo_push_token', token);
+      
+      return token;
+    } catch (tokenError: any) {
+      // En Expo Go, el error de projectId es esperado, no mostrar error
+      if (tokenError?.message?.includes('projectId')) {
+        // Expo Go no soporta push notifications completamente, solo mostrar warning
+        return null;
+      }
+      throw tokenError; // Re-lanzar otros errores
+    }
   } catch (error) {
-    console.error('Error obteniendo token de push:', error);
+    // Solo loggear errores que no sean de projectId
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!errorMessage.includes('projectId')) {
+      console.error('Error obteniendo token de push:', error);
+    }
     return null;
   }
 }

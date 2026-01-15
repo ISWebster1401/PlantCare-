@@ -597,23 +597,64 @@ async def list_plants(
         for _, row in plants_df.iterrows():
             try:
                 plant = row.to_dict()
+                
+                # Asegurar valores por defecto para campos requeridos
                 if not plant.get("character_mood"):
                     plant["character_mood"] = "happy"
                 if not plant.get("health_status"):
                     plant["health_status"] = "healthy"
-                # Manejar valores NaN/None de pandas para campos de modelo 3D
+                
+                # Manejar valores NaN/None de pandas - convertir a None explícitamente
+                # Campos numéricos
+                for field in ["sensor_id", "assigned_model_id", "assignment_id"]:
+                    if pd.isna(plant.get(field)):
+                        plant[field] = None
+                    elif field in plant:
+                        try:
+                            plant[field] = int(plant[field]) if plant[field] is not None else None
+                        except (ValueError, TypeError):
+                            plant[field] = None
+                
+                # Campos de texto opcionales
+                for field in ["plant_type", "scientific_name", "care_level", "care_tips", 
+                             "original_photo_url", "character_image_url", "character_personality"]:
+                    if pd.isna(plant.get(field)):
+                        plant[field] = None
+                    elif field in plant and plant[field] is not None:
+                        plant[field] = str(plant[field]).strip() if plant[field] else None
+                
+                # Campos de modelo 3D
                 if pd.notna(plant.get("model_3d_url")):
                     plant["model_3d_url"] = str(plant["model_3d_url"])
                 else:
                     plant["model_3d_url"] = None
+                    
                 if pd.notna(plant.get("default_render_url")):
                     plant["default_render_url"] = str(plant["default_render_url"])
                 else:
                     plant["default_render_url"] = None
+                
+                # Campos flotantes opcionales
+                for field in ["optimal_humidity_min", "optimal_humidity_max", 
+                             "optimal_temp_min", "optimal_temp_max"]:
+                    if pd.isna(plant.get(field)):
+                        plant[field] = None
+                    elif field in plant and plant[field] is not None:
+                        try:
+                            plant[field] = float(plant[field])
+                        except (ValueError, TypeError):
+                            plant[field] = None
+                
+                # Asegurar que created_at y updated_at sean datetime
+                for field in ["created_at", "updated_at", "last_watered"]:
+                    if field in plant and pd.isna(plant[field]):
+                        plant[field] = None
+                
                 plants.append(PlantResponse(**plant))
             except Exception as e:
                 logger.warning(
-                    f"Error serializando planta {plant.get('id', 'unknown')}: {e} | data={plant}"
+                    f"Error serializando planta {plant.get('id', 'unknown')}: {e} | data={plant}",
+                    exc_info=True
                 )
 
         return plants
