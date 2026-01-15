@@ -1,182 +1,133 @@
 /**
- * Pantalla de Configuración
+ * Pantalla de Configuración - Rediseñada con DesignSystem
+ * 
+ * Nota: Como eliminamos ThemeContext, esta pantalla ahora solo muestra información
+ * El tema se maneja a nivel del sistema operativo
  */
 import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  Switch,
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../context/ThemeContext';
+import { Card, Button } from '../components/ui';
+import { Colors, Typography, Spacing, Gradients } from '../constants/DesignSystem';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { theme, themeMode, setThemeMode } = useTheme();
-
-  const styles = createStyles(theme.colors);
-
-  const handleToggleTheme = async (value: boolean) => {
-    await setThemeMode(value ? 'light' : 'dark');
-  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Configuración</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <LinearGradient
+        colors={Gradients.ocean}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <Button
+          title=""
+          onPress={() => router.back()}
+          variant="ghost"
+          size="sm"
+          icon="arrow-back"
+          style={styles.backButton}
+        />
+        <Text style={styles.headerTitle}>⚙️ Configuración</Text>
+        <View style={styles.backButtonPlaceholder} />
+      </LinearGradient>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Sección de Apariencia */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Apariencia</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons 
-                name={theme.mode === 'light' ? 'sunny' : 'moon'} 
-                size={24} 
-                color={theme.colors.icon} 
-              />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingLabel}>Modo Claro</Text>
-                <Text style={styles.settingDescription}>
-                  Cambia entre tema claro y oscuro
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={theme.mode === 'light'}
-              onValueChange={handleToggleTheme}
-              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-              thumbColor={theme.colors.surface}
-            />
+        <Card variant="elevated" style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="information-circle-outline" size={24} color={Colors.secondary} />
+            <Text style={styles.sectionTitle}>Información</Text>
           </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="color-palette-outline" size={24} color={theme.colors.icon} />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingLabel}>Tema Actual</Text>
-                <Text style={styles.settingDescription}>
-                  {theme.mode === 'light' ? 'Modo Claro' : 'Modo Oscuro'}
-                  {themeMode === 'system' && ' (Sistema)'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Sección de Información */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Información</Text>
           
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="information-circle-outline" size={24} color={theme.colors.icon} />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingLabel}>Acerca de</Text>
-                <Text style={styles.settingDescription}>Versión y más información</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="help-circle-outline" size={24} color={theme.colors.icon} />
-              <View style={styles.settingTextContainer}>
-                <Text style={styles.settingLabel}>Ayuda</Text>
-                <Text style={styles.settingDescription}>Soporte y preguntas frecuentes</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
-          </TouchableOpacity>
-        </View>
+          <Button
+            title="Acerca de"
+            onPress={() => {}}
+            variant="ghost"
+            size="md"
+            icon="information-circle-outline"
+            iconPosition="left"
+            fullWidth
+            style={styles.menuItem}
+          />
+          <View style={styles.divider} />
+          <Button
+            title="Ayuda"
+            onPress={() => {}}
+            variant="ghost"
+            size="md"
+            icon="help-circle-outline"
+            iconPosition="left"
+            fullWidth
+            style={styles.menuItem}
+          />
+        </Card>
       </ScrollView>
     </View>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    padding: 8,
+    padding: Spacing.lg,
+    paddingTop: 60,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
   },
-  placeholder: {
+  backButton: {
+    width: 40,
+    height: 40,
+    padding: 0,
+  },
+  backButtonPlaceholder: {
     width: 40,
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    padding: Spacing.lg,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: Spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 16,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginLeft: Spacing.sm,
   },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+  menuItem: {
+    justifyContent: 'flex-start',
+    paddingVertical: Spacing.md,
   },
-  settingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingTextContainer: {
-    marginLeft: 16,
-    flex: 1,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  settingDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  divider: {
+    height: 1,
+    backgroundColor: Colors.backgroundLighter,
+    marginVertical: Spacing.xs,
   },
 });

@@ -1,19 +1,18 @@
 /**
- * Pantalla de Perfil
+ * Pantalla de Perfil - Rediseñada con DesignSystem
  */
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
+import { Card, Button } from '../../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../../constants/DesignSystem';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
-  const { theme } = useTheme();
   const router = useRouter();
-  
-  const styles = createStyles(theme.colors);
 
   const handleLogout = () => {
     Alert.alert(
@@ -34,129 +33,154 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color={theme.colors.primary} />
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header con gradiente */}
+      <LinearGradient
+        colors={Gradients.primary}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <Ionicons name="person" size={48} color={Colors.primary} />
+          </View>
         </View>
         <Text style={styles.name}>{user?.full_name || 'Usuario'}</Text>
         <Text style={styles.email}>{user?.email}</Text>
-      </View>
+      </LinearGradient>
 
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/edit-profile')}
-        >
-          <Ionicons name="person-outline" size={24} color={theme.colors.icon} />
-          <Text style={styles.menuText}>Editar Perfil</Text>
-          <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/notifications')}
-        >
-          <Ionicons name="notifications-outline" size={24} color={theme.colors.icon} />
-          <Text style={styles.menuText}>Notificaciones</Text>
-          <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/settings')}
-        >
-          <Ionicons name="settings-outline" size={24} color={theme.colors.icon} />
-          <Text style={styles.menuText}>Configuración</Text>
-          <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
-        </TouchableOpacity>
-
-        {user?.role_id === 2 && (
-          <TouchableOpacity
+      <View style={styles.content}>
+        <Card variant="elevated" style={styles.menuCard}>
+          <Button
+            title="Editar Perfil"
+            onPress={() => router.push('/edit-profile')}
+            variant="ghost"
+            size="lg"
+            icon="person-outline"
+            iconPosition="left"
+            fullWidth
             style={styles.menuItem}
-            onPress={() => router.push('/admin')}
-          >
-            <Ionicons name="shield-checkmark-outline" size={24} color={theme.colors.primary} />
-            <Text style={[styles.menuText, { color: theme.colors.primary }]}>Panel Admin</Text>
-            <Ionicons name="chevron-forward" size={24} color={theme.colors.iconSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
+          />
+          <View style={styles.divider} />
+          <Button
+            title="Notificaciones"
+            onPress={() => router.push('/notifications')}
+            variant="ghost"
+            size="lg"
+            icon="notifications-outline"
+            iconPosition="left"
+            fullWidth
+            style={styles.menuItem}
+          />
+          <View style={styles.divider} />
+          <Button
+            title="Configuración"
+            onPress={() => router.push('/settings')}
+            variant="ghost"
+            size="lg"
+            icon="settings-outline"
+            iconPosition="left"
+            fullWidth
+            style={styles.menuItem}
+          />
+          {user?.role_id === 2 && (
+            <>
+              <View style={styles.divider} />
+              <Button
+                title="Panel Admin"
+                onPress={() => router.push('/admin')}
+                variant="ghost"
+                size="lg"
+                icon="shield-checkmark-outline"
+                iconPosition="left"
+                fullWidth
+                style={[styles.menuItem, styles.adminItem]}
+              />
+            </>
+          )}
+        </Card>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Ionicons name="log-out-outline" size={24} color="#f44336" />
-        <Text style={styles.logoutText}>Cerrar Sesión</Text>
-      </TouchableOpacity>
-    </View>
+        <Button
+          title="Cerrar Sesión"
+          onPress={handleLogout}
+          variant="danger"
+          size="lg"
+          icon="log-out-outline"
+          iconPosition="left"
+          fullWidth
+          style={styles.logoutButton}
+        />
+      </View>
+    </ScrollView>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
-    padding: 24,
-    paddingTop: 48,
+    paddingTop: 60,
+    paddingBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
     alignItems: 'center',
+  },
+  avatarContainer: {
+    marginBottom: Spacing.md,
   },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: colors.primary,
+    borderWidth: 4,
+    borderColor: Colors.white,
+    ...Shadows.lg,
   },
   name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 4,
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
+    marginBottom: Spacing.xs,
   },
   email: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.base,
+    color: Colors.white,
+    opacity: 0.9,
   },
-  section: {
-    padding: 16,
+  content: {
+    padding: Spacing.lg,
+    paddingBottom: 120, // Más espacio arriba para subir el contenido
+  },
+  menuCard: {
+    marginBottom: Spacing.lg,
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+    height: 'auto' as any,
+    minHeight: 72,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    justifyContent: 'flex-start' as any,
   },
-  menuText: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-    marginLeft: 16,
+  adminItem: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.backgroundLighter,
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.backgroundLighter,
+    marginVertical: Spacing.sm,
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    margin: 16,
-    marginTop: 'auto',
-    borderWidth: 1,
-    borderColor: colors.error,
-  },
-  logoutText: {
-    fontSize: 16,
-    color: colors.error,
-    fontWeight: '600',
-    marginLeft: 8,
+    marginTop: Spacing.lg,
+    minHeight: 56,
   },
 });
