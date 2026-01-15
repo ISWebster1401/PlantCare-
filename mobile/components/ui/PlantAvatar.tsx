@@ -145,7 +145,7 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
   }));
 
   const borderWidth = size * 0.08; // 8% del tamaño
-  const emojiSize = size * 0.3; // 30% del tamaño
+  const emojiSize = size * 0.25; // 25% del tamaño (reducido para que no se corte)
 
   return (
     <View
@@ -235,7 +235,7 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
           </View>
         )}
 
-        {/* Mood emoji badge */}
+        {/* Mood emoji badge - Centrado en la parte inferior */}
         {showMoodEmoji && (
           <View
             style={[
@@ -247,10 +247,12 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
                 backgroundColor: Colors.background,
                 borderWidth: 2,
                 borderColor: moodConfig.color,
+                bottom: size * -0.08, // Posicionado más adentro para que no se corte
+                left: (size - emojiSize) / 2, // Centrado horizontalmente
               },
             ]}
           >
-            <Text style={[styles.moodEmoji, { fontSize: emojiSize * 0.6 }]}>
+            <Text style={[styles.moodEmoji, { fontSize: emojiSize * 0.55 }]}>
               {moodConfig.emoji}
             </Text>
           </View>
@@ -288,13 +290,12 @@ const styles = StyleSheet.create({
   },
   moodBadge: {
     position: 'absolute',
-    bottom: -4,
-    right: -4,
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.md,
   },
   moodEmoji: {
     textAlign: 'center',
+    lineHeight: 1, // Asegura que el emoji no se corte verticalmente
   },
 });
