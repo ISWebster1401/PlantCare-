@@ -1,5 +1,5 @@
 /**
- * Pantalla Tu Jardín - Lista de plantas
+ * Pantalla Tu Jardín - Rediseñada con DesignSystem
  */
 import React, { useEffect, useState } from 'react';
 import {
@@ -7,35 +7,31 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI } from '../../services/api';
 import { PlantResponse } from '../../types';
 import { PlantCard } from '../../components/PlantCard';
-import { useTheme } from '../../context/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
+import { Button, Card } from '../../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../../constants/DesignSystem';
 
 export default function GardenScreen() {
-  const { theme } = useTheme();
   const [plants, setPlants] = useState<PlantResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
-  
-  const styles = createStyles(theme.colors);
 
   const loadPlants = async () => {
     try {
       const plantsList = await plantsAPI.getMyPlants();
       setPlants(plantsList);
     } catch (error: any) {
-      // Manejar errores de red de forma más clara
       if (error.isNetworkError || error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error')) {
         console.error('❌ Error de conexión al cargar plantas:', error.userMessage || error.message);
-        console.error('   Base URL:', error.baseURL || 'Verificar Config.ts');
       } else {
         console.error('Error cargando plantas:', error);
       }
@@ -57,57 +53,56 @@ export default function GardenScreen() {
   const renderPlant = ({ item, index }: { item: PlantResponse; index: number }) => (
     <PlantCard
       plant={item}
-      index={index}
       onPress={() => {
         router.push(`/plant-detail?id=${item.id}`);
       }}
+      style={{ marginBottom: Spacing.md }}
     />
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <View style={styles.emptyIconContainer}>
-        <Ionicons name="leaf-outline" size={80} color={theme.colors.iconSecondary} />
+        <Text style={styles.emptyEmoji}>🌱</Text>
       </View>
       <Text style={styles.emptyStateTitle}>No tienes plantas aún</Text>
       <Text style={styles.emptyStateText}>
         Comienza escaneando tu primera planta y dale vida a tu jardín virtual
       </Text>
-      <TouchableOpacity
-        style={styles.emptyStateButton}
+      <Button
+        title="Escanear Planta"
         onPress={() => router.push('/scan-plant')}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="camera" size={24} color="#fff" />
-        <Text style={styles.emptyStateButtonText}>Escanear Planta</Text>
-      </TouchableOpacity>
+        variant="primary"
+        size="lg"
+        icon="camera"
+        iconPosition="left"
+        style={styles.emptyStateButton}
+      />
     </View>
   );
 
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color={theme.colors.primary} style={styles.loader} />
+        <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.title}>🌿 Tu Jardín</Text>
-            <Text style={styles.subtitle}>{plants.length} {plants.length === 1 ? 'planta' : 'plantas'}</Text>
-          </View>
-          <View style={styles.headerStats}>
-            <View style={styles.statBadge}>
-              <Ionicons name="leaf" size={20} color={theme.colors.primary} />
-              <Text style={styles.statText}>{plants.length}</Text>
-            </View>
-          </View>
-        </View>
-      </View>
+      {/* Header con gradiente */}
+      <LinearGradient
+        colors={Gradients.primary}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <Text style={styles.title}>🌿 Tu Jardín</Text>
+        <Text style={styles.subtitle}>
+          {plants.length} {plants.length === 1 ? 'planta' : 'plantas'}
+        </Text>
+      </LinearGradient>
 
       <FlatList
         data={plants}
@@ -117,71 +112,57 @@ export default function GardenScreen() {
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+          />
         }
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push('/scan-plant')}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
+      {/* FAB para agregar planta */}
+      <View style={styles.fabContainer}>
+        <Button
+          title=""
+          onPress={() => router.push('/scan-plant')}
+          variant="primary"
+          size="lg"
+          icon="add"
+          iconPosition="left"
+          style={styles.fab}
+        />
+      </View>
     </View>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
-    padding: 24,
-    paddingTop: 48,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   title: {
-    fontSize: 34,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 6,
-    letterSpacing: 0.5,
+    fontSize: Typography.sizes.giant,
+    fontWeight: Typography.weights.extrabold,
+    color: Colors.white,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  headerStats: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${colors.primary}15`,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 8,
-  },
-  statText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.primary,
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.regular,
+    color: Colors.white,
+    opacity: 0.9,
   },
   list: {
-    padding: 16,
-    paddingTop: 16,
+    padding: Spacing.lg,
+    paddingBottom: 100, // Espacio para el FAB
   },
   emptyList: {
     flex: 1,
@@ -190,67 +171,48 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xl,
   },
   emptyIconContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: `${colors.primary}10`,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: `${Colors.primary}20`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
+  },
+  emptyEmoji: {
+    fontSize: 64,
   },
   emptyStateTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 12,
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.md,
     textAlign: 'center',
   },
   emptyStateText: {
-    fontSize: 16,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: Spacing.xl,
     lineHeight: 24,
-    paddingHorizontal: 20,
+    paddingHorizontal: Spacing.lg,
   },
   emptyStateButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    minWidth: 200,
   },
-  emptyStateButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
+  fabContainer: {
+    position: 'absolute',
+    right: Spacing.lg,
+    bottom: 100, // Más arriba para que no quede tan abajo
   },
   fab: {
-    position: 'absolute',
-    right: 24,
-    bottom: 24,
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...Shadows.lg,
   },
   loader: {
     marginTop: 100,

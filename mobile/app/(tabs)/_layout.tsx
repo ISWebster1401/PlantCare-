@@ -5,11 +5,10 @@ import { Tabs, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
+import { Colors, Shadows, BorderRadius } from '../../constants/DesignSystem';
 
 export default function TabsLayout() {
   const { isAuthenticated, isLoading } = useAuth();
-  const { theme } = useTheme();
   const segments = useSegments();
   const router = useRouter();
 
@@ -23,12 +22,20 @@ export default function TabsLayout() {
 
   const screenOptions = {
     headerShown: false,
-    tabBarActiveTintColor: theme.colors.primary,
-    tabBarInactiveTintColor: theme.colors.iconSecondary,
+    tabBarActiveTintColor: Colors.primary,
+    tabBarInactiveTintColor: Colors.textMuted,
     tabBarStyle: {
-      backgroundColor: theme.colors.surface,
-      borderTopColor: theme.colors.border,
+      backgroundColor: Colors.backgroundLight,
+      borderTopColor: Colors.backgroundLighter,
       borderTopWidth: 1,
+      height: 60,
+      paddingBottom: 8,
+      paddingTop: 8,
+      ...Shadows.md,
+    },
+    tabBarLabelStyle: {
+      fontSize: 12,
+      fontWeight: '600',
     },
   };
 
