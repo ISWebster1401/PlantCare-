@@ -1,5 +1,5 @@
 /**
- * Pantalla de Notificaciones
+ * Pantalla de Notificaciones - Rediseñada con DesignSystem
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -7,22 +7,21 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Image,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { notificationsAPI } from '../services/api';
 import { NotificationResponse } from '../types';
-import { useTheme } from '../context/ThemeContext';
+import { Card, Button, Badge } from '../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { theme } = useTheme();
-  const styles = createStyles(theme.colors);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -55,7 +54,6 @@ export default function NotificationsScreen() {
   const handleMarkAsRead = async (notificationId: number) => {
     try {
       await notificationsAPI.markAsRead(notificationId);
-      // Actualizar estado local
       setNotifications((prev) =>
         prev.map((notif) =>
           notif.id === notificationId ? { ...notif, is_read: true } : notif
@@ -71,7 +69,6 @@ export default function NotificationsScreen() {
     setMarkingAll(true);
     try {
       await notificationsAPI.markAllAsRead();
-      // Actualizar estado local
       setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true })));
       Alert.alert('Éxito', 'Todas las notificaciones fueron marcadas como leídas');
     } catch (error: any) {
@@ -99,10 +96,13 @@ export default function NotificationsScreen() {
   };
 
   const renderNotification = ({ item }: { item: NotificationResponse }) => (
-    <TouchableOpacity
-      style={[styles.notificationItem, !item.is_read && styles.notificationUnread]}
+    <Card
+      variant={item.is_read ? 'default' : 'outlined'}
       onPress={() => handleMarkAsRead(item.id)}
-      activeOpacity={0.7}
+      style={[
+        styles.notificationCard,
+        !item.is_read && styles.notificationUnread,
+      ]}
     >
       <View style={styles.notificationContent}>
         {item.character_image_url ? (
@@ -112,7 +112,7 @@ export default function NotificationsScreen() {
           />
         ) : (
           <View style={styles.plantImagePlaceholder}>
-            <Ionicons name="leaf-outline" size={24} color={theme.colors.primary} />
+            <Ionicons name="leaf-outline" size={24} color={Colors.primary} />
           </View>
         )}
         
@@ -126,9 +126,11 @@ export default function NotificationsScreen() {
           <Text style={styles.notificationTime}>{formatDate(item.created_at)}</Text>
         </View>
 
-        {!item.is_read && <View style={styles.unreadDot} />}
+        {!item.is_read && (
+          <View style={styles.unreadDot} />
+        )}
       </View>
-    </TouchableOpacity>
+    </Card>
   );
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -136,15 +138,25 @@ export default function NotificationsScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
-          </TouchableOpacity>
+        <LinearGradient
+          colors={Gradients.sunset}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Button
+            title=""
+            onPress={() => router.back()}
+            variant="ghost"
+            size="sm"
+            icon="arrow-back"
+            style={styles.backButton}
+          />
           <Text style={styles.headerTitle}>Notificaciones</Text>
-          <View style={styles.placeholder} />
-        </View>
+          <View style={styles.backButtonPlaceholder} />
+        </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       </View>
     );
@@ -152,34 +164,48 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notificaciones</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <LinearGradient
+        colors={Gradients.sunset}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <Button
+          title=""
+          onPress={() => router.back()}
+          variant="ghost"
+          size="sm"
+          icon="arrow-back"
+          style={styles.backButton}
+        />
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>🔔 Notificaciones</Text>
+          {unreadCount > 0 && (
+            <Badge status="warning" label={unreadCount.toString()} size="sm" />
+          )}
+        </View>
+        <View style={styles.backButtonPlaceholder} />
+      </LinearGradient>
 
       {unreadCount > 0 && (
-        <TouchableOpacity
-          style={styles.markAllButton}
-          onPress={handleMarkAllAsRead}
-          disabled={markingAll}
-        >
-          {markingAll ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="checkmark-done" size={20} color="#fff" />
-              <Text style={styles.markAllText}>Marcar todas como leídas</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.markAllContainer}>
+          <Button
+            title="Marcar todas como leídas"
+            onPress={handleMarkAllAsRead}
+            variant="primary"
+            size="md"
+            loading={markingAll}
+            disabled={markingAll}
+            icon="checkmark-done"
+            iconPosition="left"
+            fullWidth
+          />
+        </View>
       )}
 
       {notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-off-outline" size={64} color={theme.colors.iconSecondary} />
+          <Text style={styles.emptyEmoji}>🔕</Text>
           <Text style={styles.emptyText}>No hay notificaciones</Text>
           <Text style={styles.emptySubtext}>Tus notificaciones aparecerán aquí</Text>
         </View>
@@ -193,7 +219,7 @@ export default function NotificationsScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor={theme.colors.primary}
+              tintColor={Colors.primary}
             />
           }
         />
@@ -202,61 +228,52 @@ export default function NotificationsScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
+    padding: Spacing.lg,
+    paddingTop: 60,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  placeholder: {
-    width: 40,
-  },
-  markAllButton: {
+  headerTitleContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    margin: 16,
-    padding: 12,
-    borderRadius: 12,
-    gap: 8,
+    gap: Spacing.sm,
   },
-  markAllText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  headerTitle: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    padding: 0,
+  },
+  backButtonPlaceholder: {
+    width: 40,
+  },
+  markAllContainer: {
+    padding: Spacing.lg,
+    paddingTop: Spacing.md,
   },
   listContent: {
-    padding: 16,
+    padding: Spacing.lg,
   },
-  notificationItem: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+  notificationCard: {
+    marginBottom: Spacing.md,
   },
   notificationUnread: {
-    borderColor: colors.primary,
+    borderColor: Colors.primary,
     borderWidth: 2,
   },
   notificationContent: {
@@ -267,15 +284,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    marginRight: 12,
-    backgroundColor: colors.surfaceSecondary,
+    marginRight: Spacing.md,
+    backgroundColor: Colors.backgroundLighter,
   },
   plantImagePlaceholder: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    marginRight: 12,
-    backgroundColor: colors.surfaceSecondary,
+    marginRight: Spacing.md,
+    backgroundColor: Colors.backgroundLighter,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -283,48 +300,52 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   notificationMessage: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 4,
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
   notificationMessageUnread: {
-    color: colors.text,
-    fontWeight: '600',
+    color: Colors.text,
+    fontWeight: Typography.weights.semibold,
   },
   plantName: {
-    fontSize: 14,
-    color: colors.primary,
-    marginBottom: 4,
+    fontSize: Typography.sizes.sm,
+    color: Colors.primary,
+    marginBottom: Spacing.xs,
   },
   notificationTime: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    marginTop: 4,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textMuted,
+    marginTop: Spacing.xs,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.primary,
-    marginLeft: 8,
-    marginTop: 4,
+    backgroundColor: Colors.primary,
+    marginLeft: Spacing.sm,
+    marginTop: Spacing.xs,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xl,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: Spacing.md,
   },
   emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   loadingContainer: {
