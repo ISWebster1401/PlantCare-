@@ -25,11 +25,12 @@ import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { aiAPI, plantsAPI } from '../services/api';
 import { PlantResponse } from '../types';
-import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Model3DViewer } from '../components/Model3DViewer';
 import { PlantAIIcon } from '../components/PlantAIIcon';
+import { Button } from '../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
 
 interface AIMessage {
   id: string | number;
@@ -133,12 +134,12 @@ const TypingIndicator: React.FC<{ color: string }> = ({ color }) => {
 };
 
 // Componente de avatar para mensajes
-const MessageAvatar: React.FC<{ type: 'user' | 'ai'; colors: any }> = ({ type, colors }) => {
+const MessageAvatar: React.FC<{ type: 'user' | 'ai' }> = ({ type }) => {
   const userAvatarStyle = {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.primary,
+    backgroundColor: Colors.primary,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   };
@@ -154,24 +155,23 @@ const MessageAvatar: React.FC<{ type: 'user' | 'ai'; colors: any }> = ({ type, c
   if (type === 'user') {
     return (
       <View style={userAvatarStyle}>
-        <Ionicons name="person" size={16} color="#0f172a" />
+        <Ionicons name="person" size={16} color={Colors.white} />
       </View>
     );
   }
   return (
     <LinearGradient
-      colors={['#4ade80', '#22c55e']}
+      colors={Gradients.primary as any}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={aiAvatarStyle}
     >
-      <PlantAIIcon size={16} color="#0f172a" />
+      <PlantAIIcon size={16} color={Colors.white} />
     </LinearGradient>
   );
 };
 
 export default function AIChatScreen() {
-  const { theme } = useTheme();
   const { logout } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -190,8 +190,6 @@ export default function AIChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const messageAnimations = useRef<Map<string | number, Animated.Value>>(new Map());
   const sendButtonScale = useRef(new Animated.Value(1)).current;
-
-  const styles = createStyles(theme.colors);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   // Calcular offset del teclado incluyendo header y safe area
@@ -608,10 +606,10 @@ export default function AIChatScreen() {
               isUser ? styles.userMessageContainer : styles.aiMessageContainer,
             ]}
           >
-            {!isUser && <MessageAvatar type="ai" colors={theme.colors} />}
+            {!isUser && <MessageAvatar type="ai" />}
             {isUser ? (
               <LinearGradient
-                colors={['#4ade80', '#22c55e']}
+                colors={Gradients.primary as any}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.userBubble}
@@ -635,7 +633,7 @@ export default function AIChatScreen() {
                 </Text>
               </View>
             )}
-            {isUser && <MessageAvatar type="user" colors={theme.colors} />}
+            {isUser && <MessageAvatar type="user" />}
           </View>
         </Animated.View>
       </Pressable>
@@ -652,7 +650,7 @@ export default function AIChatScreen() {
       </View>
       {plants.length === 0 ? (
         <View style={styles.emptyPlantsContainer}>
-          <Ionicons name="leaf-outline" size={64} color={theme.colors.textSecondary} />
+          <Ionicons name="leaf-outline" size={64} color={Colors.textSecondary} />
           <Text style={styles.emptyPlantsText}>No tienes plantas aún</Text>
           <Text style={styles.emptyPlantsSubtext}>
             Agrega plantas a tu jardín para poder chatear con ellas
@@ -697,7 +695,7 @@ export default function AIChatScreen() {
                   />
                 ) : (
                   <View style={styles.plantCardImagePlaceholder}>
-                    <Ionicons name="leaf" size={32} color={theme.colors.primary} />
+                    <Ionicons name="leaf" size={32} color={Colors.primary} />
                   </View>
                 )}
               </View>
@@ -715,7 +713,7 @@ export default function AIChatScreen() {
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={24} color={theme.colors.textSecondary} />
+              <Ionicons name="chevron-forward" size={24} color={Colors.textSecondary} />
             </TouchableOpacity>
           )}
           contentContainerStyle={styles.plantListContent}
@@ -727,32 +725,43 @@ export default function AIChatScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
+        <LinearGradient
+          colors={Gradients.primary as any}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Button
+            title=""
+            onPress={() => router.back()}
+            variant="ghost"
+            size="sm"
+            icon="arrow-back"
+            style={styles.backButton}
+          />
           <View style={styles.headerTitleContainer}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {!selectedPlant && <PlantAIIcon size={20} color={theme.colors.text} />}
+              {!selectedPlant && <PlantAIIcon size={20} color={Colors.white} />}
               <Text style={styles.headerTitle}>
                 {selectedPlant ? `💬 ${selectedPlant.plant_name}` : 'PlantCare AI'}
               </Text>
             </View>
             {(isLoading || isStreaming) && (
               <View style={styles.statusIndicator}>
-                <View style={[styles.statusDot, { backgroundColor: theme.colors.primary }]} />
+                <View style={[styles.statusDot, { backgroundColor: Colors.primary }]} />
                 <Text style={styles.statusText}>Pensando...</Text>
               </View>
             )}
           </View>
-          <TouchableOpacity
+          <Button
+            title=""
             onPress={handleNewChat}
+            variant="ghost"
+            size="sm"
+            icon="add"
             style={styles.newChatButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
+          />
+        </LinearGradient>
 
         {showPlantSelector ? renderPlantSelector() : activeConversation && (
           <KeyboardAvoidingView
@@ -789,9 +798,9 @@ export default function AIChatScreen() {
               ListFooterComponent={
                 (isLoading || isStreaming) ? (
                   <View style={styles.loadingContainer}>
-                    <MessageAvatar type="ai" colors={theme.colors} />
+                    <MessageAvatar type="ai" />
                     <View style={styles.typingBubble}>
-                      <TypingIndicator color={theme.colors.primary} />
+                      <TypingIndicator color={Colors.primary} />
                     </View>
                   </View>
                 ) : null
@@ -805,7 +814,7 @@ export default function AIChatScreen() {
                   value={inputMessage}
                   onChangeText={setInputMessage}
                   placeholder="Haz una pregunta sobre tus plantas..."
-                  placeholderTextColor={theme.colors.textSecondary}
+                  placeholderTextColor={Colors.textMuted}
                   multiline
                   editable={!isLoading && !isStreaming}
                   onFocus={() => {
@@ -847,8 +856,8 @@ export default function AIChatScreen() {
                   >
                     <LinearGradient
                       colors={inputMessage.trim() && !isLoading && !isStreaming
-                        ? ['#4ade80', '#22c55e']
-                        : ['#94a3b8', '#64748b']}
+                        ? (Gradients.primary as any)
+                        : [Colors.textMuted, Colors.textSecondary]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.sendButtonGradient}
@@ -870,29 +879,22 @@ export default function AIChatScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    ...Shadows.md,
   },
   backButton: {
     padding: 8,
@@ -905,15 +907,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
   },
   statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 6,
+    marginTop: Spacing.xs,
+    gap: Spacing.xs,
   },
   statusDot: {
     width: 6,
@@ -921,8 +923,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 3,
   },
   statusText: {
-    fontSize: 11,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
   },
   newChatButton: {
     padding: 8,
@@ -965,60 +967,52 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
   },
   userBubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 18,
-    borderBottomRightRadius: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderBottomRightRadius: BorderRadius.sm,
     maxWidth: '100%',
-    shadowColor: '#4ade80',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.glow(Colors.primary),
   },
   aiBubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-    backgroundColor: colors.surface,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderBottomLeftRadius: BorderRadius.sm,
+    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
-    borderColor: colors.primary + '40',
+    borderColor: Colors.primary + '40',
     maxWidth: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    ...Shadows.sm,
   },
   userText: {
-    color: '#0f172a',
-    fontSize: 16,
+    color: Colors.white,
+    fontSize: Typography.sizes.base,
     lineHeight: 22,
-    fontWeight: '500',
+    fontWeight: Typography.weights.medium,
   },
   aiText: {
-    color: colors.text,
-    fontSize: 16,
+    color: Colors.text,
+    fontSize: Typography.sizes.base,
     lineHeight: 22,
   },
   userTimestamp: {
-    fontSize: 10,
-    color: 'rgba(15, 23, 42, 0.6)',
-    marginTop: 4,
+    fontSize: Typography.sizes.xs,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: Spacing.xs,
     textAlign: 'right',
   },
   aiTimestamp: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginTop: 4,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
     textAlign: 'left',
   },
   userAvatar: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.primary,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1039,13 +1033,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   typingBubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-    backgroundColor: colors.primary + '20',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderBottomLeftRadius: BorderRadius.sm,
+    backgroundColor: Colors.primary + '20',
     borderWidth: 1,
-    borderColor: colors.primary + '50',
+    borderColor: Colors.primary + '50',
   },
   typingContainer: {
     flexDirection: 'row',
@@ -1058,41 +1052,37 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 4,
   },
   inputSafeArea: {
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
   },
   inputContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 4 : 8,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? Spacing.xs : Spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: Colors.backgroundLighter,
     alignItems: 'flex-end',
-    backgroundColor: colors.surface,
-    gap: 12,
+    backgroundColor: Colors.backgroundLight,
+    gap: Spacing.md,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: colors.primary + '40',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderColor: Colors.primary + '40',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
     maxHeight: 100,
-    color: colors.text,
-    backgroundColor: colors.background,
-    fontSize: 16,
+    color: Colors.text,
+    backgroundColor: Colors.background,
+    fontSize: Typography.sizes.base,
   },
   sendButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
     overflow: 'hidden',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
+    ...Shadows.glow(Colors.primary),
   },
   sendButtonGradient: {
     width: '100%',
@@ -1106,23 +1096,23 @@ const createStyles = (colors: any) => StyleSheet.create({
   // Plant Selector Styles
   plantSelectorContainer: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   plantSelectorHeader: {
-    padding: 24,
-    paddingBottom: 16,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: Colors.backgroundLighter,
   },
   plantSelectorTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.sm,
   },
   plantSelectorSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
     lineHeight: 20,
   },
   plantListContent: {
@@ -1131,53 +1121,49 @@ const createStyles = (colors: any) => StyleSheet.create({
   plantCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: Colors.backgroundLighter,
+    ...Shadows.sm,
   },
   plantCardImageContainer: {
     width: 60,
     height: 60,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   plantCardImage: {
     width: 60,
     height: 60,
     borderRadius: 12,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   plantCardImagePlaceholder: {
     width: 60,
     height: 60,
-    borderRadius: 12,
-    backgroundColor: colors.primary + '20',
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
   plantCardContent: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: Spacing.md,
   },
   plantCardName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 4,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
   },
   plantCardType: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 8,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
   },
   plantCardStatus: {
     flexDirection: 'row',
@@ -1190,40 +1176,40 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 4,
   },
   plantCardStatusText: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
   },
   emptyPlantsContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xl,
   },
   emptyPlantsText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   emptyPlantsSubtext: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
   addPlantButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
   },
   addPlantButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.white,
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.semibold,
   },
 });

@@ -1,5 +1,5 @@
 /**
- * Pantalla de Scanner de Plantas
+ * Pantalla de Scanner de Plantas - Rediseñada con DesignSystem
  * Multi-step flow: nombre -> foto -> identificación -> creación
  */
 import React, { useState } from 'react';
@@ -8,29 +8,28 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   Alert,
   ActivityIndicator,
   ScrollView,
   Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI } from '../services/api';
 import { PlantIdentify } from '../types';
-import { Ionicons } from '@expo/vector-icons';
 import { PlantSpeciesAutocomplete } from '../components/PlantSpeciesAutocomplete';
-import { useTheme } from '../context/ThemeContext';
+import { Button, Card, Badge } from '../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
 
 type Step = 'name' | 'photo' | 'identifying' | 'results' | 'creating';
 
 export default function ScanPlantScreen() {
   const router = useRouter();
-  const { theme } = useTheme();
-  const styles = createStyles(theme.colors);
   const [step, setStep] = useState<Step>('name');
   const [plantName, setPlantName] = useState('');
-  const [plantSpecies, setPlantSpecies] = useState(''); // Campo opcional para especie
+  const [plantSpecies, setPlantSpecies] = useState('');
   const [photo, setPhoto] = useState<{ uri: string; type: string; name: string } | null>(null);
   const [identification, setIdentification] = useState<PlantIdentify | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -85,7 +84,6 @@ export default function ScanPlantScreen() {
     if (!hasPermission) return;
 
     try {
-      // Omitir mediaTypes para evitar errores - por defecto selecciona imágenes
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsEditing: true,
         aspect: [4, 3],
@@ -94,7 +92,6 @@ export default function ScanPlantScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        // Detectar tipo de imagen (JPEG, PNG, o HEIC/HEIF de iPhone)
         let imageType = 'image/jpeg';
         let extension = 'jpg';
         const uriLower = asset.uri.toLowerCase();
@@ -102,7 +99,6 @@ export default function ScanPlantScreen() {
           imageType = 'image/png';
           extension = 'png';
         } else if (uriLower.includes('.heic') || uriLower.includes('.heif')) {
-          // HEIC se convierte a JPEG automáticamente en Expo, pero marcamos como JPEG
           imageType = 'image/jpeg';
           extension = 'jpg';
         }
@@ -124,7 +120,6 @@ export default function ScanPlantScreen() {
   const identifyPlant = async (imageUri: string) => {
     setIsLoading(true);
     try {
-      // Usar el tipo de la foto seleccionada (ya tiene el tipo correcto: image/jpeg o image/png)
       const file = {
         uri: imageUri,
         type: photo?.type || 'image/jpeg',
@@ -179,38 +174,47 @@ export default function ScanPlantScreen() {
           <ScrollView style={styles.stepContainer} contentContainerStyle={styles.stepContent}>
             <View style={styles.iconContainer}>
               <View style={styles.iconCircle}>
-                <Ionicons name="leaf" size={48} color="#4caf50" />
+                <Text style={styles.iconEmoji}>🌱</Text>
               </View>
             </View>
             <Text style={styles.stepTitle}>¿Cómo se llama tu planta?</Text>
             <Text style={styles.stepDescription}>
               Dale un nombre especial. Si conoces la especie, ingrésala para mejorar la identificación.
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre de la planta (ej: Pepito, Rosita...)"
-              placeholderTextColor={theme.colors.textTertiary}
-              value={plantName}
-              onChangeText={setPlantName}
-              autoFocus
-            />
+            
+            <View style={styles.inputContainer}>
+              <Ionicons name="leaf-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Nombre de la planta (ej: Pepito, Rosita...)"
+                placeholderTextColor={Colors.textMuted}
+                value={plantName}
+                onChangeText={setPlantName}
+                autoFocus
+              />
+            </View>
+
             <PlantSpeciesAutocomplete
               value={plantSpecies}
               onChange={setPlantSpecies}
               placeholder="Especie (opcional, ej: Monstera deliciosa...)"
-              style={[styles.input, styles.inputSecondary]}
             />
+
             <Text style={styles.hintText}>
               💡 Si conoces la especie, ingrésala para una identificación más precisa
             </Text>
-            <TouchableOpacity
-              style={[styles.button, !plantName.trim() && styles.buttonDisabled]}
+
+            <Button
+              title="Continuar"
               onPress={() => setStep('photo')}
+              variant="primary"
+              size="lg"
               disabled={!plantName.trim()}
-            >
-              <Text style={styles.buttonText}>Continuar</Text>
-              <Ionicons name="arrow-forward" size={20} color={theme.colors.text} style={{ marginLeft: 8 }} />
-            </TouchableOpacity>
+              icon="arrow-forward"
+              iconPosition="right"
+              fullWidth
+              style={styles.continueButton}
+            />
           </ScrollView>
         );
 
@@ -219,32 +223,51 @@ export default function ScanPlantScreen() {
           <ScrollView style={styles.stepContainer} contentContainerStyle={styles.stepContent}>
             <View style={styles.iconContainer}>
               <View style={styles.iconCircle}>
-                <Ionicons name="camera" size={48} color="#4caf50" />
+                <Text style={styles.iconEmoji}>📷</Text>
               </View>
             </View>
             <Text style={styles.stepTitle}>Toma o selecciona una foto</Text>
             <Text style={styles.stepDescription}>
               Nuestra IA identificará automáticamente tu planta
             </Text>
-            <View style={styles.photoOptions}>
-              <TouchableOpacity style={styles.photoButton} onPress={takePhoto} activeOpacity={0.8}>
-                <View style={styles.photoButtonIcon}>
-                  <Ionicons name="camera" size={40} color="#4caf50" />
-                </View>
-                <Text style={styles.photoButtonText}>Tomar Foto</Text>
-              </TouchableOpacity>
 
-              <TouchableOpacity style={styles.photoButton} onPress={pickFromGallery} activeOpacity={0.8}>
-                <View style={styles.photoButtonIcon}>
-                  <Ionicons name="images" size={40} color="#4caf50" />
+            <View style={styles.photoOptions}>
+              <Card
+                variant="elevated"
+                onPress={takePhoto}
+                style={styles.photoCard}
+              >
+                <View style={styles.photoCardContent}>
+                  <View style={styles.photoIconContainer}>
+                    <Ionicons name="camera" size={40} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.photoCardText}>Tomar Foto</Text>
                 </View>
-                <Text style={styles.photoButtonText}>Desde Galería</Text>
-              </TouchableOpacity>
+              </Card>
+
+              <Card
+                variant="elevated"
+                onPress={pickFromGallery}
+                style={styles.photoCard}
+              >
+                <View style={styles.photoCardContent}>
+                  <View style={styles.photoIconContainer}>
+                    <Ionicons name="images" size={40} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.photoCardText}>Desde Galería</Text>
+                </View>
+              </Card>
             </View>
-            <TouchableOpacity style={styles.backButton} onPress={() => setStep('name')}>
-              <Ionicons name="arrow-back" size={18} color="#4caf50" />
-              <Text style={styles.backButtonText}>Volver</Text>
-            </TouchableOpacity>
+
+            <Button
+              title="Volver"
+              onPress={() => setStep('name')}
+              variant="ghost"
+              size="md"
+              icon="arrow-back"
+              iconPosition="left"
+              fullWidth
+            />
           </ScrollView>
         );
 
@@ -253,9 +276,9 @@ export default function ScanPlantScreen() {
           <View style={styles.stepContainer}>
             <View style={styles.loadingContainer}>
               <View style={styles.loadingIconContainer}>
-                <Ionicons name="leaf" size={64} color="#4caf50" />
+                <Text style={styles.loadingEmoji}>🔍</Text>
               </View>
-              <ActivityIndicator size="large" color="#4caf50" style={styles.loader} />
+              <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
               <Text style={styles.loadingText}>Identificando tu planta...</Text>
               <Text style={styles.loadingSubtext}>Esto puede tomar unos segundos</Text>
             </View>
@@ -268,15 +291,14 @@ export default function ScanPlantScreen() {
         return (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.resultsContent}>
             {photo && (
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: photo.uri }} style={styles.previewImage} />
-                <View style={styles.imageOverlay} />
-              </View>
+              <Card variant="elevated" style={styles.imageCard}>
+                <Image source={{ uri: photo.uri }} style={styles.previewImage} resizeMode="cover" />
+              </Card>
             )}
 
-            <View style={styles.resultCard}>
+            <Card variant="elevated" style={styles.resultCard}>
               <View style={styles.resultHeader}>
-                <Ionicons name="checkmark-circle" size={32} color="#4caf50" />
+                <Ionicons name="checkmark-circle" size={32} color={Colors.primary} />
                 <View style={styles.resultTitleContainer}>
                   <Text style={styles.resultTitle}>{identification.plant_type}</Text>
                   {identification.scientific_name && (
@@ -284,56 +306,66 @@ export default function ScanPlantScreen() {
                   )}
                 </View>
               </View>
-              <View style={styles.careLevelBadge}>
-                <Text style={styles.careLevelText}>Nivel: {identification.care_level}</Text>
-              </View>
-            </View>
+              <Badge
+                status={identification.care_level === 'Fácil' ? 'healthy' : identification.care_level === 'Medio' ? 'warning' : 'critical'}
+                label={`Nivel: ${identification.care_level}`}
+                size="sm"
+              />
+            </Card>
 
-            <View style={styles.resultCard}>
+            <Card variant="elevated" style={styles.resultCard}>
               <View style={styles.resultCardHeader}>
-                <Ionicons name="bulb" size={24} color="#ffb74d" />
+                <Ionicons name="bulb" size={24} color={Colors.accent} />
                 <Text style={styles.resultCardTitle}>Consejos de cuidado</Text>
               </View>
               <Text style={styles.resultText}>{identification.care_tips}</Text>
-            </View>
+            </Card>
 
-            <View style={styles.resultCard}>
+            <Card variant="elevated" style={styles.resultCard}>
               <View style={styles.resultCardHeader}>
-                <Ionicons name="stats-chart" size={24} color="#64b5f6" />
+                <Ionicons name="stats-chart" size={24} color={Colors.secondary} />
                 <Text style={styles.resultCardTitle}>Condiciones óptimas</Text>
               </View>
               <View style={styles.conditionsRow}>
                 <View style={styles.conditionItem}>
-                  <Ionicons name="water" size={20} color="#64b5f6" />
+                  <Ionicons name="water" size={20} color={Colors.secondary} />
                   <Text style={styles.conditionText}>
                     {identification.optimal_humidity_min}% - {identification.optimal_humidity_max}%
                   </Text>
                 </View>
                 <View style={styles.conditionItem}>
-                  <Ionicons name="thermometer" size={20} color="#ef5350" />
+                  <Ionicons name="thermometer" size={20} color={Colors.error} />
                   <Text style={styles.conditionText}>
                     {identification.optimal_temp_min}°C - {identification.optimal_temp_max}°C
                   </Text>
                 </View>
               </View>
-            </View>
+            </Card>
 
-            <TouchableOpacity style={styles.button} onPress={createPlant} activeOpacity={0.8}>
-              <Ionicons name="add-circle" size={24} color={theme.colors.text} />
-              <Text style={styles.buttonText}>Agregar a Mi Jardín</Text>
-            </TouchableOpacity>
+            <Button
+              title="Agregar a Mi Jardín"
+              onPress={createPlant}
+              variant="primary"
+              size="lg"
+              icon="add-circle"
+              iconPosition="left"
+              fullWidth
+              style={styles.addButton}
+            />
 
-            <TouchableOpacity
-              style={styles.backButton}
+            <Button
+              title="Tomar otra foto"
               onPress={() => {
                 setStep('photo');
                 setPhoto(null);
                 setIdentification(null);
               }}
-            >
-              <Ionicons name="camera-outline" size={18} color="#4caf50" />
-              <Text style={styles.backButtonText}>Tomar otra foto</Text>
-            </TouchableOpacity>
+              variant="ghost"
+              size="md"
+              icon="camera-outline"
+              iconPosition="left"
+              fullWidth
+            />
           </ScrollView>
         );
 
@@ -342,11 +374,13 @@ export default function ScanPlantScreen() {
           <View style={styles.stepContainer}>
             <View style={styles.loadingContainer}>
               <View style={styles.loadingIconContainer}>
-                <Ionicons name="leaf" size={64} color="#4caf50" />
+                <Text style={styles.loadingEmoji}>✨</Text>
               </View>
-              <ActivityIndicator size="large" color="#4caf50" style={styles.loader} />
+              <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
               <Text style={styles.loadingText}>Creando tu planta...</Text>
-              <Text style={styles.loadingSubtext}>Generando el personaje único de <Text style={{ fontWeight: '600' }}>{plantName}</Text></Text>
+              <Text style={styles.loadingSubtext}>
+                Generando el personaje único de <Text style={{ fontWeight: Typography.weights.bold }}>{plantName}</Text>
+              </Text>
             </View>
           </View>
         );
@@ -358,300 +392,256 @@ export default function ScanPlantScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color={theme.colors.icon} />
-        </TouchableOpacity>
+      <LinearGradient
+        colors={Gradients.primary}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <Button
+          title=""
+          onPress={() => router.back()}
+          variant="ghost"
+          size="sm"
+          icon="close"
+          style={styles.closeButton}
+        />
         <Text style={styles.headerTitle}>Escanear Planta</Text>
-        <View style={styles.closeButton} />
-      </View>
+        <View style={styles.closeButtonPlaceholder} />
+      </LinearGradient>
 
       {renderStep()}
     </View>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    paddingTop: 48,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
+    padding: Spacing.lg,
+    paddingTop: 60,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.5,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
   },
   closeButton: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSecondary,
+    padding: 0,
+  },
+  closeButtonPlaceholder: {
+    width: 40,
   },
   stepContainer: {
     flex: 1,
   },
   stepContent: {
-    padding: 24,
-    paddingTop: 32,
+    padding: Spacing.lg,
+    paddingTop: Spacing.xl,
     flexGrow: 1,
   },
   iconContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: Spacing.xl,
   },
   iconCircle: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#4caf5020',
+    backgroundColor: `${Colors.primary}20`,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: '#4caf50',
+    borderColor: Colors.primary,
+  },
+  iconEmoji: {
+    fontSize: 64,
   },
   stepTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 12,
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.md,
     textAlign: 'center',
-    letterSpacing: 0.5,
   },
   stepDescription: {
-    fontSize: 16,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: Spacing.xl,
     lineHeight: 22,
   },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 18,
-    fontSize: 16,
-    color: colors.text,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: colors.border,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.backgroundLighter,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
   },
-  inputSecondary: {
-    marginBottom: 12,
+  inputIcon: {
+    marginRight: Spacing.sm,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: Typography.sizes.base,
+    color: Colors.text,
+    paddingVertical: 0,
   },
   hintText: {
-    fontSize: 13,
-    color: colors.textTertiary,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textMuted,
     textAlign: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 16,
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     lineHeight: 18,
+  },
+  continueButton: {
+    marginTop: Spacing.md,
   },
   photoOptions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 32,
-    gap: 16,
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
   },
-  photoButton: {
+  photoCard: {
     flex: 1,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: colors.border,
   },
-  photoButtonIcon: {
+  photoCardContent: {
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  photoIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#4caf5015',
+    backgroundColor: `${Colors.primary}15`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
-  photoButtonText: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    padding: 18,
-    alignItems: 'center',
-    marginBottom: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    marginLeft: 8,
-  },
-  backButton: {
-    padding: 16,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  backButtonText: {
-    color: '#4caf50',
-    fontSize: 15,
-    fontWeight: '600',
-    marginLeft: 8,
+  photoCardText: {
+    color: Colors.text,
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.semibold,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: Spacing.xl,
   },
   loadingIconContainer: {
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
+  },
+  loadingEmoji: {
+    fontSize: 80,
   },
   loader: {
-    marginVertical: 16,
+    marginVertical: Spacing.lg,
   },
   loadingText: {
-    color: colors.text,
-    fontSize: 20,
+    color: Colors.text,
+    fontSize: Typography.sizes.xl,
     textAlign: 'center',
-    marginTop: 16,
-    fontWeight: '600',
+    marginTop: Spacing.md,
+    fontWeight: Typography.weights.semibold,
   },
   loadingSubtext: {
-    color: colors.textSecondary,
-    fontSize: 15,
+    color: Colors.textSecondary,
+    fontSize: Typography.sizes.base,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
     lineHeight: 22,
   },
   resultsContent: {
-    padding: 24,
-    paddingBottom: 32,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl,
     flexGrow: 1,
   },
-  imageWrapper: {
-    position: 'relative',
-    marginBottom: 24,
-    borderRadius: 20,
+  imageCard: {
+    marginBottom: Spacing.lg,
     overflow: 'hidden',
   },
   previewImage: {
     width: '100%',
     height: 320,
-    backgroundColor: colors.surface,
-  },
-  imageOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 100,
-    background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)',
+    backgroundColor: Colors.backgroundLighter,
   },
   resultCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    marginBottom: Spacing.md,
   },
   resultHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   resultTitleContainer: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: Spacing.md,
   },
   resultTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4caf50',
-    marginBottom: 4,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.primary,
+    marginBottom: Spacing.xs,
   },
   resultSubtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
     fontStyle: 'italic',
-  },
-  careLevelBadge: {
-    backgroundColor: '#4caf5015',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  careLevelText: {
-    color: '#4caf50',
-    fontSize: 14,
-    fontWeight: '600',
   },
   resultCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   resultCardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginLeft: 10,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginLeft: Spacing.sm,
   },
   resultText: {
-    fontSize: 15,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
     lineHeight: 24,
   },
   conditionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
   conditionItem: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceSecondary,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    flex: 1,
-    marginHorizontal: 4,
+    backgroundColor: Colors.backgroundLighter,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
   },
   conditionText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 8,
+    color: Colors.textSecondary,
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    marginLeft: Spacing.sm,
+  },
+  addButton: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
   },
 });
