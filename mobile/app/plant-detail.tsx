@@ -1,5 +1,5 @@
 /**
- * Pantalla de Detalles de Planta
+ * Pantalla de Detalles de Planta - Rediseñada con DesignSystem
  */
 import React, { useEffect, useState } from 'react';
 import {
@@ -7,27 +7,24 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI } from '../services/api';
 import { PlantResponse } from '../types';
-import { useTheme } from '../context/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
 import { Model3DViewer } from '../components/Model3DViewer';
+import { Card, Badge, ProgressBar, PlantAvatar, Button } from '../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows, HealthStatuses, PlantMoods } from '../constants/DesignSystem';
 
 export default function PlantDetailScreen() {
-  const { theme } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const [plant, setPlant] = useState<PlantResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const styles = createStyles(theme.colors);
 
   useEffect(() => {
     loadPlant();
@@ -54,64 +51,52 @@ export default function PlantDetailScreen() {
     }
   };
 
-  const getMoodEmoji = (mood: string) => {
-    const moodMap: Record<string, string> = {
-      happy: '😊',
-      sad: '😢',
-      sick: '🤒',
-      thirsty: '💧',
-      overwatered: '💦',
-      neutral: '😐',
-      excited: '🤩',
-    };
-    return moodMap[mood] || '🌱';
-  };
-
-  const getMoodText = (mood: string) => {
-    const moodMap: Record<string, string> = {
-      happy: 'Feliz',
-      sad: 'Triste',
-      sick: 'Enfermo',
-      thirsty: 'Sediento',
-      overwatered: 'Demasiada agua',
-      neutral: 'Neutral',
-      excited: 'Emocionado',
-    };
-    return moodMap[mood] || 'Normal';
-  };
-
-  const getHealthColor = (health: string) => {
-    const healthMap: Record<string, string> = {
-      healthy: '#4caf50',
-      warning: '#ff9800',
-      critical: '#f44336',
-    };
-    return healthMap[health] || '#b0bec5';
-  };
-
-  const getHealthText = (health: string) => {
-    const healthMap: Record<string, string> = {
-      healthy: 'Saludable',
-      warning: 'Atención',
-      critical: 'Crítico',
-    };
-    return healthMap[health] || 'Desconocido';
-  };
-
   const handleGoToSensor = () => {
     router.push('/(tabs)/sensors');
+  };
+
+  // Calcular progreso de salud y agua
+  const getHealthProgress = (): number => {
+    if (!plant) return 0;
+    const health = plant.health_status || 'healthy';
+    if (health === 'healthy') return 100;
+    if (health === 'warning') return 60;
+    return 30;
+  };
+
+  const getWaterProgress = (): number => {
+    if (!plant || !plant.last_watered) return 20;
+    const daysSinceWatered = Math.floor(
+      (Date.now() - new Date(plant.last_watered).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysSinceWatered < 2) return 100;
+    if (daysSinceWatered < 5) return 60;
+    if (daysSinceWatered < 7) return 30;
+    return 10;
   };
 
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
-          </TouchableOpacity>
-        </View>
+        <LinearGradient
+          colors={Gradients.primary}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Button
+            title=""
+            onPress={() => router.back()}
+            variant="ghost"
+            size="sm"
+            icon="arrow-back"
+            style={styles.backButton}
+          />
+          <Text style={styles.headerTitle}>Cargando...</Text>
+          <View style={styles.backButtonPlaceholder} />
+        </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Cargando planta...</Text>
         </View>
       </View>
@@ -121,84 +106,92 @@ export default function PlantDetailScreen() {
   if (error || !plant) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
-          </TouchableOpacity>
-        </View>
+        <LinearGradient
+          colors={Gradients.primary}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Button
+            title=""
+            onPress={() => router.back()}
+            variant="ghost"
+            size="sm"
+            icon="arrow-back"
+            style={styles.backButton}
+          />
+          <Text style={styles.headerTitle}>Error</Text>
+          <View style={styles.backButtonPlaceholder} />
+        </LinearGradient>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color={theme.colors.error} />
+          <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
           <Text style={styles.errorText}>{error || 'Planta no encontrada'}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadPlant}>
-            <Text style={styles.retryButtonText}>Reintentar</Text>
-          </TouchableOpacity>
+          <Button
+            title="Reintentar"
+            onPress={loadPlant}
+            variant="primary"
+            size="md"
+          />
         </View>
       </View>
     );
   }
 
+  const healthStatus = (plant.health_status || 'healthy') as 'healthy' | 'warning' | 'critical';
+  const mood = (plant.character_mood || 'happy') as keyof typeof PlantMoods;
+  const moodConfig = PlantMoods[mood] || PlantMoods.happy;
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
-        </TouchableOpacity>
+      {/* Header con gradiente */}
+      <LinearGradient
+        colors={Gradients.primary}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <Button
+          title=""
+          onPress={() => router.back()}
+          variant="ghost"
+          size="sm"
+          icon="arrow-back"
+          style={styles.backButton}
+        />
         <Text style={styles.headerTitle} numberOfLines={1}>
           {plant.plant_name}
         </Text>
-        <View style={styles.headerSpacer} />
-      </View>
+        <View style={styles.backButtonPlaceholder} />
+      </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Imagen/Render 3D */}
-        <View style={styles.imageSection}>
-          {plant.character_image_url ? (
-            <View style={styles.imageWrapper}>
-              <Image
-                source={{ uri: plant.character_image_url }}
-                style={styles.plantImage}
-                resizeMode="contain"
-                onError={() => {
-                  console.log('Error cargando character_image_url, intentando con modelo 3D');
-                }}
-              />
-            </View>
-          ) : plant.default_render_url ? (
-            <View style={styles.imageWrapper}>
-              <Image
-                source={{ uri: plant.default_render_url }}
-                style={styles.plantImage}
-                resizeMode="contain"
-                onError={() => {
-                  console.log('Error cargando default_render_url, intentando con modelo 3D');
-                }}
-              />
-            </View>
-          ) : plant.model_3d_url ? (
+        {/* Avatar grande de la planta */}
+        <View style={styles.avatarSection}>
+          {plant.model_3d_url ? (
             <View style={styles.model3dContainer}>
-              <Model3DViewer 
-                modelUrl={plant.model_3d_url} 
+              <Model3DViewer
+                modelUrl={plant.model_3d_url}
                 style={styles.model3dViewer}
                 autoRotate={true}
-                characterMood={plant.character_mood}
+                characterMood={mood}
               />
             </View>
           ) : (
-            <View style={styles.imagePlaceholder}>
-              <View style={styles.placeholderIconContainer}>
-                <Ionicons name="leaf" size={64} color={theme.colors.primary} />
-              </View>
-              <Text style={styles.placeholderText}>Render 3D</Text>
-              <Text style={styles.placeholderSubtext}>Próximamente</Text>
-            </View>
+            <PlantAvatar
+              imageUrl={plant.character_image_url || plant.original_photo_url}
+              mood={mood}
+              healthStatus={healthStatus}
+              size={200}
+              showMoodEmoji={true}
+              showGlow={true}
+            />
           )}
         </View>
 
         {/* Información básica */}
-        <View style={styles.infoSection}>
+        <Card variant="elevated" style={styles.infoCard}>
           <View style={styles.plantTypeContainer}>
-            <Ionicons name="leaf" size={24} color={theme.colors.primary} />
+            <Ionicons name="leaf" size={24} color={Colors.primary} />
             <View style={styles.plantTypeContent}>
               <Text style={styles.plantType}>
                 {plant.plant_type || 'Planta'}
@@ -209,92 +202,150 @@ export default function PlantDetailScreen() {
             </View>
           </View>
           {plant.care_level && (
-            <View style={[styles.careLevelBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
-              <Ionicons name="star" size={16} color={theme.colors.primary} />
-              <Text style={[styles.careLevel, { color: theme.colors.primary }]}>
-                Nivel: {plant.care_level}
-              </Text>
-            </View>
+            <Badge
+              status={plant.care_level === 'Fácil' ? 'healthy' : plant.care_level === 'Medio' ? 'warning' : 'critical'}
+              label={`Nivel: ${plant.care_level}`}
+              size="sm"
+            />
           )}
-        </View>
+        </Card>
 
         {/* Estado de salud y ánimo */}
-        <View style={styles.statusSection}>
-          <View style={[styles.statusCard, { borderLeftColor: getHealthColor(plant.health_status) }]}>
+        <View style={styles.statusRow}>
+          <Card variant="elevated" style={styles.statusCard}>
             <View style={styles.statusHeader}>
-              <View style={[styles.healthBadge, { backgroundColor: getHealthColor(plant.health_status) }]} />
-              <Text style={styles.statusLabel}>Estado de Salud</Text>
+              <View style={[styles.healthDot, { backgroundColor: HealthStatuses[healthStatus].color }]} />
+              <Text style={styles.statusLabel}>Salud</Text>
             </View>
-            <Text style={[styles.statusValue, { color: getHealthColor(plant.health_status) }]}>
-              {getHealthText(plant.health_status)}
+            <Text style={[styles.statusValue, { color: HealthStatuses[healthStatus].color }]}>
+              {HealthStatuses[healthStatus].label}
             </Text>
-          </View>
+            <ProgressBar
+              progress={getHealthProgress()}
+              height={8}
+              color={HealthStatuses[healthStatus].color}
+              showShimmer={healthStatus === 'healthy'}
+              style={styles.progressBar}
+            />
+          </Card>
 
-          <View style={[styles.statusCard, { borderLeftColor: '#ffb74d' }]}>
+          <Card variant="elevated" style={styles.statusCard}>
             <View style={styles.statusHeader}>
-              <Text style={styles.moodEmoji}>{getMoodEmoji(plant.character_mood)}</Text>
+              <Text style={styles.moodEmoji}>{moodConfig.emoji}</Text>
               <Text style={styles.statusLabel}>Ánimo</Text>
             </View>
-            <Text style={styles.statusValue}>{getMoodText(plant.character_mood)}</Text>
-          </View>
+            <Text style={styles.statusValue}>{moodConfig.message}</Text>
+          </Card>
         </View>
+
+        {/* Progreso de agua */}
+        <Card variant="elevated" style={styles.waterCard}>
+          <View style={styles.waterHeader}>
+            <Ionicons name="water" size={24} color={Colors.secondary} />
+            <Text style={styles.waterTitle}>Nivel de Agua</Text>
+          </View>
+          <ProgressBar
+            progress={getWaterProgress()}
+            height={12}
+            gradient={Gradients.ocean}
+            showShimmer={getWaterProgress() > 80}
+            style={styles.waterProgress}
+          />
+          <Text style={styles.waterText}>
+            {plant.last_watered
+              ? `Último riego: hace ${Math.floor((Date.now() - new Date(plant.last_watered).getTime()) / (1000 * 60 * 60 * 24))} días`
+              : 'Aún no se ha registrado riego'}
+          </Text>
+        </Card>
 
         {/* Tips de cuidado */}
         {plant.care_tips && (
-          <View style={styles.tipsSection}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="bulb" size={24} color="#ffb74d" />
-              <Text style={styles.sectionTitle}>Tips de Cuidado</Text>
+          <Card variant="elevated" style={styles.tipsCard}>
+            <View style={styles.tipsHeader}>
+              <Ionicons name="bulb" size={24} color={Colors.accent} />
+              <Text style={styles.tipsTitle}>Tips de Cuidado</Text>
             </View>
-            <View style={styles.tipsCard}>
-              <Text style={styles.tipsText}>{plant.care_tips}</Text>
+            <Text style={styles.tipsText}>{plant.care_tips}</Text>
+          </Card>
+        )}
+
+        {/* Condiciones óptimas */}
+        {(plant.optimal_humidity_min || plant.optimal_temp_min) && (
+          <Card variant="elevated" style={styles.conditionsCard}>
+            <View style={styles.conditionsHeader}>
+              <Ionicons name="stats-chart" size={24} color={Colors.secondary} />
+              <Text style={styles.conditionsTitle}>Condiciones Óptimas</Text>
             </View>
-          </View>
+            <View style={styles.conditionsRow}>
+              {plant.optimal_humidity_min && (
+                <View style={styles.conditionItem}>
+                  <Ionicons name="water" size={20} color={Colors.secondary} />
+                  <Text style={styles.conditionLabel}>Humedad</Text>
+                  <Text style={styles.conditionValue}>
+                    {plant.optimal_humidity_min}% - {plant.optimal_humidity_max}%
+                  </Text>
+                </View>
+              )}
+              {plant.optimal_temp_min && (
+                <View style={styles.conditionItem}>
+                  <Ionicons name="thermometer" size={20} color={Colors.error} />
+                  <Text style={styles.conditionLabel}>Temperatura</Text>
+                  <Text style={styles.conditionValue}>
+                    {plant.optimal_temp_min}°C - {plant.optimal_temp_max}°C
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Card>
         )}
 
         {/* Botón Ir al Sensor */}
         {plant.sensor_id && (
-          <View style={styles.actionSection}>
-            <TouchableOpacity style={styles.sensorButton} onPress={handleGoToSensor}>
-              <Ionicons name="hardware-chip" size={24} color={theme.colors.text} />
-              <Text style={styles.sensorButtonText}>Ir al Sensor</Text>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
+          <Button
+            title="Ir al Sensor"
+            onPress={handleGoToSensor}
+            variant="secondary"
+            size="lg"
+            icon="hardware-chip"
+            iconPosition="left"
+            fullWidth
+            style={styles.sensorButton}
+          />
         )}
 
-        {/* Espaciado final */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
+    justifyContent: 'space-between',
+    padding: Spacing.lg,
+    paddingTop: 60,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
+    textAlign: 'center',
   },
-  headerSpacer: {
+  backButton: {
+    width: 40,
+    height: 40,
+    padding: 0,
+  },
+  backButtonPlaceholder: {
     width: 40,
   },
   loadingContainer: {
@@ -303,251 +354,191 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: colors.textSecondary,
+    marginTop: Spacing.md,
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xl,
   },
   errorText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: colors.error,
+    marginTop: Spacing.md,
+    fontSize: Typography.sizes.base,
+    color: Colors.error,
     textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  retryButtonText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '600',
+    marginBottom: Spacing.xl,
   },
   content: {
     flex: 1,
   },
-  imageSection: {
+  avatarSection: {
     alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-  },
-  imageWrapper: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  plantImage: {
-    width: 240,
-    height: 240,
-    backgroundColor: colors.surface,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
   model3dContainer: {
     width: 240,
     height: 240,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.backgroundLight,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+    borderColor: Colors.primary,
+    ...Shadows.lg,
   },
   model3dViewer: {
     flex: 1,
   },
-  imagePlaceholder: {
-    width: 240,
-    height: 240,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  placeholderIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: `${colors.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  placeholderSubtext: {
-    marginTop: 6,
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  infoSection: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+  infoCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   plantTypeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   plantTypeContent: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: Spacing.md,
   },
   plantType: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
   },
   scientificName: {
-    fontSize: 15,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
     fontStyle: 'italic',
   },
-  careLevelBadge: {
+  statusRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    gap: 6,
-  },
-  careLevel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statusSection: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    marginBottom: 24,
-    gap: 12,
+    gap: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   statusCard: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.sm,
   },
-  healthBadge: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    marginRight: 10,
+  healthDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: Spacing.sm,
   },
   moodEmoji: {
-    fontSize: 24,
-    marginRight: 10,
+    fontSize: 20,
+    marginRight: Spacing.sm,
   },
   statusLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    fontWeight: '600',
+    fontWeight: Typography.weights.semibold,
   },
   statusValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    marginBottom: Spacing.sm,
   },
-  tipsSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+  progressBar: {
+    marginTop: Spacing.xs,
   },
-  sectionTitleContainer: {
+  waterCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  waterHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 10,
+    marginBottom: Spacing.md,
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
+  waterTitle: {
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginLeft: Spacing.sm,
+  },
+  waterProgress: {
+    marginBottom: Spacing.sm,
+  },
+  waterText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
   },
   tipsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ffb74d',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  tipsText: {
-    fontSize: 16,
-    lineHeight: 26,
-    color: colors.textSecondary,
-  },
-  actionSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sensorButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    padding: 18,
+  tipsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    marginBottom: Spacing.md,
   },
-  sensorButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-    marginRight: 8,
+  tipsTitle: {
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginLeft: Spacing.sm,
+  },
+  tipsText: {
+    fontSize: Typography.sizes.base,
+    lineHeight: 24,
+    color: Colors.textSecondary,
+  },
+  conditionsCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  conditionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  conditionsTitle: {
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginLeft: Spacing.sm,
+  },
+  conditionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  conditionItem: {
     flex: 1,
-    textAlign: 'center',
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  conditionLabel: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  conditionValue: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+  },
+  sensorButton: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   bottomSpacer: {
-    height: 32,
+    height: Spacing.xl,
   },
 });

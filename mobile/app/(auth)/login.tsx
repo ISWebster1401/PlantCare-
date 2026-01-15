@@ -1,26 +1,29 @@
 /**
- * Pantalla de login
+ * Pantalla de login - Rediseñada con DesignSystem
  */
 import React, { useState } from 'react';
 import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { LoginCredentials } from '../../types';
 import { Config } from '../../constants/Config';
+import { Button, Card } from '../../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../../constants/DesignSystem';
 
 // Verificar si estamos en Expo Go (desarrollo) o en standalone build (producción)
 const isStandalone = Constants.executionEnvironment === 'standalone' || Constants.executionEnvironment === 'storeClient';
@@ -38,22 +41,17 @@ export default function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
 
-  // Configurar redirect URI - usar el esquema nativo (solo funciona en standalone builds)
-  // En Expo Go (desarrollo), Google rechaza URIs exp:// con IPs
-  // En standalone builds, usará plantcare://oauth que sí funciona
+  // Configurar redirect URI
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'plantcare',
     path: 'oauth',
-    useProxy: false, // NO usar proxy (está deprecado)
+    useProxy: false,
   });
 
   // Configurar Google OAuth
-  // IMPORTANTE: Para desarrollo con Expo Go, el redirect URI será exp://IP:PORT/--/oauth
-  // Necesitas agregar ese URI exacto en Google Cloud Console
-  // Para producción (standalone), será plantcare://oauth
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: Config.GOOGLE_CLIENT_ID,
-    redirectUri, // Usar redirect URI explícito
+    redirectUri,
   });
 
   // Debug: Verificar configuración
@@ -61,8 +59,6 @@ export default function LoginScreen() {
     console.log('🔐 Google Auth Config:');
     console.log('  Client ID:', Config.GOOGLE_CLIENT_ID ? '✅ Configurado' : '❌ No configurado');
     console.log('  Redirect URI calculado:', redirectUri);
-    console.log('  ⚠️ Si ves error 400, agrega este URI exacto en Google Cloud Console');
-    console.log('  ⚠️ Para Expo Go, también agrega: exp://TU_IP:8081/--/oauth');
     if (request) {
       console.log('  Request: ✅ Preparado');
     } else {
@@ -152,91 +148,115 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>🌱 PlantCare</Text>
-        <Text style={styles.subtitle}>Inicia sesión en tu cuenta</Text>
+      <LinearGradient
+        colors={Gradients.card}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.content}>
+          {/* Logo y título */}
+          <View style={styles.header}>
+            <Text style={styles.emoji}>🌱</Text>
+            <Text style={styles.title}>PlantCare</Text>
+            <Text style={styles.subtitle}>¡Cuida tus plantas de forma divertida!</Text>
+          </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#666"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isLoading && !googleLoading}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Contraseña"
-            placeholderTextColor="#666"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!isLoading && !googleLoading}
-          />
-
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => setRememberMe(!rememberMe)}
-            disabled={isLoading || googleLoading}
-          >
-            <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-              {rememberMe && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={styles.checkboxLabel}>Recordarme (sesión de 1 mes)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading || googleLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Iniciar Sesión</Text>
-            )}
-          </TouchableOpacity>
-
-          {Config.GOOGLE_CLIENT_ID && isStandalone && (
-            <>
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>o continúa con</Text>
-                <View style={styles.dividerLine} />
+          {/* Formulario */}
+          <Card variant="elevated" style={styles.formCard}>
+            <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor={Colors.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading && !googleLoading}
+                />
               </View>
 
-              <TouchableOpacity
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-                onPress={handleGooglePress}
-                disabled={isLoading || googleLoading || !request}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Text style={styles.googleIcon}>G</Text>
-                    <Text style={styles.googleButtonText}>Continuar con Google</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Contraseña"
+                  placeholderTextColor={Colors.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  editable={!isLoading && !googleLoading}
+                />
+              </View>
 
-          <TouchableOpacity
-            onPress={() => router.push('/(auth)/register')}
-            disabled={isLoading || googleLoading}
-          >
-            <Text style={styles.linkText}>
-              ¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text>
-            </Text>
-          </TouchableOpacity>
+              <View style={styles.checkboxContainer}>
+                <Button
+                  title=""
+                  onPress={() => setRememberMe(!rememberMe)}
+                  variant="ghost"
+                  size="sm"
+                  icon={rememberMe ? 'checkbox' : 'checkbox-outline'}
+                  iconPosition="left"
+                  style={styles.checkboxButton}
+                />
+                <Text style={styles.checkboxLabel}>Recordarme</Text>
+              </View>
+
+              <Button
+                title="Iniciar Sesión"
+                onPress={handleLogin}
+                variant="primary"
+                size="lg"
+                loading={isLoading}
+                disabled={isLoading || googleLoading}
+                fullWidth
+                style={styles.loginButton}
+              />
+
+              {Config.GOOGLE_CLIENT_ID && isStandalone && (
+                <>
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>o</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  <Button
+                    title="Continuar con Google"
+                    onPress={handleGooglePress}
+                    variant="secondary"
+                    size="lg"
+                    loading={googleLoading}
+                    disabled={isLoading || googleLoading || !request}
+                    icon="logo-google"
+                    iconPosition="left"
+                    fullWidth
+                  />
+                </>
+              )}
+
+              <View style={styles.registerContainer}>
+                <Text style={styles.registerText}>¿No tienes cuenta? </Text>
+                <Button
+                  title="Regístrate"
+                  onPress={() => router.push('/(auth)/register')}
+                  variant="ghost"
+                  size="sm"
+                  disabled={isLoading || googleLoading}
+                />
+              </View>
+            </View>
+          </Card>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -244,125 +264,104 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: Spacing.lg,
   },
   content: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
+    width: '100%',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  emoji: {
+    fontSize: 64,
+    marginBottom: Spacing.sm,
   },
   title: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#4caf50',
+    fontSize: Typography.sizes.giant,
+    fontWeight: Typography.weights.extrabold,
+    color: Colors.primary,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
-    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#b0bec5',
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.regular,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+  },
+  formCard: {
+    width: '100%',
   },
   form: {
     width: '100%',
   },
-  input: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 16,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.backgroundLighter,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  inputIcon: {
+    marginRight: Spacing.sm,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: Typography.sizes.base,
+    color: Colors.text,
+    paddingVertical: 0,
   },
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: '#4caf50',
-    borderRadius: 4,
-    marginRight: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#4caf50',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  checkboxButton: {
+    width: 40,
+    height: 40,
+    padding: 0,
   },
   checkboxLabel: {
-    color: '#b0bec5',
-    fontSize: 14,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.xs,
   },
-  button: {
-    backgroundColor: '#4caf50',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkText: {
-    color: '#b0bec5',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  linkBold: {
-    color: '#4caf50',
-    fontWeight: '600',
+  loginButton: {
+    marginBottom: Spacing.md,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginVertical: Spacing.lg,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#334155',
+    backgroundColor: Colors.backgroundLighter,
   },
   dividerText: {
-    color: '#b0bec5',
-    fontSize: 14,
-    marginHorizontal: 12,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textMuted,
+    marginHorizontal: Spacing.md,
   },
-  googleButton: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+  registerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
+    marginTop: Spacing.lg,
   },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4285F4',
-    marginRight: 12,
-  },
-  googleButtonText: {
-    color: '#1a1a1a',
-    fontSize: 16,
-    fontWeight: '600',
+  registerText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
   },
 });

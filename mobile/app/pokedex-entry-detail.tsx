@@ -15,18 +15,17 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { pokedexAPI, plantsAPI } from '../services/api';
 import { PokedexEntryResponse } from '../types';
-import { useTheme } from '../context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Button, Card, Badge } from '../components/ui';
+import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
 
 export default function PokedexEntryDetailScreen() {
-  const { theme } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const [entry, setEntry] = useState<PokedexEntryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const styles = createStyles(theme.colors);
 
   useEffect(() => {
     loadEntry();
@@ -122,11 +121,11 @@ export default function PokedexEntryDetailScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
           </TouchableOpacity>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Cargando entrada...</Text>
         </View>
       </View>
@@ -138,11 +137,11 @@ export default function PokedexEntryDetailScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.icon} />
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
           </TouchableOpacity>
         </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color={theme.colors.error} />
+          <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
           <Text style={styles.errorText}>{error || 'Entrada no encontrada'}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadEntry}>
             <Text style={styles.retryButtonText}>Reintentar</Text>
@@ -159,7 +158,7 @@ export default function PokedexEntryDetailScreen() {
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerBgColor, borderBottomColor: headerBorderColor }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={28} color={theme.colors.icon} />
+            <Ionicons name="arrow-back" size={28} color={Colors.white} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={[styles.entryNumberBadge, { backgroundColor: headerBorderColor }]}>
@@ -265,14 +264,14 @@ export default function PokedexEntryDetailScreen() {
           </View>
         ) : (
           <View style={styles.botanicalSection}>
-            <View style={[styles.botanicalCard, { borderLeftColor: theme.colors.primary }]}>
+            <View style={[styles.botanicalCard, { borderLeftColor: Colors.primary }]}>
               <View style={styles.botanicalHeader}>
-                <Ionicons name="lock-closed" size={28} color={theme.colors.primary} />
+                <Ionicons name="lock-closed" size={28} color={Colors.primary} />
                 <Text style={styles.botanicalCardTitle}>🔒 Información Bloqueada</Text>
               </View>
               <View style={styles.botanicalRow}>
-                <View style={[styles.botanicalIconCircle, { backgroundColor: theme.colors.primary + '30' }]}>
-                  <Ionicons name="eye-off" size={24} color={theme.colors.primary} />
+                <View style={[styles.botanicalIconCircle, { backgroundColor: Colors.primary + '30' }]}>
+                  <Ionicons name="eye-off" size={24} color={Colors.primary} />
                 </View>
                 <View style={styles.botanicalContent}>
                   <Text style={styles.botanicalLabel}>🔒 Esta información está bloqueada</Text>
@@ -289,8 +288,8 @@ export default function PokedexEntryDetailScreen() {
         {entry.is_unlocked ? (
           <View style={styles.statsSection}>
             <View style={styles.sectionTitleContainer}>
-              <View style={[styles.sectionIconContainer, { backgroundColor: theme.colors.primary + '20' }]}>
-                <Ionicons name="stats-chart" size={28} color={theme.colors.primary} />
+              <View style={[styles.sectionIconContainer, { backgroundColor: Colors.primary + '20' }]}>
+                <Ionicons name="stats-chart" size={28} color={Colors.primary} />
               </View>
               <Text style={styles.sectionTitle}>⚡ Estadísticas</Text>
             </View>
@@ -358,7 +357,7 @@ export default function PokedexEntryDetailScreen() {
         {entry.is_unlocked && entry.discovered_at && (
           <View style={styles.dateSection}>
             <View style={styles.dateCard}>
-              <Ionicons name="calendar" size={20} color={theme.colors.textSecondary} />
+              <Ionicons name="calendar" size={20} color={Colors.textSecondary} />
               <View style={styles.dateContent}>
                 <Text style={styles.dateLabel}>Descubierta el</Text>
                 <Text style={styles.dateValue}>{formatDate(entry.discovered_at)}</Text>
@@ -451,10 +450,10 @@ export default function PokedexEntryDetailScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -463,13 +462,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 3,
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
   },
   backButton: {
     padding: 10,
     marginRight: 8,
     borderRadius: 12,
-    backgroundColor: colors.background + '80',
+    backgroundColor: Colors.background + '80',
   },
   headerContent: {
     flex: 1,
@@ -499,12 +498,12 @@ const createStyles = (colors: any) => StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: colors.text,
+    color: Colors.text,
     letterSpacing: 0.5,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
     fontStyle: 'italic',
     marginTop: 2,
   },
@@ -519,7 +518,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
   },
   errorContainer: {
     flex: 1,
@@ -530,12 +529,12 @@ const createStyles = (colors: any) => StyleSheet.create({
   errorText: {
     marginTop: 16,
     fontSize: 16,
-    color: colors.error,
+    color: Colors.error,
     textAlign: 'center',
     marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: Colors.primary,
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 12,
@@ -552,7 +551,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
     paddingHorizontal: 16,
-    backgroundColor: colors.background,
+    backgroundColor: Colors.background,
   },
   imageContainer: {
     width: '100%',
@@ -560,7 +559,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 4,
     borderRadius: 24,
     padding: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
   },
   imageWrapper: {
     borderRadius: 20,
@@ -571,13 +570,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
     borderWidth: 2,
-    borderColor: colors.primary + '40',
+    borderColor: Colors.primary + '40',
     position: 'relative',
   },
   plantImage: {
     width: 320,
     height: 320,
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
   },
   unlockedBadge: {
     position: 'absolute',
@@ -604,7 +603,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 20,
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
@@ -629,7 +628,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   placeholderHint: {
     marginTop: 12,
     fontSize: 14,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -638,11 +637,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 20,
   },
   botanicalCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 20,
     padding: 20,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: Colors.backgroundLighter,
     borderLeftWidth: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -659,7 +658,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   botanicalCardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: Colors.text,
     letterSpacing: 0.3,
   },
   botanicalRow: {
@@ -669,7 +668,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   botanicalRowSeparator: {
     borderTopWidth: 2,
-    borderTopColor: colors.border,
+    borderTopColor: Colors.backgroundLighter,
     marginTop: 8,
     paddingTop: 18,
   },
@@ -686,14 +685,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   botanicalLabel: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
     marginBottom: 6,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   botanicalValue: {
     fontSize: 17,
-    color: colors.text,
+    color: Colors.text,
     fontWeight: '600',
     lineHeight: 24,
   },
@@ -716,11 +715,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: '47%',
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 18,
     padding: 18,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: Colors.backgroundLighter,
     borderLeftWidth: 5,
     alignItems: 'center',
     shadowColor: '#000',
@@ -742,7 +741,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   statLabel: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
     marginBottom: 6,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -760,24 +759,24 @@ const createStyles = (colors: any) => StyleSheet.create({
   dateCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: Colors.backgroundLighter,
   },
   dateContent: {
     marginLeft: 12,
   },
   dateLabel: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
     marginBottom: 4,
   },
   dateValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
+    color: Colors.text,
   },
   tipsSection: {
     paddingHorizontal: 16,
@@ -792,15 +791,15 @@ const createStyles = (colors: any) => StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: colors.text,
+    color: Colors.text,
     letterSpacing: 0.5,
   },
   tipsCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 20,
     padding: 22,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: Colors.backgroundLighter,
     borderLeftWidth: 6,
     shadowColor: '#ffb74d',
     shadowOffset: { width: 0, height: 4 },
@@ -817,13 +816,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   tipsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: Colors.text,
     letterSpacing: 0.3,
   },
   tipsText: {
     fontSize: 16,
     lineHeight: 26,
-    color: colors.text,
+    color: Colors.text,
     fontWeight: '500',
   },
   conditionsSection: {
@@ -836,7 +835,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   conditionCard: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: Colors.backgroundLight,
     borderRadius: 20,
     padding: 20,
     alignItems: 'center',
@@ -858,11 +857,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 3,
-    borderColor: colors.surface,
+    borderColor: Colors.backgroundLight,
   },
   conditionLabel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
     marginBottom: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -870,13 +869,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   conditionValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: colors.text,
+    color: Colors.text,
     marginBottom: 6,
     letterSpacing: 0.5,
   },
   conditionSubtext: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: Colors.textSecondary,
     fontStyle: 'italic',
     fontWeight: '600',
   },
@@ -885,16 +884,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 20,
   },
   addButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: Colors.primary,
     borderRadius: 20,
     padding: 20,
-    shadowColor: colors.primary,
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 8,
     borderWidth: 2,
-    borderColor: colors.primaryDark,
+    borderColor: Colors.primaryDark,
   },
   addButtonContent: {
     flexDirection: 'row',
