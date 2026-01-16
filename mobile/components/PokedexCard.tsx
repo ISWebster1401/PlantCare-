@@ -179,6 +179,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   imageContainer: {
+    position: 'relative',
     width: '100%',
     height: 160,
     alignItems: 'center',
@@ -193,6 +194,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   image: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     width: '100%',
     height: '100%',
   },
@@ -250,12 +256,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: BorderRadius.full,
     padding: Spacing.xs,
-    // Shadow properties para iOS
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    // Elevation para Android
     elevation: 3,
   },
 });
