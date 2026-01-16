@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --lan --host lan",
-    "start:tunnel": "expo start --tunnel",
-    "android": "expo start --android --lan",
-    "ios": "expo start --ios",
+    "start": "./start-expo.sh",
+    "start:lan": "expo start --lan --clear --host lan",
+    "start:tunnel": "expo start --tunnel --clear",
+    "start:localhost": "REACT_NATIVE_PACKAGER_HOSTNAME=localhost expo start --clear",
+    "start:clean": "pkill -f 'expo start' 2>/dev/null; pkill -f 'metro' 2>/dev/null; lsof -ti:8081 | xargs kill -9 2>/dev/null; rm -rf .expo node_modules/.cache .metro; expo start --clear --host lan",
+    "android": "expo start --android --clear",
+    "ios": "expo start --ios --clear",
     "web": "expo start --web"
   },
   "dependencies": {

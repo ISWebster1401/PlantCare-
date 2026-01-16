@@ -28,9 +28,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "packagerOpts": {
-      "hostType": "lan"
-    },
     "plugins": [
       "expo-router",
       [
