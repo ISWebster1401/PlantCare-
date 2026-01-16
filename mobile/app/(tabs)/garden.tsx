@@ -9,14 +9,16 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { plantsAPI } from '../../services/api';
 import { PlantResponse } from '../../types';
 import { PlantCard } from '../../components/PlantCard';
-import { Button, Card } from '../../components/ui';
+import { Button } from '../../components/ui';
 import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../../constants/DesignSystem';
 
 export default function GardenScreen() {
@@ -24,6 +26,7 @@ export default function GardenScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const loadPlants = async () => {
     try {
@@ -121,16 +124,16 @@ export default function GardenScreen() {
       />
 
       {/* FAB para agregar planta */}
-      <View style={styles.fabContainer}>
-        <Button
-          title=""
-          onPress={() => router.push('/scan-plant')}
-          variant="primary"
-          size="lg"
-          icon="add"
-          iconPosition="left"
+      <View style={[styles.fabContainer, { bottom: insets.bottom + Spacing.lg }]}>
+        <TouchableOpacity
           style={styles.fab}
-        />
+          onPress={() => router.push('/scan-plant')}
+          activeOpacity={0.8}
+          accessibilityLabel="Escanear planta"
+          accessibilityRole="button"
+        >
+          <Ionicons name="camera" size={28} color={Colors.white} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -206,12 +209,14 @@ const styles = StyleSheet.create({
   fabContainer: {
     position: 'absolute',
     right: Spacing.lg,
-    bottom: 100, // Más arriba para que no quede tan abajo
   },
   fab: {
     width: 64,
     height: 64,
     borderRadius: 32,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
     ...Shadows.lg,
   },
   loader: {
