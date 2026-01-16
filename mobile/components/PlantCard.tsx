@@ -4,10 +4,10 @@
  * Tarjeta de planta con diseño moderno usando DesignSystem
  */
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, PlantAvatar, Badge, ProgressBar } from './ui';
-import { Colors, Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType } from '../constants/DesignSystem';
+import { Colors, Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType, BorderRadius } from '../constants/DesignSystem';
 import { PlantResponse } from '../types';
 
 export interface PlantCardProps {
@@ -86,16 +86,31 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
       accessibilityLabel={`Planta ${plant.plant_name}, estado ${healthStatus}`}
     >
       <View style={styles.container}>
-        {/* Avatar y nombre */}
-        <View style={styles.header}>
-          <PlantAvatar
-            imageUrl={imageUrl}
-            mood={mood}
-            healthStatus={healthStatus}
-            size={80}
-            showMoodEmoji={false}
-            showGlow={true}
-          />
+        {/* Imagen a todo ancho */}
+        {imageUrl ? (
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          </View>
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <PlantAvatar
+              imageUrl={undefined}
+              mood={mood}
+              healthStatus={healthStatus}
+              size={100}
+              showMoodEmoji={false}
+              showGlow={true}
+            />
+          </View>
+        )}
+
+        {/* Contenido */}
+        <View style={styles.content}>
+          {/* Nombre y tipo */}
           <View style={styles.nameContainer}>
             <Text style={styles.plantName} numberOfLines={1}>
               {plant.plant_name}
@@ -106,43 +121,43 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
               </Text>
             )}
           </View>
-        </View>
 
-        {/* Badge de estado */}
-        <View style={styles.badgeContainer}>
-          <Badge status={healthStatus} size="sm" />
-        </View>
+          {/* Badge de estado */}
+          <View style={styles.badgeContainer}>
+            <Badge status={healthStatus} size="sm" />
+          </View>
 
-        {/* Barras de progreso */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressItem}>
-            <Text style={styles.progressLabel}>Salud</Text>
-            <ProgressBar
-              progress={healthProgress}
-              height={8}
-              color={HealthStatuses[healthStatus].color}
-              showShimmer={healthStatus === 'healthy'}
-            />
+          {/* Barras de progreso */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressItem}>
+              <Text style={styles.progressLabel}>Salud</Text>
+              <ProgressBar
+                progress={healthProgress}
+                height={8}
+                color={HealthStatuses[healthStatus].color}
+                showShimmer={healthStatus === 'healthy'}
+              />
+            </View>
+            <View style={styles.progressItem}>
+              <Text style={styles.progressLabel}>Agua</Text>
+              <ProgressBar
+                progress={waterProgress}
+                height={8}
+                gradient={['#64B5F6', '#4FC3F7']}
+                showShimmer={waterProgress > 80}
+              />
+            </View>
           </View>
-          <View style={styles.progressItem}>
-            <Text style={styles.progressLabel}>Agua</Text>
-            <ProgressBar
-              progress={waterProgress}
-              height={8}
-              gradient={['#64B5F6', '#4FC3F7']}
-              showShimmer={waterProgress > 80}
-            />
-          </View>
-        </View>
 
-        {/* Mensaje del mood */}
-        {PlantMoods[mood] && (
-          <View style={styles.moodContainer}>
-            <Text style={styles.moodText}>
-              {PlantMoods[mood].emoji} {PlantMoods[mood].message}
-            </Text>
-          </View>
-        )}
+          {/* Mensaje del mood */}
+          {PlantMoods[mood] && (
+            <View style={styles.moodContainer}>
+              <Text style={styles.moodText}>
+                {PlantMoods[mood].emoji} {PlantMoods[mood].message}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
     </Card>
   );
@@ -151,21 +166,36 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
 const styles = StyleSheet.create({
   card: {
     marginBottom: Spacing.md,
+    overflow: 'hidden',
   },
   container: {
     width: '100%',
   },
-  header: {
-    flexDirection: 'row',
+  imageContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.backgroundLighter,
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.backgroundLighter,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+  },
+  content: {
+    padding: Spacing.md,
   },
   nameContainer: {
-    flex: 1,
-    marginLeft: Spacing.md,
+    marginBottom: Spacing.md,
   },
   plantName: {
-    fontSize: Typography.sizes.lg,
+    fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
     color: Colors.text,
     marginBottom: Spacing.xs,
