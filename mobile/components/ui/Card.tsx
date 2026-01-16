@@ -21,7 +21,7 @@ export interface CardProps {
   variant?: CardVariant;
   onPress?: () => void;
   style?: ViewStyle | ViewStyle[];
-  gradient?: string[];
+  gradient?: readonly string[] | string[];
   delay?: number;
   accessibilityLabel?: string;
 }
@@ -101,14 +101,14 @@ export const Card: React.FC<CardProps> = ({
     >
       {gradient ? (
         <AnimatedGradient
-          colors={getGradientColors(gradient)}
+          colors={getGradientColors(Array.isArray(gradient) ? gradient : Array.from(gradient))}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
       ) : variant === 'default' ? (
         <LinearGradient
-          colors={getGradientColors(Gradients.card)}
+          colors={getGradientColors(Array.from(Gradients.card))}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
