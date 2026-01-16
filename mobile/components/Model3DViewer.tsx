@@ -2,17 +2,29 @@
  * Componente para renderizar modelos 3D .glb usando expo-gl y Three.js
  */
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ViewStyle } from 'react-native';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
+// @ts-ignore - GLTFLoader no tiene tipos completos en React Native
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 interface Model3DViewerProps {
   modelUrl: string;
-  style?: any;
+  style?: ViewStyle;
   autoRotate?: boolean;
   characterMood?: string;
+}
+
+interface GLTFResult {
+  scene: THREE.Group;
+  animations: THREE.AnimationClip[];
+  cameras: THREE.Camera[];
+  asset: {
+    copyright?: string;
+    generator?: string;
+    version?: string;
+  };
 }
 
 export const Model3DViewer: React.FC<Model3DViewerProps> = ({ 
@@ -76,15 +88,13 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
       scene.add(directionalLight2);
 
       // Cargar modelo GLB
-      // En React Native, GLTFLoader.load() puede funcionar directamente con URLs
-      // ya que usa fetch internamente
       const loader = new GLTFLoader();
       
       console.log(`🔄 Cargando modelo 3D desde: ${modelUrl}`);
       
       loader.load(
         modelUrl,
-        (gltf) => {
+        (gltf: GLTFResult) => {
           console.log('✅ Modelo GLB cargado exitosamente:', gltf);
           // Agregar modelo a la escena
           const model = gltf.scene;
@@ -115,7 +125,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
               const animationName = animationMap[mood.toLowerCase()] || 'Idle';
               
               // Buscar la animación por nombre (case-insensitive)
-              const targetAnimation = gltf.animations.find((clip) => 
+              const targetAnimation = gltf.animations.find((clip: THREE.AnimationClip) => 
                 clip.name.toLowerCase() === animationName.toLowerCase()
               );
               
@@ -127,7 +137,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
                 console.log(`✅ Animación '${animationName}' reproducida para mood '${mood}'`);
               } else {
                 // Si no se encuentra la animación, intentar con 'Idle'
-                const idleAnimation = gltf.animations.find((clip) => 
+                const idleAnimation = gltf.animations.find((clip: THREE.AnimationClip) => 
                   clip.name.toLowerCase() === 'idle'
                 );
                 
@@ -138,7 +148,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
                   console.log(`⚠️ Animación '${animationName}' no encontrada, usando 'Idle'`);
                 } else {
                   // Si no hay Idle, reproducir todas las animaciones (fallback)
-                  gltf.animations.forEach((clip) => {
+                  gltf.animations.forEach((clip: THREE.AnimationClip) => {
                     mixerRef.current?.clipAction(clip).play();
                   });
                   console.log(`⚠️ No se encontró animación específica, reproduciendo todas`);
@@ -146,7 +156,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
               }
             } else {
               // Si no hay characterMood, reproducir todas las animaciones (comportamiento original)
-              gltf.animations.forEach((clip) => {
+              gltf.animations.forEach((clip: THREE.AnimationClip) => {
                 mixerRef.current?.clipAction(clip).play();
               });
             }
@@ -154,17 +164,17 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
 
           console.log('✅ Modelo 3D cargado exitosamente');
         },
-        (progress) => {
+        (xhr: ProgressEvent) => {
           // Progreso de carga (opcional)
-          if (progress.total > 0) {
-            const percent = (progress.loaded / progress.total) * 100;
+          if (xhr.total > 0) {
+            const percent = (xhr.loaded / xhr.total) * 100;
             console.log(`Cargando modelo: ${percent.toFixed(0)}%`);
           }
         },
-        (error) => {
+        (error: ErrorEvent) => {
           console.error('❌ Error cargando modelo 3D:', error);
           console.error('   URL:', modelUrl);
-          console.error('   Error completo:', JSON.stringify(error, null, 2));
+          console.error('   Mensaje:', error.message);
         }
       );
 

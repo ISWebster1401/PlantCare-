@@ -13,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, CardProps } from './Card';
-import { Colors, Typography, Spacing } from '../../constants/DesignSystem';
+import { Colors, Typography, Spacing, BorderRadius } from '../../constants/DesignSystem';
 
 export interface StatCardProps extends Omit<CardProps, 'children'> {
   icon: keyof typeof Ionicons.glyphMap;
@@ -69,6 +69,11 @@ export const StatCard: React.FC<StatCardProps> = ({
       <View style={styles.container}>
         <View style={[styles.iconContainer, { backgroundColor: `${color}20` }]}>
           <Ionicons name={icon} size={iconSize} color={color} />
+          {value > 0 && (
+            <View style={[styles.badge, { backgroundColor: color }]}>
+              <Text style={styles.badgeText}>{displayValue}</Text>
+            </View>
+          )}
         </View>
         <Animated.View style={[styles.content, animatedTextStyle]}>
           <Text style={styles.value}>{displayValue}</Text>
@@ -91,6 +96,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  badgeText: {
+    color: Colors.white,
+    fontSize: 11,
+    fontWeight: Typography.weights.bold,
+    lineHeight: 14,
   },
   content: {
     flex: 1,
