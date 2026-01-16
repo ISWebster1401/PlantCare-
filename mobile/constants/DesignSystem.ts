@@ -52,14 +52,14 @@ export const Colors = {
 // GRADIENTES
 // ============================================
 export const Gradients = {
-  primary: ['#4CAF50', '#81C784'],
-  sunset: ['#FFB74D', '#FF8A65'],
-  ocean: ['#64B5F6', '#4FC3F7'],
-  card: ['#243447', '#2D4258'],
-  xp: ['#FFD700', '#FFA726'],
-  healthy: ['#4CAF50', '#66BB6A'],
-  warning: ['#FFB74D', '#FFA726'],
-  critical: ['#EF5350', '#E57373'],
+  primary: ['#4CAF50', '#81C784'] as const,
+  sunset: ['#FFB74D', '#FF8A65'] as const,
+  ocean: ['#64B5F6', '#4FC3F7'] as const,
+  card: ['#243447', '#2D4258'] as const,
+  xp: ['#FFD700', '#FFA726'] as const,
+  healthy: ['#4CAF50', '#66BB6A'] as const,
+  warning: ['#FFB74D', '#FFA726'] as const,
+  critical: ['#EF5350', '#E57373'] as const,
 };
 
 // ============================================
