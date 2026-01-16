@@ -77,7 +77,27 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     };
   });
 
-  const colors = gradient || (color ? [color, color] : Gradients.primary);
+  // Función para convertir string[] a tupla válida para LinearGradient
+  const getGradientColors = (colors: string[] | undefined): [string, string, ...string[]] => {
+    if (!colors || colors.length < 2) {
+      return [Colors.primary, Colors.primaryLight];
+    }
+    return colors as [string, string, ...string[]];
+  };
+
+  // Determinar colores para el gradiente
+  const progressColors = gradient 
+    ? getGradientColors(gradient)
+    : color 
+    ? [color, color] as [string, string]
+    : getGradientColors(Gradients.primary);
+
+  // Colores fijos para el shimmer
+  const shimmerColors: [string, string, string] = [
+    'transparent', 
+    'rgba(255,255,255,0.3)', 
+    'transparent'
+  ];
 
   return (
     <View
@@ -121,7 +141,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         ]}
       >
         <LinearGradient
-          colors={colors}
+          colors={progressColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={StyleSheet.absoluteFillObject}
@@ -130,7 +150,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         {/* Efecto shimmer */}
         {showShimmer && (
           <AnimatedGradient
-            colors={['transparent', 'rgba(255,255,255,0.3)', 'transparent']}
+            colors={shimmerColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={[
