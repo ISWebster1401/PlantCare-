@@ -47,13 +47,23 @@ async def list_notifications(
             try:
                 notif = row.to_dict()
                 
+                # Manejar valores NaN/None de pandas - convertir a None explícitamente
+                for field in ["plant_id", "plant_name", "character_image_url"]:
+                    if field in notif and pd.isna(notif.get(field)):
+                        notif[field] = None
+                    elif field == "plant_id" and notif.get(field) is not None:
+                        try:
+                            notif[field] = int(notif[field])
+                        except (ValueError, TypeError):
+                            notif[field] = None
+                
                 # Inicializar campos opcionales
-                notif["plant_name"] = None
-                notif["character_image_url"] = None
+                notif["plant_name"] = notif.get("plant_name") or None
+                notif["character_image_url"] = notif.get("character_image_url") or None
                 
                 # Obtener datos de la planta si existe
                 plant_id = notif.get("plant_id")
-                if plant_id and pd.notna(plant_id):
+                if plant_id and plant_id is not None:
                     try:
                         plants = await db.fetch_records(
                             "plants",
@@ -61,22 +71,31 @@ async def list_notifications(
                         )
                         if plants is not None and not plants.empty:
                             plant = plants.iloc[0].to_dict()
-                            notif["plant_name"] = plant.get("plant_name")
-                            notif["character_image_url"] = plant.get("character_image_url")
+                            notif["plant_name"] = plant.get("plant_name") if pd.notna(plant.get("plant_name")) else None
+                            notif["character_image_url"] = plant.get("character_image_url") if pd.notna(plant.get("character_image_url")) else None
                     except Exception as plant_error:
-                        logger.warning(f"Error obteniendo datos de planta {plant_id}: {plant_error}")
+                        logger.warning(f"Error obteniendo datos de planta {plant_id}: {plant_error}", exc_info=True)
                         # Continuar sin datos de la planta
+                
+                # Asegurar que plant_id sea int o None
+                if "plant_id" in notif and notif["plant_id"] is not None:
+                    try:
+                        notif["plant_id"] = int(notif["plant_id"])
+                    except (ValueError, TypeError):
+                        notif["plant_id"] = None
                 
                 result.append(NotificationResponse(**notif))
             except Exception as row_error:
-                logger.warning(f"Error procesando notificación: {row_error}")
+                logger.error(f"Error procesando notificación: {row_error}", exc_info=True)
                 # Continuar con la siguiente notificación
                 continue
         
         return result
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error listando notificaciones: {str(e)}")
+        logger.error(f"Error listando notificaciones: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error listando notificaciones: {str(e)}"
