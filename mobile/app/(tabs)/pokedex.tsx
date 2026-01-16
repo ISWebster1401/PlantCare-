@@ -71,12 +71,12 @@ export default function PokedexScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={Gradients.ocean}
+          colors={Gradients.primary}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.header}
         >
-          <Text style={styles.title}>📚 Pokedex Plantuna</Text>
+          <Text style={styles.title}>📚 Plantadex</Text>
         </LinearGradient>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -90,20 +90,20 @@ export default function PokedexScreen() {
     <View style={styles.container}>
       {/* Header con gradiente */}
       <LinearGradient
-        colors={Gradients.ocean}
+        colors={Gradients.primary}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
         <View style={styles.headerContent}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>📚 Pokedex Plantuna</Text>
+            <Text style={styles.title}>📚 Plantadex</Text>
             <View style={styles.progressContainer}>
-              <Badge
-                status="healthy"
-                label={`${unlockedCount}/${totalCount}`}
-                size="sm"
-              />
+              <View style={styles.progressBadge}>
+                <Text style={styles.progressText}>
+                  ✔ {unlockedCount}/{totalCount}
+                </Text>
+              </View>
             </View>
           </View>
           <View style={styles.viewModeContainer}>
@@ -159,6 +159,7 @@ export default function PokedexScreen() {
           )}
           keyExtractor={(item) => item.catalog_entry.id.toString()}
           numColumns={viewMode === 'grid' ? 2 : 1}
+          columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
           contentContainerStyle={viewMode === 'grid' ? styles.gridContent : styles.listContent}
           refreshControl={
             <RefreshControl
@@ -214,6 +215,20 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignSelf: 'flex-start',
+  },
+  progressBadge: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 2,
+    borderColor: Colors.primaryDark,
+    ...Shadows.md,
+  },
+  progressText: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.bold,
+    color: Colors.primaryDark,
   },
   viewModeContainer: {
     flexDirection: 'row',
@@ -274,10 +289,13 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: 100,
   },
+  gridRow: {
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+  },
   gridContent: {
-    padding: Spacing.sm,
+    paddingTop: Spacing.md,
     paddingBottom: 100,
-    justifyContent: 'flex-start',
   },
   fabContainer: {
     position: 'absolute',

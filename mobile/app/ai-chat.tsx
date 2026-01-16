@@ -731,14 +731,13 @@ export default function AIChatScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.header}
         >
-          <Button
-            title=""
+          <TouchableOpacity
             onPress={() => router.back()}
-            variant="ghost"
-            size="sm"
-            icon="arrow-back"
             style={styles.backButton}
-          />
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {!selectedPlant && <PlantAIIcon size={20} color={Colors.white} />}
@@ -753,14 +752,13 @@ export default function AIChatScreen() {
               </View>
             )}
           </View>
-          <Button
-            title=""
+          <TouchableOpacity
             onPress={handleNewChat}
-            variant="ghost"
-            size="sm"
-            icon="add"
             style={styles.newChatButton}
-          />
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add" size={28} color={Colors.white} />
+          </TouchableOpacity>
         </LinearGradient>
 
         {showPlantSelector ? renderPlantSelector() : activeConversation && (
@@ -898,8 +896,12 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
-    width: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   headerTitleContainer: {
     flex: 1,
@@ -928,8 +930,12 @@ const styles = StyleSheet.create({
   },
   newChatButton: {
     padding: 8,
-    width: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   chatWrapper: {
     flex: 1,
