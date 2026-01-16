@@ -4,7 +4,7 @@
  * Tarjeta de planta con diseño moderno usando DesignSystem
  */
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, PlantAvatar, Badge, ProgressBar } from './ui';
 import { Colors, Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType } from '../constants/DesignSystem';
@@ -71,22 +71,29 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
   const healthProgress = getHealthProgress();
   const waterProgress = getWaterProgress();
 
+  // Construir array de estilos sin valores undefined
+  const cardStyles: ViewStyle[] = [styles.card];
+  if (style) cardStyles.push(style);
+
+  // Obtener imageUrl manejando el null
+  const imageUrl = plant.character_image_url || plant.original_photo_url || undefined;
+
   return (
     <Card
       variant="elevated"
       onPress={handlePress}
-      style={[styles.card, style]}
+      style={cardStyles}
       accessibilityLabel={`Planta ${plant.plant_name}, estado ${healthStatus}`}
     >
       <View style={styles.container}>
         {/* Avatar y nombre */}
         <View style={styles.header}>
           <PlantAvatar
-            imageUrl={plant.character_image_url || plant.original_photo_url}
+            imageUrl={imageUrl}
             mood={mood}
             healthStatus={healthStatus}
             size={80}
-            showMoodEmoji={true}
+            showMoodEmoji={false}
             showGlow={true}
           />
           <View style={styles.nameContainer}>
