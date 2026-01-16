@@ -90,7 +90,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     ? getGradientColors(gradient)
     : color 
     ? [color, color] as [string, string]
-    : getGradientColors(Gradients.primary);
+    : getGradientColors(Array.from(Gradients.primary));
 
   // Colores fijos para el shimmer
   const shimmerColors: [string, string, string] = [
