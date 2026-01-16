@@ -4,7 +4,7 @@
  * Tarjeta de entrada del Pokedex con diseño estilo colección
  */
 import React from 'react';
-import { View, Text, StyleSheet, Image, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, Image, ViewStyle, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, Badge } from './ui';
 import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../constants/DesignSystem';
@@ -18,7 +18,12 @@ export interface PokedexCardProps {
   viewMode?: 'list' | 'grid';
 }
 
-export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMode = 'list', style }) => {
+export const PokedexCard: React.FC<PokedexCardProps> = ({ 
+  entry, 
+  onPress, 
+  viewMode = 'list', 
+  style 
+}) => {
   const router = useRouter();
   const { catalog_entry, is_unlocked } = entry;
   
@@ -32,44 +37,58 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
     }
   };
 
+  // Construir array de estilos sin valores falsy
+  const cardStyles: ViewStyle[] = [styles.card];
+  if (isGrid) cardStyles.push(styles.cardGrid);
+  if (!is_unlocked) cardStyles.push(styles.locked);
+  if (style) cardStyles.push(style);
+
+  const containerStyles: ViewStyle[] = [styles.container];
+  if (isGrid) containerStyles.push(styles.containerGrid);
+
+  const imageContainerStyles: ViewStyle[] = [styles.imageContainer];
+  if (isGrid) imageContainerStyles.push(styles.imageContainerGrid);
+
+  const infoContainerStyles: ViewStyle[] = [styles.infoContainer];
+  if (isGrid) infoContainerStyles.push(styles.infoContainerGrid);
+
+  const plantNameStyles: TextStyle[] = [styles.plantName];
+  if (isGrid) plantNameStyles.push(styles.plantNameGrid);
+  if (!is_unlocked) plantNameStyles.push(styles.lockedText);
+
   return (
     <Card
       variant={is_unlocked ? 'elevated' : 'outlined'}
       onPress={is_unlocked ? handlePress : undefined}
-      style={[
-        styles.card,
-        isGrid && styles.cardGrid,
-        !is_unlocked && styles.locked,
-        style,
-      ]}
+      style={cardStyles}
       gradient={is_unlocked ? Gradients.card : undefined}
       accessibilityLabel={`${catalog_entry.plant_type} - ${is_unlocked ? 'Desbloqueado' : 'Bloqueado'}`}
     >
-      <View style={styles.container}>
+      <View style={containerStyles}>
         {/* Número de entrada */}
         <View style={styles.numberContainer}>
           <Text style={styles.number}>#{catalog_entry.entry_number}</Text>
         </View>
 
         {/* Imagen o placeholder */}
-        <View style={[styles.imageContainer, isGrid && styles.imageContainerGrid]}>
+        <View style={imageContainerStyles}>
           {is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url) ? (
             <Image
               source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
-              style={[styles.image, isGrid && styles.imageGrid]}
-              resizeMode={isGrid ? "cover" : "cover"}
+              style={styles.image}
+              resizeMode="cover"
             />
           ) : (
             <View style={styles.placeholder}>
               <Ionicons
                 name="leaf-outline"
-                size={isGrid ? 32 : 48}
+                size={isGrid ? 40 : 48}
                 color={is_unlocked ? Colors.textSecondary : Colors.textMuted}
               />
               {!is_unlocked && (
                 <Ionicons
                   name="lock-closed"
-                  size={isGrid ? 16 : 24}
+                  size={isGrid ? 20 : 24}
                   color={Colors.textMuted}
                   style={styles.lockIcon}
                 />
@@ -79,35 +98,30 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({ entry, onPress, viewMo
         </View>
 
         {/* Información */}
-        <View style={[styles.infoContainer, isGrid && styles.infoContainerGrid]}>
+        <View style={infoContainerStyles}>
           <Text
-            style={[
-              styles.plantName,
-              isGrid && styles.plantNameGrid,
-              !is_unlocked && styles.lockedText,
-            ]}
+            style={plantNameStyles}
             numberOfLines={isGrid ? 2 : 1}
           >
             {is_unlocked ? catalog_entry.plant_type : '???'}
           </Text>
+          
           {is_unlocked && catalog_entry.scientific_name && !isGrid && (
             <Text style={styles.scientificName} numberOfLines={1}>
               {catalog_entry.scientific_name}
             </Text>
           )}
-          {is_unlocked && catalog_entry.care_level && !isGrid && (
+          
+          {is_unlocked && catalog_entry.care_level && (
             <View style={styles.badgeContainer}>
               <Badge
-                status={catalog_entry.care_level === 'Fácil' ? 'healthy' : catalog_entry.care_level === 'Medio' ? 'warning' : 'critical'}
-                label={catalog_entry.care_level}
-                size="sm"
-              />
-            </View>
-          )}
-          {is_unlocked && catalog_entry.care_level && isGrid && (
-            <View style={styles.badgeContainer}>
-              <Badge
-                status={catalog_entry.care_level === 'Fácil' ? 'healthy' : catalog_entry.care_level === 'Medio' ? 'warning' : 'critical'}
+                status={
+                  catalog_entry.care_level === 'Fácil' 
+                    ? 'healthy' 
+                    : catalog_entry.care_level === 'Medio' 
+                    ? 'warning' 
+                    : 'critical'
+                }
                 label={catalog_entry.care_level}
                 size="sm"
               />
@@ -133,20 +147,24 @@ const styles = StyleSheet.create({
   },
   cardGrid: {
     width: '48%',
-    marginHorizontal: '1%',
     marginBottom: Spacing.md,
-    // Asegura que la card tenga suficiente espacio
+    marginHorizontal: '1%',
   },
   locked: {
     opacity: 0.6,
   },
   container: {
     position: 'relative',
+    width: '100%',
+    padding: Spacing.md,
+  },
+  containerGrid: {
+    padding: Spacing.sm,
   },
   numberContainer: {
     position: 'absolute',
-    top: 0,
-    right: 0,
+    top: Spacing.sm,
+    right: Spacing.sm,
     zIndex: 2,
     backgroundColor: Colors.background,
     paddingHorizontal: Spacing.sm,
@@ -162,7 +180,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: 120,
+    height: 160,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
@@ -171,15 +189,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   imageContainerGrid: {
-    height: 160, // Aumentado significativamente para que no se vea aplastado
+    height: 140,
     marginBottom: Spacing.sm,
   },
   image: {
     width: '100%',
     height: '100%',
-  },
-  imageGrid: {
-    // Asegura que la imagen llene el contenedor cuadrado correctamente
   },
   placeholder: {
     width: '100%',
@@ -190,16 +205,16 @@ const styles = StyleSheet.create({
   },
   lockIcon: {
     position: 'absolute',
-    bottom: Spacing.xs,
-    right: Spacing.xs,
+    bottom: Spacing.sm,
+    right: Spacing.sm,
   },
   infoContainer: {
     alignItems: 'center',
-    paddingHorizontal: Spacing.xs,
     width: '100%',
   },
   infoContainerGrid: {
-    minHeight: 60,
+    minHeight: 70,
+    justifyContent: 'center',
   },
   plantName: {
     fontSize: Typography.sizes.lg,
@@ -215,6 +230,7 @@ const styles = StyleSheet.create({
   lockedText: {
     color: Colors.textMuted,
     fontSize: Typography.sizes.xl,
+    letterSpacing: 2,
   },
   scientificName: {
     fontSize: Typography.sizes.sm,
@@ -234,5 +250,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: BorderRadius.full,
     padding: Spacing.xs,
+    // Shadow properties para iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    // Elevation para Android
+    elevation: 3,
   },
 });

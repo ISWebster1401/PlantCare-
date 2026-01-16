@@ -10,7 +10,6 @@ import Animated, {
   useSharedValue,
   withTiming,
   withSpring,
-  FadeInDown,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, BorderRadius, Shadows, Spacing, Gradients } from '../../constants/DesignSystem';
@@ -21,7 +20,7 @@ export interface CardProps {
   children: React.ReactNode;
   variant?: CardVariant;
   onPress?: () => void;
-  style?: ViewStyle;
+  style?: ViewStyle | ViewStyle[];
   gradient?: string[];
   delay?: number;
   accessibilityLabel?: string;
@@ -43,9 +42,13 @@ export const Card: React.FC<CardProps> = ({
   const translateY = useSharedValue(20);
 
   useEffect(() => {
-    opacity.value = withTiming(1, { duration: 300 });
-    translateY.value = withSpring(0, { damping: 15, stiffness: 100 });
-  }, []);
+    const timer = setTimeout(() => {
+      opacity.value = withTiming(1, { duration: 300 });
+      translateY.value = withSpring(0, { damping: 15, stiffness: 100 });
+    }, delay);
+    
+    return () => clearTimeout(timer);
+  }, [delay]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -79,9 +82,16 @@ export const Card: React.FC<CardProps> = ({
     }
   };
 
+  // Convertir gradient a tupla para TypeScript
+  const getGradientColors = (colors: string[] | undefined) => {
+    if (!colors || colors.length < 2) {
+      return [Colors.backgroundLight, Colors.backgroundLight] as const;
+    }
+    return colors as [string, string, ...string[]];
+  };
+
   const cardContent = (
     <AnimatedCard
-      entering={FadeInDown.delay(delay).springify()}
       style={[
         styles.card,
         getVariantStyles(),
@@ -91,14 +101,14 @@ export const Card: React.FC<CardProps> = ({
     >
       {gradient ? (
         <AnimatedGradient
-          colors={gradient}
+          colors={getGradientColors(gradient)}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
       ) : variant === 'default' ? (
         <LinearGradient
-          colors={Gradients.card}
+          colors={getGradientColors(Gradients.card)}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
