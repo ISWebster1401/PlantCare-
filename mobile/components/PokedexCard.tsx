@@ -46,8 +46,15 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
   const containerStyles: ViewStyle[] = [styles.container];
   if (isGrid) containerStyles.push(styles.containerGrid);
 
+  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
   const imageContainerStyles: ViewStyle[] = [styles.imageContainer];
   if (isGrid) imageContainerStyles.push(styles.imageContainerGrid);
+  if (hasImage) {
+    imageContainerStyles.push(styles.imageContainerWithImage);
+    if (isGrid) {
+      imageContainerStyles.push(styles.imageContainerWithImageGrid);
+    }
+  }
 
   const infoContainerStyles: ViewStyle[] = [styles.infoContainer];
   if (isGrid) infoContainerStyles.push(styles.infoContainerGrid);
@@ -72,7 +79,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
 
         {/* Imagen o placeholder */}
         <View style={imageContainerStyles}>
-          {is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url) ? (
+          {hasImage ? (
             <Image
               source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
               style={styles.image}
@@ -181,21 +188,25 @@ const styles = StyleSheet.create({
   imageContainer: {
     position: 'relative',
     width: '100%',
-    aspectRatio: 1.1, // Proporción más vertical para plantas
-    minHeight: 180,
+    height: 160,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
     backgroundColor: Colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    padding: Spacing.sm,
   },
   imageContainerGrid: {
-    aspectRatio: 1.1, // Proporción más vertical para plantas
-    minHeight: 160,
+    height: 140,
     marginBottom: Spacing.sm,
-    padding: Spacing.sm,
+  },
+  imageContainerWithImage: {
+    height: 220, // Altura fija más alta para mostrar plantas completas
+    padding: Spacing.md,
+  },
+  imageContainerWithImageGrid: {
+    height: 200, // Altura fija más alta para grid
+    padding: Spacing.md,
   },
   image: {
     width: '100%',
