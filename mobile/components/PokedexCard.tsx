@@ -181,19 +181,21 @@ const styles = StyleSheet.create({
   imageContainer: {
     position: 'relative',
     width: '100%',
-    height: 160,
+    aspectRatio: 1.1, // Proporción más vertical para plantas
+    minHeight: 180,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
     backgroundColor: Colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    padding: Spacing.xs,
+    padding: Spacing.sm,
   },
   imageContainerGrid: {
-    height: 140,
+    aspectRatio: 1.1, // Proporción más vertical para plantas
+    minHeight: 160,
     marginBottom: Spacing.sm,
-    padding: Spacing.xs,
+    padding: Spacing.sm,
   },
   image: {
     width: '100%',
