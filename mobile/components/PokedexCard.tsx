@@ -186,11 +186,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   imageContainer: {
-    position: 'relative',
     width: '100%',
     height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: Spacing.md,
     backgroundColor: Colors.backgroundLighter,
     borderRadius: BorderRadius.md,
@@ -201,12 +198,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   imageContainerWithImage: {
-    height: 220, // Altura fija más alta para mostrar plantas completas
-    padding: Spacing.md,
+    // ✅ NO cambiar altura, NO agregar padding
   },
   imageContainerWithImageGrid: {
-    height: 200, // Altura fija más alta para grid
-    padding: Spacing.md,
+    // ✅ NO cambiar altura, NO agregar padding
   },
   image: {
     width: '100%',
@@ -217,7 +212,6 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   lockIcon: {
     position: 'absolute',
