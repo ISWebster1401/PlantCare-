@@ -83,7 +83,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
             <Image
               source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
               style={styles.image}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           ) : (
             <View style={styles.placeholder}>
@@ -192,6 +192,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   imageContainerGrid: {
     height: 140,
@@ -206,6 +208,7 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+    alignSelf: 'stretch',
   },
   placeholder: {
     width: '100%',
