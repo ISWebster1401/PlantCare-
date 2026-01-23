@@ -71,15 +71,20 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
 
         {/* Imagen o placeholder */}
         {hasImage ? (
-          <View style={[styles.imageContainer, isGrid ? styles.imageContainerGrid : null, styles.imageContainerWithImage, isGrid ? styles.imageContainerWithImageGrid : null]}>
+          <View style={[
+            styles.imageContainerBase,
+            isGrid ? styles.imageContainerGrid : null,
+            styles.imageContainerWithImage,
+            isGrid ? styles.imageContainerWithImageGrid : null
+          ]}>
             <Image
               source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
               style={styles.image}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           </View>
         ) : (
-          <View style={[styles.imageContainer, isGrid ? styles.imageContainerGrid : null]}>
+          <View style={[styles.imageContainerBase, isGrid ? styles.imageContainerGrid : null]}>
             <View style={styles.placeholder}>
               <Ionicons
                 name="leaf-outline"
@@ -87,12 +92,14 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
                 color={is_unlocked ? Colors.textSecondary : Colors.textMuted}
               />
               {!is_unlocked && (
-                <Ionicons
-                  name="lock-closed"
-                  size={isGrid ? 20 : 24}
-                  color={Colors.textMuted}
-                  style={styles.lockIcon}
-                />
+                <>
+                  <Ionicons
+                    name="lock-closed"
+                    size={isGrid ? 20 : 24}
+                    color={Colors.textMuted}
+                    style={styles.lockIcon}
+                  />
+                </>
               )}
             </View>
           </View>
@@ -179,7 +186,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     textAlign: 'center',
   },
-  imageContainer: {
+  imageContainerBase: {
     width: '100%',
     height: 160,
     marginBottom: Spacing.md,
@@ -193,20 +200,29 @@ const styles = StyleSheet.create({
   },
   imageContainerWithImage: {
     height: 220,
+    marginLeft: -Spacing.md, // Compensa el padding izquierdo
+    marginRight: -Spacing.md, // Compensa el padding derecho
+    width: '100%',
+    alignSelf: 'stretch',
   },
   imageContainerWithImageGrid: {
     height: 200,
+    marginLeft: -Spacing.sm, // Compensa el padding izquierdo en grid
+    marginRight: -Spacing.sm, // Compensa el padding derecho en grid
+    width: '100%',
+    alignSelf: 'stretch',
   },
   image: {
-    flex: 1,
     width: '100%',
     height: '100%',
+    flex: 1,
   },
   placeholder: {
     width: '100%',
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: Spacing.md, // Padding vertical para mejor distribución
   },
   lockIcon: {
     position: 'absolute',
