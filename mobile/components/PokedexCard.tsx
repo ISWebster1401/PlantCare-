@@ -200,22 +200,19 @@ const styles = StyleSheet.create({
   },
   imageContainerWithImage: {
     height: 220,
-    marginLeft: -Spacing.md, // Compensa el padding izquierdo
-    marginRight: -Spacing.md, // Compensa el padding derecho
-    width: '100%',
+    marginLeft: -Spacing.md, // Compensa el padding izquierdo del contenedor
+    marginRight: -Spacing.md, // Compensa el padding derecho del contenedor
     alignSelf: 'stretch',
   },
   imageContainerWithImageGrid: {
     height: 200,
     marginLeft: -Spacing.sm, // Compensa el padding izquierdo en grid
     marginRight: -Spacing.sm, // Compensa el padding derecho en grid
-    width: '100%',
     alignSelf: 'stretch',
   },
   image: {
     width: '100%',
     height: '100%',
-    flex: 1,
   },
   placeholder: {
     width: '100%',
