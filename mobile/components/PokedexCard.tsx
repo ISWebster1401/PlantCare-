@@ -43,10 +43,17 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
   if (!is_unlocked) cardStyles.push(styles.locked);
   if (style) cardStyles.push(style);
 
+  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
+
   const containerStyles: ViewStyle[] = [styles.container];
   if (isGrid) containerStyles.push(styles.containerGrid);
-
-  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
+  // Si hay imagen, quitar padding horizontal para que use todo el ancho
+  if (hasImage) {
+    containerStyles.push(styles.containerWithImage);
+    if (isGrid) {
+      containerStyles.push(styles.containerWithImageGrid);
+    }
+  }
 
   const infoContainerStyles: ViewStyle[] = [styles.infoContainer];
   if (isGrid) infoContainerStyles.push(styles.infoContainerGrid);
@@ -65,7 +72,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
     >
       <View style={containerStyles}>
         {/* Número de entrada */}
-        <View style={styles.numberContainer}>
+        <View style={[styles.numberContainer, hasImage && styles.numberContainerWithImage]}>
           <Text style={styles.number}>#{catalog_entry.entry_number}</Text>
         </View>
 
@@ -80,7 +87,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
             <Image
               source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
               style={styles.image}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           </View>
         ) : (
@@ -169,6 +176,16 @@ const styles = StyleSheet.create({
   containerGrid: {
     padding: Spacing.sm,
   },
+  containerWithImage: {
+    paddingHorizontal: 0, // Sin padding horizontal cuando hay imagen
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+  containerWithImageGrid: {
+    paddingHorizontal: 0, // Sin padding horizontal cuando hay imagen en grid
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+  },
   numberContainer: {
     position: 'absolute',
     top: Spacing.sm,
@@ -179,6 +196,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,
     minWidth: 36,
+  },
+  numberContainerWithImage: {
+    right: Spacing.md, // Ajustar posición cuando no hay padding horizontal
   },
   number: {
     fontSize: Typography.sizes.xs,
@@ -200,15 +220,15 @@ const styles = StyleSheet.create({
   },
   imageContainerWithImage: {
     height: 220,
-    marginLeft: -Spacing.md, // Compensa el padding izquierdo del contenedor
-    marginRight: -Spacing.md, // Compensa el padding derecho del contenedor
-    alignSelf: 'stretch',
+    borderRadius: 0, // Sin border radius en los lados para que toque los bordes
+    borderTopLeftRadius: BorderRadius.md,
+    borderTopRightRadius: BorderRadius.md,
   },
   imageContainerWithImageGrid: {
     height: 200,
-    marginLeft: -Spacing.sm, // Compensa el padding izquierdo en grid
-    marginRight: -Spacing.sm, // Compensa el padding derecho en grid
-    alignSelf: 'stretch',
+    borderRadius: 0, // Sin border radius en los lados para que toque los bordes
+    borderTopLeftRadius: BorderRadius.md,
+    borderTopRightRadius: BorderRadius.md,
   },
   image: {
     width: '100%',

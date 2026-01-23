@@ -9,10 +9,12 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pokedexAPI } from '../../services/api';
 import { PokedexEntryResponse } from '../../types';
 import { PokedexCard } from '../../components/PokedexCard';
@@ -27,6 +29,7 @@ export default function PokedexScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const loadEntries = async () => {
     try {
@@ -172,15 +175,16 @@ export default function PokedexScreen() {
       )}
 
       {entries.length > 0 && (
-        <View style={styles.fabContainer}>
-          <Button
-            title=""
-            onPress={handleScanPress}
-            variant="primary"
-            size="lg"
-            icon="camera"
+        <View style={[styles.fabContainer, { bottom: insets.bottom + Spacing.lg }]}>
+          <TouchableOpacity
             style={styles.fab}
-          />
+            onPress={handleScanPress}
+            activeOpacity={0.8}
+            accessibilityLabel="Escanear planta"
+            accessibilityRole="button"
+          >
+            <Ionicons name="camera" size={28} color={Colors.white} />
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -300,12 +304,14 @@ const styles = StyleSheet.create({
   fabContainer: {
     position: 'absolute',
     right: Spacing.lg,
-    bottom: Spacing.lg,
   },
   fab: {
     width: 64,
     height: 64,
     borderRadius: 32,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
     ...Shadows.lg,
   },
 });
