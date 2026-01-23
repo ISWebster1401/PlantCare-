@@ -38,21 +38,22 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
   };
 
   // Construir array de estilos sin valores falsy
+  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
+  
   const cardStyles: ViewStyle[] = [styles.card];
   if (isGrid) cardStyles.push(styles.cardGrid);
   if (!is_unlocked) cardStyles.push(styles.locked);
+  // Solo en grid, si hay imagen, quitar padding horizontal del Card para que use todo el ancho
+  if (hasImage && isGrid) {
+    cardStyles.push(styles.cardWithImageGrid);
+  }
   if (style) cardStyles.push(style);
-
-  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
 
   const containerStyles: ViewStyle[] = [styles.container];
   if (isGrid) containerStyles.push(styles.containerGrid);
-  // Si hay imagen, quitar padding horizontal para que use todo el ancho
-  if (hasImage) {
-    containerStyles.push(styles.containerWithImage);
-    if (isGrid) {
-      containerStyles.push(styles.containerWithImageGrid);
-    }
+  // Solo en grid, si hay imagen, quitar padding horizontal para que use todo el ancho
+  if (hasImage && isGrid) {
+    containerStyles.push(styles.containerWithImageGrid);
   }
 
   const infoContainerStyles: ViewStyle[] = [styles.infoContainer];
@@ -72,7 +73,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
     >
       <View style={containerStyles}>
         {/* Número de entrada */}
-        <View style={[styles.numberContainer, hasImage && styles.numberContainerWithImage]}>
+        <View style={[styles.numberContainer, hasImage && isGrid && styles.numberContainerWithImage]}>
           <Text style={styles.number}>#{catalog_entry.entry_number}</Text>
         </View>
 
@@ -113,7 +114,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
         )}
 
         {/* Información */}
-        <View style={infoContainerStyles}>
+        <View style={[infoContainerStyles, hasImage && isGrid && styles.infoContainerWithImageGrid]}>
           <Text
             style={plantNameStyles}
             numberOfLines={isGrid ? 2 : 1}
@@ -165,6 +166,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     marginHorizontal: '1%',
   },
+  cardWithImageGrid: {
+    paddingHorizontal: 0, // Sin padding horizontal cuando hay imagen en grid
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+  },
   locked: {
     opacity: 0.6,
   },
@@ -175,11 +181,6 @@ const styles = StyleSheet.create({
   },
   containerGrid: {
     padding: Spacing.sm,
-  },
-  containerWithImage: {
-    paddingHorizontal: 0, // Sin padding horizontal cuando hay imagen
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
   },
   containerWithImageGrid: {
     paddingHorizontal: 0, // Sin padding horizontal cuando hay imagen en grid
@@ -229,6 +230,10 @@ const styles = StyleSheet.create({
     borderRadius: 0, // Sin border radius en los lados para que toque los bordes
     borderTopLeftRadius: BorderRadius.md,
     borderTopRightRadius: BorderRadius.md,
+    marginLeft: 0, // Asegurar que no hay margen
+    marginRight: 0, // Asegurar que no hay margen
+    width: '100%', // Forzar ancho completo
+    alignSelf: 'stretch', // Estirar para usar todo el espacio
   },
   image: {
     width: '100%',
@@ -253,6 +258,9 @@ const styles = StyleSheet.create({
   infoContainerGrid: {
     minHeight: 70,
     justifyContent: 'center',
+  },
+  infoContainerWithImageGrid: {
+    paddingHorizontal: Spacing.sm, // Restaurar padding solo para el contenido de texto en grid
   },
   plantName: {
     fontSize: Typography.sizes.lg,
