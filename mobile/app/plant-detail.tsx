@@ -234,7 +234,7 @@ export default function PlantDetailScreen() {
               <Text style={styles.moodEmoji}>{moodConfig.emoji}</Text>
               <Text style={styles.statusLabel}>Ánimo</Text>
             </View>
-            <Text style={styles.statusValue}>{moodConfig.message}</Text>
+            <Text style={[styles.statusValue, { color: Colors.white }]}>{moodConfig.message}</Text>
           </Card>
         </View>
 
