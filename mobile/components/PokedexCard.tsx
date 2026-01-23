@@ -47,14 +47,6 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
   if (isGrid) containerStyles.push(styles.containerGrid);
 
   const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
-  const imageContainerStyles: ViewStyle[] = [styles.imageContainer];
-  if (isGrid) imageContainerStyles.push(styles.imageContainerGrid);
-  if (hasImage) {
-    imageContainerStyles.push(styles.imageContainerWithImage);
-    if (isGrid) {
-      imageContainerStyles.push(styles.imageContainerWithImageGrid);
-    }
-  }
 
   const infoContainerStyles: ViewStyle[] = [styles.infoContainer];
   if (isGrid) infoContainerStyles.push(styles.infoContainerGrid);
@@ -78,14 +70,16 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
         </View>
 
         {/* Imagen o placeholder */}
-        <View style={imageContainerStyles}>
-          {hasImage ? (
+        {hasImage ? (
+          <View style={[styles.imageContainer, isGrid ? styles.imageContainerGrid : null, styles.imageContainerWithImage, isGrid ? styles.imageContainerWithImageGrid : null]}>
             <Image
               source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
               style={styles.image}
-              resizeMode="contain"
+              resizeMode="cover"
             />
-          ) : (
+          </View>
+        ) : (
+          <View style={[styles.imageContainer, isGrid ? styles.imageContainerGrid : null]}>
             <View style={styles.placeholder}>
               <Ionicons
                 name="leaf-outline"
@@ -101,8 +95,8 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
                 />
               )}
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* Información */}
         <View style={infoContainerStyles}>
@@ -192,23 +186,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   imageContainerGrid: {
     height: 140,
     marginBottom: Spacing.sm,
   },
   imageContainerWithImage: {
-    height: 220, // Altura mayor para mostrar plantas completas
+    height: 220,
   },
   imageContainerWithImageGrid: {
-    height: 200, // Altura mayor para grid
+    height: 200,
   },
   image: {
+    flex: 1,
     width: '100%',
     height: '100%',
-    alignSelf: 'stretch',
   },
   placeholder: {
     width: '100%',
