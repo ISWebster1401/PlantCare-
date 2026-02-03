@@ -19,6 +19,7 @@ export default function RootLayout() {
         <Stack.Screen name="scan-plant" options={{ headerShown: false }} />
         <Stack.Screen name="plant-detail" options={{ headerShown: false }} />
         <Stack.Screen name="ai-chat" options={{ headerShown: false }} />
+        <Stack.Screen name="voice-call" options={{ headerShown: false }} />
         <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="change-email" options={{ headerShown: false }} />

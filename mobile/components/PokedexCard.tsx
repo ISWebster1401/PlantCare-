@@ -1,14 +1,14 @@
 /**
- * PokedexCard Component - versión simplificada
- *
- * Reiniciamos el diseño desde cero para evitar glitches en grid
- * y hacer el layout mucho más predecible.
+ * PokedexCard Component
+ * 
+ * Todas las tarjetas tienen el MISMO layout.
+ * La única diferencia es que si hay imagen, se muestra en lugar del placeholder.
  */
 import React from 'react';
-import { View, Text, StyleSheet, Image, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, StyleSheet, Image, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Card, Badge } from './ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../constants/DesignSystem';
+import { Badge } from './ui';
+import { Colors, Typography, Spacing, BorderRadius } from '../constants/DesignSystem';
 import { PokedexEntryResponse } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -29,11 +29,11 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
   const { catalog_entry, is_unlocked } = entry;
 
   const isGrid = viewMode === 'grid';
-  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
+  const imageUrl = entry.discovered_photo_url || catalog_entry.silhouette_url;
+  const hasImage = is_unlocked && imageUrl;
 
   const handlePress = () => {
     if (!is_unlocked) return;
-
     if (onPress) {
       onPress();
     } else {
@@ -41,100 +41,107 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
     }
   };
 
-  // Estilos de tarjeta (muy simples para evitar problemas de layout)
-  const cardStyles: ViewStyle[] = [styles.cardBase, isGrid ? styles.cardGrid : styles.cardList];
-  if (!is_unlocked) cardStyles.push(styles.cardLocked);
+  const cardStyles: ViewStyle[] = [
+    styles.card,
+    isGrid ? styles.cardGrid : styles.cardList,
+    !is_unlocked && styles.cardLocked,
+  ];
   if (style) cardStyles.push(style);
 
-  const nameStyles: TextStyle[] = [styles.plantNameBase];
+  const nameStyles: TextStyle[] = [styles.plantName];
   if (isGrid) nameStyles.push(styles.plantNameGrid);
-  else nameStyles.push(styles.plantNameList);
   if (!is_unlocked) nameStyles.push(styles.plantNameLocked);
 
   return (
-    <Card
-      variant={is_unlocked ? 'elevated' : 'outlined'}
+    <TouchableOpacity
       onPress={is_unlocked ? handlePress : undefined}
       style={cardStyles}
-      gradient={is_unlocked ? Gradients.card : undefined}
+      activeOpacity={is_unlocked ? 0.7 : 1}
       accessibilityLabel={`${catalog_entry.plant_type} - ${is_unlocked ? 'Desbloqueado' : 'Bloqueado'}`}
     >
-      <View style={styles.inner}>
-        {/* Número de entrada */}
-        <View style={styles.numberPill}>
-          <Text style={styles.numberText}>#{catalog_entry.entry_number}</Text>
-        </View>
+      {/* Número de entrada - esquina superior derecha */}
+      <View style={styles.numberBadge}>
+        <Text style={styles.numberText}>#{catalog_entry.entry_number}</Text>
+      </View>
 
-        {/* Imagen o placeholder */}
-        <View style={[styles.imageWrapper, isGrid ? styles.imageWrapperGrid : styles.imageWrapperList]}>
-          {hasImage ? (
-            <Image
-              source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
-              style={styles.image}
-              resizeMode="cover"
+      {/* Check de desbloqueado - esquina superior izquierda */}
+      {is_unlocked && (
+        <View style={styles.checkBadge}>
+          <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+        </View>
+      )}
+
+      {/* ÁREA VISUAL: Imagen o Placeholder con hoja */}
+      <View style={[styles.visualArea, isGrid && styles.visualAreaGrid]}>
+        {hasImage ? (
+          // CON IMAGEN: la imagen ocupa todo este espacio
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.plantImage}
+            resizeMode="cover"
+          />
+        ) : (
+          // SIN IMAGEN: placeholder con hoja y candado
+          <View style={styles.placeholderContent}>
+            <Ionicons
+              name="leaf-outline"
+              size={isGrid ? 40 : 48}
+              color={is_unlocked ? Colors.textSecondary : Colors.textMuted}
             />
-          ) : (
-            <View style={styles.placeholder}>
+            {!is_unlocked && (
               <Ionicons
-                name="leaf-outline"
-                size={isGrid ? 40 : 48}
-                color={is_unlocked ? Colors.textSecondary : Colors.textMuted}
+                name="lock-closed"
+                size={18}
+                color={Colors.textMuted}
+                style={styles.lockIcon}
               />
-              {!is_unlocked && (
-                <Ionicons
-                  name="lock-closed"
-                  size={isGrid ? 18 : 20}
-                  color={Colors.textMuted}
-                  style={styles.lockIcon}
-                />
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Información de la planta */}
-        <View style={[styles.infoWrapper, isGrid ? styles.infoWrapperGrid : styles.infoWrapperList]}>
-          <Text style={nameStyles} numberOfLines={isGrid ? 2 : 1}>
-            {is_unlocked ? catalog_entry.plant_type : '???'}
-          </Text>
-
-          {is_unlocked && catalog_entry.scientific_name && !isGrid && (
-            <Text style={styles.scientificName} numberOfLines={1}>
-              {catalog_entry.scientific_name}
-            </Text>
-          )}
-
-          {is_unlocked && catalog_entry.care_level && (
-            <View style={styles.badgeWrapper}>
-              <Badge
-                status={
-                  catalog_entry.care_level === 'Fácil'
-                    ? 'healthy'
-                    : catalog_entry.care_level === 'Medio'
-                    ? 'warning'
-                    : 'critical'
-                }
-                label={catalog_entry.care_level}
-                size="sm"
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Check de desbloqueado */}
-        {is_unlocked && (
-          <View style={styles.checkBadge}>
-            <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+            )}
           </View>
         )}
       </View>
-    </Card>
+
+      {/* ÁREA DE INFO: nombre y badge */}
+      <View style={[styles.infoArea, isGrid && styles.infoAreaGrid]}>
+        <Text style={nameStyles} numberOfLines={isGrid ? 2 : 1}>
+          {is_unlocked ? catalog_entry.plant_type : '???'}
+        </Text>
+
+        {is_unlocked && catalog_entry.scientific_name && !isGrid && (
+          <Text style={styles.scientificName} numberOfLines={1}>
+            {catalog_entry.scientific_name}
+          </Text>
+        )}
+
+        {is_unlocked && catalog_entry.care_level && (
+          <View style={styles.badgeContainer}>
+            <Badge
+              status={
+                catalog_entry.care_level === 'Fácil'
+                  ? 'healthy'
+                  : catalog_entry.care_level === 'Medio'
+                  ? 'warning'
+                  : 'critical'
+              }
+              label={catalog_entry.care_level}
+              size="sm"
+            />
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  cardBase: {
+  // ========== TARJETA BASE ==========
+  card: {
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: Colors.primary,
     marginBottom: Spacing.md,
+    overflow: 'hidden',
+    position: 'relative',
   },
   cardList: {
     width: '100%',
@@ -143,105 +150,98 @@ const styles = StyleSheet.create({
     width: '48%',
   },
   cardLocked: {
-    opacity: 0.65,
+    opacity: 0.6,
+    borderColor: Colors.textMuted,
   },
-  inner: {
-    padding: Spacing.md,
-    position: 'relative',
-  },
-  numberPill: {
+
+  // ========== BADGES (número y check) ==========
+  numberBadge: {
     position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
-    zIndex: 10,
+    top: 8,
+    right: 8,
+    zIndex: 20,
     backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: Colors.primary,
   },
   numberText: {
-    fontSize: Typography.sizes.xs,
-    fontWeight: Typography.weights.bold,
+    fontSize: 11,
+    fontWeight: '700',
     color: Colors.primary,
   },
-  imageWrapper: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    backgroundColor: Colors.backgroundLighter,
-    marginBottom: Spacing.sm,
+  checkBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 20,
+    backgroundColor: Colors.background,
+    borderRadius: 999,
+    padding: 4,
   },
-  imageWrapperList: {
-    height: 140,
+
+  // ========== ÁREA VISUAL (imagen o placeholder) ==========
+  visualArea: {
     width: '100%',
-  },
-  imageWrapperGrid: {
-    width: '100%',
-    aspectRatio: 1,
-    minHeight: 120,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholder: {
-    width: '100%',
-    height: '100%',
-    minHeight: 120,
-    alignItems: 'center',
+    height: 120,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  visualAreaGrid: {
+    height: 100,
+  },
+  plantImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    position: 'relative',
   },
   lockIcon: {
     position: 'absolute',
-    bottom: Spacing.sm,
-    right: Spacing.sm,
+    bottom: 8,
+    right: 8,
   },
-  infoWrapper: {
+
+  // ========== ÁREA DE INFO ==========
+  infoArea: {
+    padding: Spacing.md,
     alignItems: 'center',
   },
-  infoWrapperList: {
-    marginTop: Spacing.sm,
-  },
-  infoWrapperGrid: {
-    marginTop: Spacing.xs,
-    minHeight: 60,
+  infoAreaGrid: {
+    padding: Spacing.sm,
+    minHeight: 70,
     justifyContent: 'center',
   },
-  plantNameBase: {
-    fontWeight: Typography.weights.bold,
+  plantName: {
+    fontSize: Typography.sizes.base,
+    fontWeight: '700',
     color: Colors.text,
     textAlign: 'center',
-  },
-  plantNameList: {
-    fontSize: Typography.sizes.lg,
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
   plantNameGrid: {
-    fontSize: Typography.sizes.base,
-    marginBottom: Spacing.xs,
+    fontSize: Typography.sizes.sm,
   },
   plantNameLocked: {
     color: Colors.textMuted,
   },
   scientificName: {
     fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.regular,
     color: Colors.textSecondary,
     fontStyle: 'italic',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
     textAlign: 'center',
   },
-  badgeWrapper: {
-    marginTop: Spacing.xs,
-  },
-  checkBadge: {
-    position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
-    zIndex: 10,
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.full,
-    padding: Spacing.xs,
+  badgeContainer: {
+    marginTop: 4,
   },
 });
