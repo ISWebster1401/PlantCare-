@@ -167,7 +167,21 @@ export default function PlantDetailScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Avatar grande de la planta */}
         <View style={styles.avatarSection}>
-          {plant.model_3d_url ? (
+          <PlantAvatar
+            imageUrl={
+              plant.character_image_url ||
+              plant.default_render_url ||
+              plant.original_photo_url ||
+              undefined
+            }
+            mood={mood}
+            healthStatus={healthStatus}
+            size={200}
+            showMoodEmoji={true}
+            showGlow={true}
+          />
+
+          {plant.model_3d_url && (
             <View style={styles.model3dContainer}>
               <Model3DViewer
                 modelUrl={plant.model_3d_url}
@@ -176,15 +190,6 @@ export default function PlantDetailScreen() {
                 characterMood={mood}
               />
             </View>
-          ) : (
-            <PlantAvatar
-              imageUrl={plant.character_image_url || plant.original_photo_url}
-              mood={mood}
-              healthStatus={healthStatus}
-              size={200}
-              showMoodEmoji={true}
-              showGlow={true}
-            />
           )}
         </View>
 
