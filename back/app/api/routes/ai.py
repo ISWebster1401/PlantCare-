@@ -3,12 +3,16 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
+import os
+import requests
 from app.api.core.auth_user import get_current_active_user
 from app.api.core.database import get_db
 from app.api.core.ai_service import ai_service
 from app.api.schemas.ai import (
     AIChatRequest, AIChatResponse, AIConversationResponse,
-    AIConversationDetailResponse, AIMessageResponse
+    AIConversationDetailResponse, AIMessageResponse,
+    RealtimeTokenRequest, RealtimeTokenResponse,
+    RealtimeSyncRequest,
 )
 from pgdbtoolkit import AsyncPgDbToolkit
 from datetime import datetime
@@ -447,11 +451,11 @@ async def get_conversation_by_plant(
     current_user: dict = Depends(get_current_active_user),
     db: AsyncPgDbToolkit = Depends(get_db),
 ):
-    """Obtiene la conversación asociada a una planta específica, o None si no existe."""
+    """Obtiene la conversación asociada a una planta; si no existe, la crea y la devuelve."""
     try:
-        # Verificar que la planta pertenece al usuario
+        # Verificar que la planta pertenece al usuario y obtener nombre para el título
         plant_check = await db.execute_query("""
-            SELECT id FROM plants
+            SELECT id, plant_name FROM plants
             WHERE id = %s AND user_id = %s
         """, (plant_id, current_user["id"]))
         
@@ -461,6 +465,8 @@ async def get_conversation_by_plant(
                 detail="Planta no encontrada"
             )
         
+        plant_name = plant_check.iloc[0].get("plant_name") or "Planta"
+        
         # Buscar conversación para esta planta
         conv_df = await db.execute_query("""
             SELECT * FROM ai_conversations
@@ -469,10 +475,20 @@ async def get_conversation_by_plant(
         """, (current_user["id"], plant_id))
         
         if conv_df is None or conv_df.empty:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No existe conversación para esta planta"
-            )
+            # Crear conversación nueva para esta planta (evita 404 en la app)
+            title = f"Chat con {plant_name}"
+            conv_result = await db.execute_query("""
+                INSERT INTO ai_conversations (user_id, title, plant_id)
+                VALUES (%s, %s, %s)
+                RETURNING *
+            """, (current_user["id"], title, plant_id))
+            if conv_result is None or conv_result.empty:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="No se pudo crear la conversación"
+                )
+            conv_df = conv_result
+            logger.info(f"✅ Nueva conversación creada para planta {plant_id}: {conv_df.iloc[0]['id']}")
         
         conversation = conv_df.iloc[0].to_dict()
         conversation_id = conversation["id"]
@@ -714,3 +730,161 @@ async def chat_stream(
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ============================================
+# Realtime / Voice (Llamar a la planta)
+# ============================================
+
+REALTIME_CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
+
+def _build_realtime_instructions(plant_name: str, plant_type: str, health_status: str, character_mood: str, character_personality: str) -> str:
+    """Construye instrucciones para la sesión Realtime (voz) con contexto de la planta."""
+    return f"""Eres {plant_name}, una {plant_type} real y viva. Estás hablando por voz con tu dueño o cuidador (puede ser un niño).
+
+TU IDENTIDAD:
+- Tu nombre es: {plant_name}
+- Eres una: {plant_type}
+- Tu estado de salud actual es: {health_status}
+- Tu estado de ánimo es: {character_mood}
+- Tu personalidad es: {character_personality}
+
+IMPORTANTE:
+1. Habla en primera persona como si fueras la planta {plant_name}. Di "yo", "mi", "me".
+2. Sé amable, breve y clara. El usuario puede ser un niño pequeño.
+3. Usa lenguaje simple y evita términos técnicos.
+4. No menciones que eres una IA ni un asistente. Eres la planta.
+5. Responde de forma corta y natural para una conversación por voz."""
+
+
+@router.post("/realtime/token", response_model=RealtimeTokenResponse)
+async def get_realtime_token(
+    request: RealtimeTokenRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Obtiene un token efímero para conectar a la API Realtime (voz con la planta)."""
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Servicio de voz no configurado (OPENAI_API_KEY)",
+            )
+
+        instructions = "Eres PlantCare AI, un asistente amigable de cuidado de plantas. Habla en español, de forma breve y clara. El usuario puede ser un niño."
+        plant_name = "PlantCare"
+        if request.plant_id:
+            plant_df = await db.execute_query("""
+                SELECT plant_name, plant_type, health_status, character_mood, character_personality
+                FROM plants
+                WHERE id = %s AND user_id = %s
+            """, (request.plant_id, current_user["id"]))
+            if plant_df is not None and not plant_df.empty:
+                row = plant_df.iloc[0]
+                plant_name = row.get("plant_name") or "Planta"
+                plant_type = row.get("plant_type") or "planta"
+                health_status = row.get("health_status") or "healthy"
+                character_mood = row.get("character_mood") or "happy"
+                character_personality = row.get("character_personality") or "amigable"
+                instructions = _build_realtime_instructions(
+                    plant_name, plant_type, health_status, character_mood, character_personality
+                )
+
+        # Session config: solo type, model e instructions. No enviar audio.input.format
+        # (la API usa PCM por defecto; formato custom puede causar 502).
+        # Voces válidas: alloy, echo, fable, onyx, shimmer, ash, ballad, coral, sage, verse (no "marin").
+        session_config = {
+            "type": "realtime",
+            "model": "gpt-realtime",
+            "instructions": instructions,
+            "audio": {
+                "output": {"voice": "coral"},
+            },
+        }
+        payload = {"session": session_config}
+
+        resp = requests.post(
+            REALTIME_CLIENT_SECRETS_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=15,
+        )
+        if not resp.ok:
+            err_body = (resp.text or "")[:800]
+            logger.error(f"❌ OpenAI Realtime client_secrets: status={resp.status_code}, body={err_body}")
+            detail = "OpenAI rechazó la solicitud de voz. Revisa OPENAI_API_KEY y que la cuenta tenga acceso a Realtime."
+            if resp.status_code == 400 and err_body:
+                try:
+                    err_json = resp.json()
+                    detail = err_json.get("error", {}).get("message", detail) or detail
+                except Exception:
+                    detail = f"{detail} Respuesta: {err_body[:200]}"
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=detail,
+            )
+        data = resp.json()
+        client_secret = data.get("value")
+        if not client_secret:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="OpenAI no devolvió client_secret",
+            )
+        return RealtimeTokenResponse(
+            client_secret=client_secret,
+            expires_in=data.get("expires_in"),
+        )
+    except requests.RequestException as e:
+        logger.error(f"❌ Error solicitando token Realtime: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Error al conectar con OpenAI. Comprueba red y OPENAI_API_KEY.",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error en realtime/token: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/realtime/sync")
+async def sync_voice_transcript(
+    request: RealtimeSyncRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Sincroniza el transcript de una llamada de voz al historial de la conversación."""
+    try:
+        conv_df = await db.execute_query("""
+            SELECT id FROM ai_conversations
+            WHERE id = %s AND user_id = %s
+        """, (request.conversation_id, current_user["id"]))
+        if conv_df is None or conv_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversación no encontrada",
+            )
+
+        for msg in request.messages:
+            role = "user" if msg.role == "user" else "assistant"
+            await db.execute_query("""
+                INSERT INTO ai_messages (conversation_id, role, content)
+                VALUES (%s, %s, %s)
+            """, (request.conversation_id, role, msg.content))
+
+        await db.execute_query("""
+            UPDATE ai_conversations
+            SET updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (request.conversation_id,))
+
+        return {"message": "Transcript sincronizado", "messages_count": len(request.messages)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error en realtime/sync: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

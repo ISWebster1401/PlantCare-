@@ -33,6 +33,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/plants", tags=["plants"])
 
+# Prefijo que indica URL no subida a Supabase; no enviar al cliente para evitar imágenes/modelos rotos
+PLACEHOLDER_URL_PREFIX = "PLACEHOLDER_"
+
+
+def _sanitize_plant_url(url: Optional[str]) -> Optional[str]:
+    """Devuelve None si la URL es placeholder o no es una URL http(s) válida."""
+    if url is None or (isinstance(url, float) and pd.isna(url)):
+        return None
+    s = str(url).strip()
+    if not s or s.startswith(PLACEHOLDER_URL_PREFIX):
+        return None
+    if not s.startswith("http://") and not s.startswith("https://"):
+        return None
+    return s
+
+
+def _sanitize_plant_response_urls(plant: dict) -> None:
+    """Modifica in-place los campos URL de una planta para no enviar placeholders al cliente.
+    
+    NOTA: Deshabilitado temporalmente - Supabase puede pausar buckets y reactivarlos,
+    así que devolvemos las URLs tal cual para que funcionen cuando Supabase esté activo.
+    """
+    # Deshabilitado: las URLs de Supabase/Cloudinary son válidas, solo estaban pausadas
+    pass
+
 
 def require_admin(current_user: dict = Depends(get_current_active_user)):
     """Middleware para verificar que el usuario sea administrador (role_id = 2) o superadmin (role_id = 3)"""
@@ -551,6 +576,7 @@ async def create_plant(
             plant["default_render_url"] = str(plant["default_render_url"])
         else:
             plant["default_render_url"] = None
+        _sanitize_plant_response_urls(plant)
 
         logger.info(f"✅ Planta creada exitosamente: {plant_name} (ID: {plant_id})")
         logger.info(f"   model_3d_url: {plant.get('model_3d_url')}")
@@ -628,12 +654,12 @@ async def list_plants(
                     plant["model_3d_url"] = str(plant["model_3d_url"])
                 else:
                     plant["model_3d_url"] = None
-                    
                 if pd.notna(plant.get("default_render_url")):
                     plant["default_render_url"] = str(plant["default_render_url"])
                 else:
                     plant["default_render_url"] = None
-                
+                _sanitize_plant_response_urls(plant)
+
                 # Campos flotantes opcionales
                 for field in ["optimal_humidity_min", "optimal_humidity_max", 
                              "optimal_temp_min", "optimal_temp_max"]:
@@ -711,6 +737,7 @@ async def get_plant(
             plant["default_render_url"] = str(plant["default_render_url"])
         else:
             plant["default_render_url"] = None
+        _sanitize_plant_response_urls(plant)
 
         return PlantResponse(**plant)
 
@@ -1131,8 +1158,8 @@ async def upload_plant_model(
             "id": int(model_row["id"]),
             "plant_type": str(model_row["plant_type"]),
             "name": str(model_row["name"]),
-            "model_3d_url": str(model_row["model_3d_url"]),
-            "default_render_url": model_row.get("default_render_url"),
+            "model_3d_url": _sanitize_plant_url(str(model_row["model_3d_url"])),
+            "default_render_url": _sanitize_plant_url(model_row.get("default_render_url")),
             "is_default": bool(model_row["is_default"]),
             "metadata": model_row.get("metadata"),
         }
@@ -1261,8 +1288,8 @@ async def update_plant_model(
             "id": int(model_row["id"]),
             "plant_type": str(model_row["plant_type"]),
             "name": str(model_row["name"]),
-            "model_3d_url": str(model_row["model_3d_url"]),
-            "default_render_url": model_row.get("default_render_url"),
+            "model_3d_url": _sanitize_plant_url(str(model_row["model_3d_url"])),
+            "default_render_url": _sanitize_plant_url(model_row.get("default_render_url")),
             "is_default": bool(model_row["is_default"]),
             "metadata": model_row.get("metadata"),
         }
@@ -1362,7 +1389,7 @@ async def assign_model_to_plant(
             "plant_id": plant_id,
             "model_id": request.model_id,
             "model_name": str(model_data["name"]),
-            "model_url": str(model_data["model_3d_url"]),
+            "model_url": _sanitize_plant_url(str(model_data["model_3d_url"])),
         }
         
     except HTTPException:
@@ -1606,8 +1633,9 @@ async def get_pokedex_entries(
         if unlocks_df is not None and not unlocks_df.empty:
             for _, unlock_row in unlocks_df.iterrows():
                 catalog_id = int(unlock_row["catalog_entry_id"])
+                raw_url = str(unlock_row["discovered_photo_url"]) if pd.notna(unlock_row.get("discovered_photo_url")) else None
                 unlocks_map[catalog_id] = {
-                    "discovered_photo_url": str(unlock_row["discovered_photo_url"]) if pd.notna(unlock_row.get("discovered_photo_url")) else None,
+                    "discovered_photo_url": _sanitize_plant_url(raw_url) if raw_url else None,
                     "discovered_at": unlock_row["discovered_at"],
                     "unlock_id": int(unlock_row["unlock_id"])
                 }
@@ -1618,7 +1646,7 @@ async def get_pokedex_entries(
             try:
                 catalog_entry_dict = catalog_row.to_dict()
                 catalog_id = int(catalog_entry_dict["id"])
-                
+                catalog_entry_dict["silhouette_url"] = _sanitize_plant_url(catalog_entry_dict.get("silhouette_url"))
                 # Convertir valores NaN a None y floats correctamente
                 if pd.notna(catalog_entry_dict.get("optimal_humidity_min")):
                     catalog_entry_dict["optimal_humidity_min"] = float(catalog_entry_dict["optimal_humidity_min"])
@@ -1694,7 +1722,7 @@ async def get_pokedex_entry(
 
         catalog_entry_dict = catalog_df.iloc[0].to_dict()
         catalog_id = int(catalog_entry_dict["id"])
-        
+        catalog_entry_dict["silhouette_url"] = _sanitize_plant_url(catalog_entry_dict.get("silhouette_url"))
         # Convertir valores NaN a None y floats correctamente
         if pd.notna(catalog_entry_dict.get("optimal_humidity_min")):
             catalog_entry_dict["optimal_humidity_min"] = float(catalog_entry_dict["optimal_humidity_min"])
@@ -1727,8 +1755,9 @@ async def get_pokedex_entry(
         unlock_data = {}
         if is_unlocked:
             unlock_row = unlock_df.iloc[0]
+            raw_url = str(unlock_row["discovered_photo_url"]) if pd.notna(unlock_row.get("discovered_photo_url")) else None
             unlock_data = {
-                "discovered_photo_url": str(unlock_row["discovered_photo_url"]) if pd.notna(unlock_row.get("discovered_photo_url")) else None,
+                "discovered_photo_url": _sanitize_plant_url(raw_url) if raw_url else None,
                 "discovered_at": unlock_row["discovered_at"],
                 "unlock_id": int(unlock_row["unlock_id"])
             }

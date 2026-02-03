@@ -36,7 +36,7 @@ class PlantModelResponse(BaseModel):
     id: int
     plant_type: str
     name: str
-    model_3d_url: str
+    model_3d_url: Optional[str] = None
     default_render_url: Optional[str] = None
     is_default: bool
     metadata: Optional[Dict[str, Any]] = None
