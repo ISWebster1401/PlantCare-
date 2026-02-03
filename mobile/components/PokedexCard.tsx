@@ -1,7 +1,8 @@
 /**
- * PokedexCard Component - Estilo Duolingo/Pokémon
- * 
- * Tarjeta de entrada del Pokedex con diseño estilo colección
+ * PokedexCard Component - versión simplificada
+ *
+ * Reiniciamos el diseño desde cero para evitar glitches en grid
+ * y hacer el layout mucho más predecible.
  */
 import React from 'react';
 import { View, Text, StyleSheet, Image, ViewStyle, TextStyle } from 'react-native';
@@ -18,18 +19,21 @@ export interface PokedexCardProps {
   viewMode?: 'list' | 'grid';
 }
 
-export const PokedexCard: React.FC<PokedexCardProps> = ({ 
-  entry, 
-  onPress, 
-  viewMode = 'list', 
-  style 
+export const PokedexCard: React.FC<PokedexCardProps> = ({
+  entry,
+  onPress,
+  viewMode = 'list',
+  style,
 }) => {
   const router = useRouter();
   const { catalog_entry, is_unlocked } = entry;
-  
+
   const isGrid = viewMode === 'grid';
+  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
 
   const handlePress = () => {
+    if (!is_unlocked) return;
+
     if (onPress) {
       onPress();
     } else {
@@ -37,31 +41,15 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
     }
   };
 
-  // Construir array de estilos sin valores falsy
-  const hasImage = is_unlocked && (entry.discovered_photo_url || catalog_entry.silhouette_url);
-  
-  const cardStyles: ViewStyle[] = [styles.card];
-  if (isGrid) cardStyles.push(styles.cardGrid);
-  if (!is_unlocked) cardStyles.push(styles.locked);
-  // Solo en grid, si hay imagen, quitar padding horizontal del Card para que use todo el ancho
-  if (hasImage && isGrid) {
-    cardStyles.push(styles.cardWithImageGrid);
-  }
+  // Estilos de tarjeta (muy simples para evitar problemas de layout)
+  const cardStyles: ViewStyle[] = [styles.cardBase, isGrid ? styles.cardGrid : styles.cardList];
+  if (!is_unlocked) cardStyles.push(styles.cardLocked);
   if (style) cardStyles.push(style);
 
-  const containerStyles: ViewStyle[] = [styles.container];
-  if (isGrid) containerStyles.push(styles.containerGrid);
-  // Solo en grid, si hay imagen, quitar padding horizontal para que use todo el ancho
-  if (hasImage && isGrid) {
-    containerStyles.push(styles.containerWithImageGrid);
-  }
-
-  const infoContainerStyles: ViewStyle[] = [styles.infoContainer];
-  if (isGrid) infoContainerStyles.push(styles.infoContainerGrid);
-
-  const plantNameStyles: TextStyle[] = [styles.plantName];
-  if (isGrid) plantNameStyles.push(styles.plantNameGrid);
-  if (!is_unlocked) plantNameStyles.push(styles.lockedText);
+  const nameStyles: TextStyle[] = [styles.plantNameBase];
+  if (isGrid) nameStyles.push(styles.plantNameGrid);
+  else nameStyles.push(styles.plantNameList);
+  if (!is_unlocked) nameStyles.push(styles.plantNameLocked);
 
   return (
     <Card
@@ -71,28 +59,21 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
       gradient={is_unlocked ? Gradients.card : undefined}
       accessibilityLabel={`${catalog_entry.plant_type} - ${is_unlocked ? 'Desbloqueado' : 'Bloqueado'}`}
     >
-      <View style={containerStyles}>
+      <View style={styles.inner}>
         {/* Número de entrada */}
-        <View style={[styles.numberContainer, hasImage && isGrid && styles.numberContainerWithImage]}>
-          <Text style={styles.number}>#{catalog_entry.entry_number}</Text>
+        <View style={styles.numberPill}>
+          <Text style={styles.numberText}>#{catalog_entry.entry_number}</Text>
         </View>
 
         {/* Imagen o placeholder */}
-        {hasImage ? (
-          <View style={[
-            styles.imageContainerBase,
-            isGrid ? styles.imageContainerGrid : null,
-            styles.imageContainerWithImage,
-            isGrid ? styles.imageContainerWithImageGrid : null
-          ]}>
+        <View style={[styles.imageWrapper, isGrid ? styles.imageWrapperGrid : styles.imageWrapperList]}>
+          {hasImage ? (
             <Image
               source={{ uri: entry.discovered_photo_url || catalog_entry.silhouette_url || '' }}
               style={styles.image}
               resizeMode="cover"
             />
-          </View>
-        ) : (
-          <View style={[styles.imageContainerBase, isGrid ? styles.imageContainerGrid : null]}>
+          ) : (
             <View style={styles.placeholder}>
               <Ionicons
                 name="leaf-outline"
@@ -100,42 +81,37 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
                 color={is_unlocked ? Colors.textSecondary : Colors.textMuted}
               />
               {!is_unlocked && (
-                <>
-                  <Ionicons
-                    name="lock-closed"
-                    size={isGrid ? 20 : 24}
-                    color={Colors.textMuted}
-                    style={styles.lockIcon}
-                  />
-                </>
+                <Ionicons
+                  name="lock-closed"
+                  size={isGrid ? 18 : 20}
+                  color={Colors.textMuted}
+                  style={styles.lockIcon}
+                />
               )}
             </View>
-          </View>
-        )}
+          )}
+        </View>
 
-        {/* Información */}
-        <View style={[infoContainerStyles, hasImage && isGrid && styles.infoContainerWithImageGrid]}>
-          <Text
-            style={plantNameStyles}
-            numberOfLines={isGrid ? 2 : 1}
-          >
+        {/* Información de la planta */}
+        <View style={[styles.infoWrapper, isGrid ? styles.infoWrapperGrid : styles.infoWrapperList]}>
+          <Text style={nameStyles} numberOfLines={isGrid ? 2 : 1}>
             {is_unlocked ? catalog_entry.plant_type : '???'}
           </Text>
-          
+
           {is_unlocked && catalog_entry.scientific_name && !isGrid && (
             <Text style={styles.scientificName} numberOfLines={1}>
               {catalog_entry.scientific_name}
             </Text>
           )}
-          
+
           {is_unlocked && catalog_entry.care_level && (
-            <View style={styles.badgeContainer}>
+            <View style={styles.badgeWrapper}>
               <Badge
                 status={
-                  catalog_entry.care_level === 'Fácil' 
-                    ? 'healthy' 
-                    : catalog_entry.care_level === 'Medio' 
-                    ? 'warning' 
+                  catalog_entry.care_level === 'Fácil'
+                    ? 'healthy'
+                    : catalog_entry.care_level === 'Medio'
+                    ? 'warning'
                     : 'critical'
                 }
                 label={catalog_entry.care_level}
@@ -145,10 +121,10 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
           )}
         </View>
 
-        {/* Indicador de desbloqueado */}
+        {/* Check de desbloqueado */}
         {is_unlocked && (
-          <View style={styles.unlockedBadge}>
-            <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
+          <View style={styles.checkBadge}>
+            <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
           </View>
         )}
       </View>
@@ -157,83 +133,53 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  card: {
-    width: '100%',
+  cardBase: {
     marginBottom: Spacing.md,
+  },
+  cardList: {
+    width: '100%',
   },
   cardGrid: {
     width: '48%',
-    marginBottom: Spacing.md,
-    marginHorizontal: '1%',
   },
-  cardWithImageGrid: {
-    paddingHorizontal: 0, // Sin padding horizontal cuando hay imagen en grid
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.sm,
+  cardLocked: {
+    opacity: 0.65,
   },
-  locked: {
-    opacity: 0.6,
-  },
-  container: {
-    position: 'relative',
-    width: '100%',
+  inner: {
     padding: Spacing.md,
+    position: 'relative',
   },
-  containerGrid: {
-    padding: Spacing.sm,
-  },
-  containerWithImageGrid: {
-    paddingHorizontal: 0, // Sin padding horizontal cuando hay imagen en grid
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.sm,
-  },
-  numberContainer: {
+  numberPill: {
     position: 'absolute',
     top: Spacing.sm,
     right: Spacing.sm,
-    zIndex: 2,
+    zIndex: 10,
     backgroundColor: Colors.background,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    minWidth: 36,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.primary,
   },
-  numberContainerWithImage: {
-    right: Spacing.md, // Ajustar posición cuando no hay padding horizontal
-  },
-  number: {
+  numberText: {
     fontSize: Typography.sizes.xs,
     fontWeight: Typography.weights.bold,
     color: Colors.primary,
-    textAlign: 'center',
   },
-  imageContainerBase: {
-    width: '100%',
-    height: 160,
-    marginBottom: Spacing.md,
-    backgroundColor: Colors.backgroundLighter,
-    borderRadius: BorderRadius.md,
+  imageWrapper: {
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-  },
-  imageContainerGrid: {
-    height: 140,
+    backgroundColor: Colors.backgroundLighter,
     marginBottom: Spacing.sm,
   },
-  imageContainerWithImage: {
-    height: 220,
-    borderRadius: 0, // Sin border radius en los lados para que toque los bordes
-    borderTopLeftRadius: BorderRadius.md,
-    borderTopRightRadius: BorderRadius.md,
+  imageWrapperList: {
+    height: 140,
+    width: '100%',
   },
-  imageContainerWithImageGrid: {
-    height: 200,
-    borderRadius: 0, // Sin border radius en los lados para que toque los bordes
-    borderTopLeftRadius: BorderRadius.md,
-    borderTopRightRadius: BorderRadius.md,
-    marginLeft: 0, // Asegurar que no hay margen
-    marginRight: 0, // Asegurar que no hay margen
-    width: '100%', // Forzar ancho completo
-    alignSelf: 'stretch', // Estirar para usar todo el espacio
+  imageWrapperGrid: {
+    width: '100%',
+    aspectRatio: 1,
+    minHeight: 120,
   },
   image: {
     width: '100%',
@@ -242,64 +188,60 @@ const styles = StyleSheet.create({
   placeholder: {
     width: '100%',
     height: '100%',
+    minHeight: 120,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md, // Padding vertical para mejor distribución
   },
   lockIcon: {
     position: 'absolute',
     bottom: Spacing.sm,
     right: Spacing.sm,
   },
-  infoContainer: {
+  infoWrapper: {
     alignItems: 'center',
-    width: '100%',
   },
-  infoContainerGrid: {
-    minHeight: 70,
+  infoWrapperList: {
+    marginTop: Spacing.sm,
+  },
+  infoWrapperGrid: {
+    marginTop: Spacing.xs,
+    minHeight: 60,
     justifyContent: 'center',
   },
-  infoContainerWithImageGrid: {
-    paddingHorizontal: Spacing.sm, // Restaurar padding solo para el contenido de texto en grid
-  },
-  plantName: {
-    fontSize: Typography.sizes.lg,
+  plantNameBase: {
     fontWeight: Typography.weights.bold,
     color: Colors.text,
-    marginBottom: Spacing.xs,
     textAlign: 'center',
+  },
+  plantNameList: {
+    fontSize: Typography.sizes.lg,
+    marginBottom: Spacing.xs,
   },
   plantNameGrid: {
     fontSize: Typography.sizes.base,
     marginBottom: Spacing.xs,
   },
-  lockedText: {
+  plantNameLocked: {
     color: Colors.textMuted,
-    fontSize: Typography.sizes.xl,
-    letterSpacing: 2,
   },
   scientificName: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.regular,
     color: Colors.textSecondary,
     fontStyle: 'italic',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     textAlign: 'center',
   },
-  badgeContainer: {
+  badgeWrapper: {
     marginTop: Spacing.xs,
   },
-  unlockedBadge: {
+  checkBadge: {
     position: 'absolute',
     top: Spacing.sm,
     left: Spacing.sm,
+    zIndex: 10,
     backgroundColor: Colors.background,
     borderRadius: BorderRadius.full,
     padding: Spacing.xs,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
 });

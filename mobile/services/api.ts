@@ -528,6 +528,28 @@ export const aiAPI = {
   deleteConversation: async (conversationId: number): Promise<void> => {
     await api.delete(`/ai/conversations/${conversationId}`);
   },
+
+  // Realtime / Voice (Llamar a la planta)
+  getRealtimeToken: async (
+    conversationId?: number,
+    plantId?: number
+  ): Promise<{ client_secret: string; expires_in?: number }> => {
+    const response = await api.post('/ai/realtime/token', {
+      conversation_id: conversationId,
+      plant_id: plantId,
+    });
+    return response.data;
+  },
+
+  syncVoiceTranscript: async (
+    conversationId: number,
+    messages: { role: string; content: string }[]
+  ): Promise<void> => {
+    await api.post('/ai/realtime/sync', {
+      conversation_id: conversationId,
+      messages,
+    });
+  },
 };
 
 // ============================================
