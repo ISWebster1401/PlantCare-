@@ -1,10 +1,12 @@
 /**
- * Componente para renderizar modelos 3D .glb usando expo-gl y Three.js
+ * Componente para renderizar modelos 3D .glb usando expo-gl y Three.js.
+ * Si falla la carga (red, etc.), muestra un placeholder con icono de planta.
  */
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, ViewStyle, Text } from 'react-native';
 import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
+import { Ionicons } from '@expo/vector-icons';
 import * as THREE from 'three';
 // @ts-ignore - GLTFLoader no tiene tipos completos en React Native
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -33,6 +35,8 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   autoRotate = true,
   characterMood
 }) => {
+  const [loadError, setLoadError] = useState(false);
+  const errorLoggedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -90,12 +94,9 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
       // Cargar modelo GLB
       const loader = new GLTFLoader();
       
-      console.log(`🔄 Cargando modelo 3D desde: ${modelUrl}`);
-      
       loader.load(
         modelUrl,
         (gltf: GLTFResult) => {
-          console.log('✅ Modelo GLB cargado exitosamente:', gltf);
           // Agregar modelo a la escena
           const model = gltf.scene;
           
@@ -129,52 +130,41 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
                 clip.name.toLowerCase() === animationName.toLowerCase()
               );
               
-              if (targetAnimation) {
-                // Reproducir la animación seleccionada
+                if (targetAnimation) {
                 const action = mixerRef.current.clipAction(targetAnimation);
                 action.play();
                 currentActionRef.current = action;
-                console.log(`✅ Animación '${animationName}' reproducida para mood '${mood}'`);
               } else {
-                // Si no se encuentra la animación, intentar con 'Idle'
                 const idleAnimation = gltf.animations.find((clip: THREE.AnimationClip) => 
                   clip.name.toLowerCase() === 'idle'
                 );
-                
                 if (idleAnimation) {
                   const action = mixerRef.current.clipAction(idleAnimation);
                   action.play();
                   currentActionRef.current = action;
-                  console.log(`⚠️ Animación '${animationName}' no encontrada, usando 'Idle'`);
                 } else {
-                  // Si no hay Idle, reproducir todas las animaciones (fallback)
                   gltf.animations.forEach((clip: THREE.AnimationClip) => {
                     mixerRef.current?.clipAction(clip).play();
                   });
-                  console.log(`⚠️ No se encontró animación específica, reproduciendo todas`);
                 }
               }
             } else {
-              // Si no hay characterMood, reproducir todas las animaciones (comportamiento original)
               gltf.animations.forEach((clip: THREE.AnimationClip) => {
                 mixerRef.current?.clipAction(clip).play();
               });
             }
           }
 
-          console.log('✅ Modelo 3D cargado exitosamente');
         },
-        (xhr: ProgressEvent) => {
-          // Progreso de carga (opcional)
-          if (xhr.total > 0) {
-            const percent = (xhr.loaded / xhr.total) * 100;
-            console.log(`Cargando modelo: ${percent.toFixed(0)}%`);
+        undefined,
+        () => {
+          setLoadError(true);
+          if (!errorLoggedRef.current) {
+            errorLoggedRef.current = true;
+            if (__DEV__) {
+              console.warn('Modelo 3D no disponible (red o URL). Se muestra placeholder.');
+            }
           }
-        },
-        (error: ErrorEvent) => {
-          console.error('❌ Error cargando modelo 3D:', error);
-          console.error('   URL:', modelUrl);
-          console.error('   Mensaje:', error.message);
         }
       );
 
@@ -217,6 +207,15 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
     };
   }, []);
 
+  if (loadError) {
+    return (
+      <View style={[styles.container, styles.placeholder, style]}>
+        <Ionicons name="leaf" size={48} color="#81C784" />
+        <Text style={styles.placeholderText}>Planta</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, style]}>
       <GLView
@@ -231,5 +230,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f0f0f0',
+  },
+  placeholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#e8f5e9',
+  },
+  placeholderText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#2e7d32',
   },
 });

@@ -75,8 +75,12 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
   const cardStyles: ViewStyle[] = [styles.card];
   if (style) cardStyles.push(style);
 
-  // Obtener imageUrl manejando el null
-  const imageUrl = plant.character_image_url || plant.original_photo_url || undefined;
+  // Obtener imageUrl manejando nulls y priorizando renders bonitos
+  const imageUrl =
+    plant.character_image_url ||
+    plant.default_render_url ||
+    plant.original_photo_url ||
+    undefined;
 
   return (
     <Card
@@ -93,6 +97,10 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
               source={{ uri: imageUrl }}
               style={styles.image}
               resizeMode="cover"
+              onError={() => {
+                // Si falla la imagen remota, usamos el avatar como fallback
+                console.warn('No se pudo cargar la imagen de la planta, usando avatar por defecto.');
+              }}
             />
           </View>
         ) : (
