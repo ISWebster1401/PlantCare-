@@ -159,12 +159,8 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
         undefined,
         () => {
           setLoadError(true);
-          if (!errorLoggedRef.current) {
-            errorLoggedRef.current = true;
-            if (__DEV__) {
-              console.warn('Modelo 3D no disponible (red o URL). Se muestra placeholder.');
-            }
-          }
+          errorLoggedRef.current = true;
+          // No loguear: el placeholder se muestra y evita ruido en consola
         }
       );
 

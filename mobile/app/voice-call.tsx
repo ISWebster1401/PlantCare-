@@ -1,6 +1,8 @@
 /**
  * Pantalla de llamada de voz con la planta (API Realtime de OpenAI).
- * UI amigable para niños: botón grande, estados claros y aviso si el audio no responde.
+ * 
+ * NOTA: La reproducción de audio de respuesta requiere decodificar PCM16.
+ * Por ahora mostramos transcripciones y un indicador visual.
  */
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -9,24 +11,25 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { aiAPI } from '../services/api';
 import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
 
-const REALTIME_WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-realtime';
+const REALTIME_WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01';
 
-type CallStatus = 'idle' | 'requesting_permission' | 'getting_token' | 'connecting' | 'ready' | 'in_call' | 'error';
+type CallStatus = 'idle' | 'requesting_permission' | 'getting_token' | 'connecting' | 'ready' | 'recording' | 'processing' | 'speaking' | 'error';
 
-interface TranscriptMessage {
+interface Message {
   role: 'user' | 'assistant';
   content: string;
+  timestamp: Date;
 }
 
 export default function VoiceCallScreen() {
@@ -38,19 +41,24 @@ export default function VoiceCallScreen() {
 
   const [status, setStatus] = useState<CallStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isPlantSpeaking, setIsPlantSpeaking] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const transcriptRef = useRef<TranscriptMessage[]>([]);
-  const currentAssistantRef = useRef<string>('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentTranscript, setCurrentTranscript] = useState<string>('');
+  
   const wsRef = useRef<WebSocket | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+
+  // Sincronizar mensajes con ref para el cleanup
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const requestMicrophonePermission = async (): Promise<boolean> => {
     try {
       const { status: permStatus } = await Audio.requestPermissionsAsync();
       return permStatus === 'granted';
     } catch (e) {
-      console.warn('expo-av permission request failed:', e);
+      console.warn('Error solicitando permiso de micrófono:', e);
       return false;
     }
   };
@@ -71,147 +79,218 @@ export default function VoiceCallScreen() {
       const { client_secret } = await aiAPI.getRealtimeToken(conversationId, plantId);
       setStatus('connecting');
 
-      const protocols = ['realtime', `openai-insecure-api-key.${client_secret}`];
-      const ws = new WebSocket(REALTIME_WS_URL, protocols);
+      // Conectar al WebSocket de OpenAI Realtime
+      const ws = new WebSocket(REALTIME_WS_URL, [
+        'realtime',
+        `openai-insecure-api-key.${client_secret}`,
+      ]);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        console.log('✅ WebSocket conectado');
+        // Configurar la sesión para habilitar transcripción
         ws.send(JSON.stringify({
           type: 'session.update',
           session: {
-            type: 'realtime',
-            model: 'gpt-realtime',
-            audio: {
-              input: { format: 'm4a' },
-              output: { voice: 'marin' },
+            input_audio_transcription: {
+              model: 'whisper-1',
             },
           },
         }));
         setStatus('ready');
+        // Mensaje de bienvenida
+        setMessages([{
+          role: 'assistant',
+          content: `¡Hola! Soy ${plantName}. Mantén presionado el botón del micrófono para hablarme.`,
+          timestamp: new Date(),
+        }]);
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          const t = data.type;
-          if (t === 'response.output_audio.delta' || t === 'response.output_audio.done') {
-            setIsPlantSpeaking(t === 'response.output_audio.delta');
-          }
-          if (t === 'response.output_text.delta' && data.delta) {
-            currentAssistantRef.current += data.delta;
-          }
-          if (t === 'response.done' || t === 'response.output_text.done') {
-            if (currentAssistantRef.current.trim()) {
-              transcriptRef.current.push({ role: 'assistant', content: currentAssistantRef.current.trim() });
-              currentAssistantRef.current = '';
-            }
-          }
-          if (t === 'conversation.item.input_audio_transcription.completed' && data.transcript) {
-            transcriptRef.current.push({ role: 'user', content: data.transcript });
-          }
-        } catch (_) {}
+          handleRealtimeEvent(data);
+        } catch (e) {
+          console.warn('Error parseando mensaje WS:', e);
+        }
       };
 
-      ws.onerror = () => {
+      ws.onerror = (e) => {
+        console.error('❌ WebSocket error:', e);
         setStatus('error');
         setErrorMessage('Error de conexión. Intenta de nuevo.');
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        console.log('WebSocket cerrado:', e.code, e.reason);
         wsRef.current = null;
-        if (status !== 'error' && transcriptRef.current.length > 0 && conversationId) {
-          aiAPI.syncVoiceTranscript(conversationId, transcriptRef.current).catch(() => {});
+        // Sincronizar transcripciones al backend
+        if (messagesRef.current.length > 0 && conversationId) {
+          const toSync = messagesRef.current.map(m => ({ role: m.role, content: m.content }));
+          aiAPI.syncVoiceTranscript(conversationId, toSync).catch(() => {});
         }
       };
     } catch (e: unknown) {
+      console.error('Error iniciando llamada:', e);
       setStatus('error');
       setErrorMessage(e instanceof Error ? e.message : 'No se pudo conectar. Intenta de nuevo.');
     }
   };
 
-  const hangUp = () => {
-    if (currentAssistantRef.current.trim()) {
-      transcriptRef.current.push({ role: 'assistant', content: currentAssistantRef.current.trim() });
-      currentAssistantRef.current = '';
+  const handleRealtimeEvent = (data: any) => {
+    const eventType = data.type;
+
+    // Transcripción del usuario completada
+    if (eventType === 'conversation.item.input_audio_transcription.completed') {
+      const transcript = data.transcript?.trim();
+      if (transcript) {
+        setMessages(prev => [...prev, {
+          role: 'user',
+          content: transcript,
+          timestamp: new Date(),
+        }]);
+      }
+      setCurrentTranscript('');
     }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+
+    // Respuesta de texto (delta)
+    if (eventType === 'response.audio_transcript.delta') {
+      setCurrentTranscript(prev => prev + (data.delta || ''));
+      setStatus('speaking');
     }
-    if (transcriptRef.current.length > 0 && conversationId) {
-      aiAPI.syncVoiceTranscript(conversationId, transcriptRef.current).catch(() => {});
+
+    // Respuesta completada
+    if (eventType === 'response.audio_transcript.done') {
+      const fullText = data.transcript?.trim() || currentTranscript.trim();
+      if (fullText) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: fullText,
+          timestamp: new Date(),
+        }]);
+      }
+      setCurrentTranscript('');
+      setStatus('ready');
     }
-    router.back();
+
+    // Audio de salida (la planta está hablando)
+    if (eventType === 'response.audio.delta') {
+      setStatus('speaking');
+    }
+
+    if (eventType === 'response.audio.done') {
+      setStatus('ready');
+    }
+
+    // Error de la API
+    if (eventType === 'error') {
+      console.error('Error de Realtime API:', data.error);
+      setErrorMessage(data.error?.message || 'Error en la conversación');
+    }
   };
 
   const startRecording = async () => {
-    if (!wsRef.current) {
-      setErrorMessage('Primero conecta la llamada antes de grabar.');
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      setErrorMessage('Primero conecta la llamada.');
       return;
     }
-    const hasPermission = await requestMicrophonePermission();
-    if (!hasPermission) {
-      setErrorMessage('Necesitamos permiso del micrófono para grabar tu voz.');
-      return;
-    }
+
     try {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-        shouldDuckAndroid: true,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-        playThroughEarpieceAndroid: false,
       });
+
       const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      // Usar formato que podamos convertir o enviar
+      await recording.prepareToRecordAsync({
+        android: {
+          extension: '.wav',
+          outputFormat: Audio.AndroidOutputFormat.DEFAULT,
+          audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
+          sampleRate: 24000,
+          numberOfChannels: 1,
+          bitRate: 384000,
+        },
+        ios: {
+          extension: '.wav',
+          audioQuality: Audio.IOSAudioQuality.HIGH,
+          sampleRate: 24000,
+          numberOfChannels: 1,
+          bitRate: 384000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {},
+      });
+
       await recording.startAsync();
       recordingRef.current = recording;
-      setIsRecording(true);
+      setStatus('recording');
+      setErrorMessage(null);
     } catch (e) {
-      console.warn('Error iniciando grabación de audio', e);
-      setErrorMessage('No pudimos iniciar la grabación. Intenta de nuevo.');
+      console.error('Error iniciando grabación:', e);
+      setErrorMessage('No pudimos iniciar la grabación.');
     }
   };
 
   const stopRecordingAndSend = async () => {
-    const rec = recordingRef.current;
-    if (!rec) return;
+    const recording = recordingRef.current;
+    if (!recording) return;
+
     try {
-      await rec.stopAndUnloadAsync();
+      await recording.stopAndUnloadAsync();
     } catch (e) {
-      // ya detenida, ignorar
+      // Ya detenida
     }
     recordingRef.current = null;
-    setIsRecording(false);
+    setStatus('processing');
 
-    const uri = rec.getURI();
+    const uri = recording.getURI();
     if (!uri || !wsRef.current) {
+      setStatus('ready');
       return;
     }
+
     try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
+      // Leer el archivo como base64
+      const base64Audio = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Enviar audio al modelo Realtime
+      // Enviar audio al modelo
       wsRef.current.send(JSON.stringify({
         type: 'input_audio_buffer.append',
-        audio: base64,
+        audio: base64Audio,
       }));
+
       wsRef.current.send(JSON.stringify({
         type: 'input_audio_buffer.commit',
       }));
+
       wsRef.current.send(JSON.stringify({
         type: 'response.create',
       }));
 
-      setStatus('in_call');
     } catch (e) {
-      console.warn('Error enviando audio a Realtime', e);
-      setErrorMessage('No pudimos enviar tu audio. Intenta de nuevo.');
+      console.error('Error enviando audio:', e);
+      setErrorMessage('No pudimos enviar tu mensaje.');
+      setStatus('ready');
     }
+  };
+
+  const hangUp = () => {
+    if (recordingRef.current) {
+      recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      recordingRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    router.back();
   };
 
   useEffect(() => {
@@ -219,320 +298,376 @@ export default function VoiceCallScreen() {
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
-      if (wsRef.current) wsRef.current.close();
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, []);
 
-  const statusLabel = {
-    idle: '¡Conecta con tu planta por voz!',
-    requesting_permission: 'Solicitando micrófono...',
-    getting_token: 'Preparando la llamada...',
-    connecting: 'Conectando...',
-    ready: `Conectado con ${plantName}`,
-    in_call: `${plantName} te está hablando`,
-    error: 'Algo falló',
-  }[status];
+  const getStatusInfo = () => {
+    switch (status) {
+      case 'idle':
+        return { text: 'Toca para conectar', icon: 'call-outline' as const, color: Colors.primary };
+      case 'requesting_permission':
+        return { text: 'Solicitando micrófono...', icon: 'mic' as const, color: Colors.warning };
+      case 'getting_token':
+        return { text: 'Preparando...', icon: 'hourglass' as const, color: Colors.warning };
+      case 'connecting':
+        return { text: 'Conectando...', icon: 'wifi' as const, color: Colors.warning };
+      case 'ready':
+        return { text: 'Listo para hablar', icon: 'checkmark-circle' as const, color: Colors.success };
+      case 'recording':
+        return { text: 'Grabando...', icon: 'mic' as const, color: Colors.error };
+      case 'processing':
+        return { text: 'Procesando...', icon: 'hourglass' as const, color: Colors.warning };
+      case 'speaking':
+        return { text: `${plantName} está respondiendo...`, icon: 'volume-high' as const, color: Colors.primary };
+      case 'error':
+        return { text: 'Error', icon: 'alert-circle' as const, color: Colors.error };
+      default:
+        return { text: '', icon: 'help' as const, color: Colors.textMuted };
+    }
+  };
 
-  const showCallButton = status === 'idle' || status === 'error';
-  const showHangUpButton = ['ready', 'in_call', 'connecting', 'getting_token', 'requesting_permission'].includes(status);
+  const statusInfo = getStatusInfo();
+  const isConnected = ['ready', 'recording', 'processing', 'speaking'].includes(status);
+  const isLoading = ['requesting_permission', 'getting_token', 'connecting', 'processing'].includes(status);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* Header */}
       <LinearGradient
         colors={Gradients.primary as [string, string]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, Shadows.md]}
+        style={styles.header}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.white} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Llamada con {plantName}</Text>
-          <Text style={styles.headerSubtitle}>Habla y escucha a tu planta</Text>
-        </View>
-        <View style={styles.headerPlaceholder} />
-      </LinearGradient>
-
-      <View style={styles.content}>
-        <View style={[styles.illustrationCard, Shadows.lg]}>
-          <View style={styles.illustrationCircle}>
-            <Ionicons name="leaf" size={56} color={Colors.primaryLight} />
-            <View style={styles.phoneBadge}>
-              <Ionicons name="call" size={24} color={Colors.white} />
-            </View>
+          <Text style={styles.headerTitle}>{plantName}</Text>
+          <View style={styles.statusBadge}>
+            <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
+            <Text style={styles.statusText}>{statusInfo.text}</Text>
           </View>
         </View>
+        {isConnected ? (
+          <TouchableOpacity onPress={hangUp} style={styles.hangUpButtonSmall}>
+            <Ionicons name="call" size={20} color={Colors.white} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerPlaceholder} />
+        )}
+      </LinearGradient>
 
-        <View style={[styles.statusCard, Shadows.md]}>
-          {status === 'ready' || status === 'in_call' ? (
-            <View style={styles.plantSpeakingRow}>
-              <View style={[styles.micCircle, isPlantSpeaking && styles.micCircleActive]}>
-                <Ionicons
-                  name={isPlantSpeaking ? 'mic' : 'mic-outline'}
-                  size={40}
-                  color={isPlantSpeaking ? Colors.white : Colors.primary}
-                />
-              </View>
-              <Text style={styles.statusText}>
-                {isPlantSpeaking ? `${plantName} te está hablando...` : 'Habla cerca del micrófono'}
-              </Text>
-              <Text style={styles.hintText}>
-                Si no escuchas respuesta por voz, usa el chat por texto en la pantalla anterior.
-              </Text>
-            </View>
-          ) : (
-            <>
-              {(status === 'getting_token' || status === 'connecting' || status === 'requesting_permission') && (
-                <ActivityIndicator size="large" color={Colors.primary} style={styles.spinner} />
-              )}
-              <Text style={styles.statusText}>{statusLabel}</Text>
-              {status === 'idle' && (
-                <Text style={styles.hintText}>
-                  Toca el botón verde para conectar. La planta te escuchará y te responderá.
-                </Text>
-              )}
-            </>
-          )}
-        </View>
+      {/* Mensajes */}
+      <ScrollView 
+        style={styles.messagesContainer}
+        contentContainerStyle={styles.messagesContent}
+      >
+        {messages.map((msg, idx) => (
+          <View
+            key={idx}
+            style={[
+              styles.messageBubble,
+              msg.role === 'user' ? styles.userBubble : styles.assistantBubble,
+            ]}
+          >
+            {msg.role === 'assistant' && (
+              <Ionicons name="leaf" size={16} color={Colors.primary} style={styles.messageIcon} />
+            )}
+            <Text style={[
+              styles.messageText,
+              msg.role === 'user' && styles.userMessageText,
+            ]}>
+              {msg.content}
+            </Text>
+          </View>
+        ))}
 
-        {errorMessage && (
-          <View style={[styles.errorBox, Shadows.sm]}>
-            <Ionicons name="warning" size={24} color={Colors.error} />
-            <Text style={styles.errorText}>{errorMessage}</Text>
+        {/* Transcripción en progreso */}
+        {currentTranscript && (
+          <View style={[styles.messageBubble, styles.assistantBubble, styles.typingBubble]}>
+            <Ionicons name="leaf" size={16} color={Colors.primary} style={styles.messageIcon} />
+            <Text style={styles.messageText}>{currentTranscript}</Text>
+            <Text style={styles.typingIndicator}>...</Text>
           </View>
         )}
 
-        <View style={styles.buttons}>
-          {showCallButton && (
-            <TouchableOpacity
-              onPress={startCall}
-              style={[styles.mainButton, Shadows.glow(Colors.primary)]}
-              activeOpacity={0.8}
-              disabled={status === 'getting_token' || status === 'connecting'}
-            >
-              <LinearGradient
-                colors={Gradients.primary as [string, string]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.mainButtonGradient}
-              >
-                <Ionicons name="call" size={44} color={Colors.white} />
-                <Text style={styles.mainButtonLabel}>Llamar</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+        {/* Estado de grabación */}
+        {status === 'recording' && (
+          <View style={styles.recordingIndicator}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.recordingText}>Grabando tu mensaje...</Text>
+          </View>
+        )}
+      </ScrollView>
 
-          {showHangUpButton && (
-            <TouchableOpacity
-              onPress={hangUp}
-              style={[styles.hangUpButton, Shadows.md]}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="call" size={44} color={Colors.white} />
-              <Text style={styles.hangUpButtonLabel}>Colgar</Text>
-            </TouchableOpacity>
-          )}
+      {/* Error */}
+      {errorMessage && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="warning" size={18} color={Colors.error} />
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <TouchableOpacity onPress={() => setErrorMessage(null)}>
+            <Ionicons name="close" size={18} color={Colors.error} />
+          </TouchableOpacity>
+        </View>
+      )}
 
-          {status === 'ready' || status === 'in_call' ? (
+      {/* Controles */}
+      <View style={styles.controls}>
+        {!isConnected && status !== 'error' ? (
+          <TouchableOpacity
+            onPress={startCall}
+            style={styles.callButton}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color={Colors.white} size="large" />
+            ) : (
+              <>
+                <Ionicons name="call" size={32} color={Colors.white} />
+                <Text style={styles.callButtonText}>Llamar</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        ) : status === 'error' ? (
+          <TouchableOpacity onPress={startCall} style={styles.retryButton}>
+            <Ionicons name="refresh" size={28} color={Colors.white} />
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.connectedControls}>
+            {/* Botón de micrófono (mantener presionado) */}
             <TouchableOpacity
-              onPress={isRecording ? stopRecordingAndSend : startRecording}
-              style={styles.recordButton}
-              activeOpacity={0.8}
+              onPressIn={startRecording}
+              onPressOut={stopRecordingAndSend}
+              style={[
+                styles.micButton,
+                status === 'recording' && styles.micButtonRecording,
+              ]}
+              disabled={status === 'processing' || status === 'speaking'}
             >
               <Ionicons
-                name={isRecording ? 'stop-circle' : 'mic'}
-                size={24}
-                color={isRecording ? Colors.white : Colors.primary}
+                name={status === 'recording' ? 'mic' : 'mic-outline'}
+                size={36}
+                color={status === 'recording' ? Colors.white : Colors.primary}
               />
-              <Text style={styles.recordButtonLabel}>
-                {isRecording ? 'Detener y enviar' : 'Grabar mensaje'}
-              </Text>
             </TouchableOpacity>
-          ) : null}
-        </View>
+            <Text style={styles.micHint}>
+              {status === 'recording' 
+                ? 'Suelta para enviar' 
+                : status === 'speaking'
+                ? 'Escuchando respuesta...'
+                : 'Mantén presionado para hablar'}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Aviso de audio */}
+      <View style={styles.audioNotice}>
+        <Ionicons name="information-circle-outline" size={16} color={Colors.textMuted} />
+        <Text style={styles.audioNoticeText}>
+          Las respuestas se muestran como texto. La reproducción de voz está en desarrollo.
+        </Text>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: Typography.sizes.xl,
-    fontWeight: Typography.weights.bold,
+    fontSize: Typography.sizes.lg,
+    fontWeight: '700',
     color: Colors.white,
   },
-  headerSubtitle: {
-    fontSize: Typography.sizes.sm,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
-  },
-  headerPlaceholder: {
-    width: 44,
-    height: 44,
-  },
-  content: {
-    flex: 1,
-    padding: Spacing.lg,
-    paddingTop: Spacing.xl,
-    alignItems: 'center',
-  },
-  illustrationCard: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xl,
-  },
-  illustrationCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.backgroundLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: Colors.primary + '40',
-    position: 'relative',
-  },
-  phoneBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusCard: {
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    minHeight: 140,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: Spacing.lg,
-  },
-  spinner: {
-    marginBottom: Spacing.md,
-  },
-  statusText: {
-    fontSize: Typography.sizes.lg,
-    fontWeight: Typography.weights.semibold,
-    color: Colors.text,
-    textAlign: 'center',
-  },
-  hintText: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  plantSpeakingRow: {
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  micCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.primary + '25',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  micCircleActive: {
-    backgroundColor: Colors.primary,
-  },
-  errorBox: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.error + '18',
-    borderRadius: BorderRadius.md,
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: Typography.sizes.xs,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  hangUpButtonSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  messagesContent: {
     padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
+    paddingBottom: Spacing.xl,
+  },
+  messageBubble: {
+    maxWidth: '85%',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  userBubble: {
+    alignSelf: 'flex-end',
+    backgroundColor: Colors.primary,
+  },
+  assistantBubble: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.backgroundLight,
+  },
+  typingBubble: {
+    opacity: 0.8,
+  },
+  messageIcon: {
+    marginRight: 8,
+    marginTop: 2,
+  },
+  messageText: {
+    flex: 1,
+    fontSize: Typography.sizes.base,
+    color: Colors.text,
+    lineHeight: 22,
+  },
+  userMessageText: {
+    color: Colors.white,
+  },
+  typingIndicator: {
+    color: Colors.textMuted,
+    marginLeft: 4,
+  },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.error,
+    marginRight: 8,
+  },
+  recordingText: {
+    color: Colors.error,
+    fontWeight: '600',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.error + '15',
+    padding: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: 8,
   },
   errorText: {
     flex: 1,
     fontSize: Typography.sizes.sm,
     color: Colors.error,
   },
-  buttons: {
-    width: '100%',
+  controls: {
+    padding: Spacing.lg,
     alignItems: 'center',
-    marginTop: Spacing.lg,
   },
-  mainButton: {
-    width: 168,
-    height: 168,
-    borderRadius: 84,
-    overflow: 'hidden',
-  },
-  mainButtonGradient: {
-    width: '100%',
-    height: '100%',
+  callButton: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
+    ...Shadows.lg,
   },
-  mainButtonLabel: {
-    fontSize: Typography.sizes.xl,
-    fontWeight: Typography.weights.bold,
+  callButtonText: {
     color: Colors.white,
+    fontWeight: '700',
+    marginTop: 4,
   },
-  hangUpButton: {
-    width: 168,
-    height: 168,
-    borderRadius: 84,
-    backgroundColor: Colors.error,
+  retryButton: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.warning,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
   },
-  hangUpButtonLabel: {
-    fontSize: Typography.sizes.xl,
-    fontWeight: Typography.weights.bold,
+  retryButtonText: {
     color: Colors.white,
+    fontWeight: '700',
+    marginTop: 4,
   },
-  recordButton: {
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
+  connectedControls: {
+    alignItems: 'center',
+  },
+  micButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: Colors.backgroundLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: Colors.primary,
+  },
+  micButtonRecording: {
+    backgroundColor: Colors.error,
+    borderColor: Colors.error,
+  },
+  micHint: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+  audioNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    gap: 6,
   },
-  recordButtonLabel: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.text,
+  audioNoticeText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
   },
 });
