@@ -1,10 +1,10 @@
 /**
  * Pantalla de Riego en Tiempo Real
  *
- * - Muestra animación de gotas de agua cayendo sobre la planta
- * - Gauge de humedad en tiempo real (polling cada 1s al sensor)
- * - Burbuja de diálogo de la planta con mensajes dinámicos
- * - Si no hay sensor, simula humedad subiendo para demo
+ * - Hace polling cada 1s al sensor real para obtener soil_moisture
+ * - Si no hay sensor asignado, muestra mensaje para conectar uno
+ * - Guarda las sesiones de riego en AsyncStorage para el historial
+ * - NO simula datos: todo viene del sensor real
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -16,12 +16,14 @@ import {
   Image,
   Animated,
   Easing,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { plantsAPI, sensorsAPI, wateringAPI } from '../services/api';
-import { PlantResponse, WateringSession } from '../types';
+import { plantsAPI, sensorsAPI } from '../services/api';
+import { PlantResponse } from '../types';
 import {
   Colors,
   Gradients,
@@ -35,10 +37,41 @@ import {
 /*  Constantes                                        */
 /* -------------------------------------------------- */
 
-const WATERING_POLLING_INTERVAL = 1000; // 1 s durante riego activo
-const NORMAL_POLLING_INTERVAL = 600_000; // 10 min normal
-const SIMULATION_INCREMENT = 1.5; // % de humedad que sube cada tick en demo
+const WATERING_POLLING_INTERVAL = 1000; // 1s durante riego activo
 const DROP_COUNT = 5;
+const STORAGE_KEY = 'plantcare_watering_sessions';
+
+/* -------------------------------------------------- */
+/*  Tipo de sesión almacenada localmente              */
+/* -------------------------------------------------- */
+
+export interface StoredWateringSession {
+  id: string;
+  plantId: number;
+  plantName: string;
+  sensorId: string;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  humidityStart: number;
+  humidityEnd: number;
+  targetHumidity: number;
+}
+
+/* -------------------------------------------------- */
+/*  Helper: guardar sesión en AsyncStorage            */
+/* -------------------------------------------------- */
+
+async function saveWateringSession(session: StoredWateringSession) {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const sessions: StoredWateringSession[] = raw ? JSON.parse(raw) : [];
+    sessions.unshift(session); // más reciente primero
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  } catch (e) {
+    console.error('Error guardando sesión de riego:', e);
+  }
+}
 
 /* -------------------------------------------------- */
 /*  Componente de gota animada                        */
@@ -106,12 +139,14 @@ export default function WateringScreen() {
 
   const [plant, setPlant] = useState<PlantResponse | null>(null);
   const [isWatering, setIsWatering] = useState(false);
-  const [currentHumidity, setCurrentHumidity] = useState(30);
+  const [currentHumidity, setCurrentHumidity] = useState<number | null>(null);
+  const [humidityStart, setHumidityStart] = useState<number>(0);
   const [targetHumidity, setTargetHumidity] = useState(80);
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
+  const [sensorError, setSensorError] = useState(false);
+  const [noSensor, setNoSensor] = useState(false);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const humiditySimRef = useRef(30);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   /* --- carga planta --- */
@@ -123,6 +158,19 @@ export default function WateringScreen() {
         const data = await plantsAPI.getPlant(parseInt(params.plantId, 10));
         setPlant(data);
         setTargetHumidity(data.optimal_humidity_max ?? 80);
+
+        if (!data.sensor_id) {
+          setNoSensor(true);
+          return;
+        }
+
+        // Lectura inicial del sensor
+        try {
+          const reading = await sensorsAPI.getLatestReading(data.sensor_id.toString());
+          setCurrentHumidity(reading.soil_moisture);
+        } catch {
+          setSensorError(true);
+        }
       } catch (e) {
         console.error('Error cargando planta en riego:', e);
       }
@@ -146,7 +194,7 @@ export default function WateringScreen() {
     return () => anim.stop();
   }, [isWatering, pulseAnim]);
 
-  /* --- polling / simulación --- */
+  /* --- polling sensor real --- */
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -156,62 +204,57 @@ export default function WateringScreen() {
   }, []);
 
   const fetchHumidity = useCallback(async () => {
-    if (!plant) return;
-
-    if (plant.sensor_id) {
-      // Sensor real disponible
-      try {
-        const reading = await sensorsAPI.getLatestReading(plant.sensor_id.toString());
-        setCurrentHumidity(reading.soil_moisture);
-      } catch {
-        // Si falla, simula
-        humiditySimRef.current = Math.min(
-          humiditySimRef.current + SIMULATION_INCREMENT,
-          targetHumidity,
-        );
-        setCurrentHumidity(Math.round(humiditySimRef.current));
-      }
-    } else {
-      // Sin sensor: simulación demo
-      humiditySimRef.current = Math.min(
-        humiditySimRef.current + SIMULATION_INCREMENT,
-        targetHumidity,
-      );
-      setCurrentHumidity(Math.round(humiditySimRef.current));
+    if (!plant?.sensor_id) return;
+    try {
+      const reading = await sensorsAPI.getLatestReading(plant.sensor_id.toString());
+      setCurrentHumidity(reading.soil_moisture);
+      setSensorError(false);
+    } catch {
+      setSensorError(true);
     }
-  }, [plant, targetHumidity]);
+  }, [plant]);
 
   const startWatering = useCallback(() => {
-    humiditySimRef.current = currentHumidity;
+    if (!plant?.sensor_id) return;
+
+    setHumidityStart(currentHumidity ?? 0);
     setIsWatering(true);
     setSessionStart(new Date());
 
-    pollingRef.current = setInterval(() => {
-      fetchHumidity();
-    }, WATERING_POLLING_INTERVAL);
-  }, [currentHumidity, fetchHumidity]);
+    // Polling cada 1s al sensor real
+    pollingRef.current = setInterval(fetchHumidity, WATERING_POLLING_INTERVAL);
+  }, [currentHumidity, fetchHumidity, plant]);
 
   const stopWatering = useCallback(async () => {
     stopPolling();
     setIsWatering(false);
 
     if (plant && sessionStart) {
-      const session: Omit<WateringSession, 'plantId'> = {
+      const endTime = new Date();
+      const durationSeconds = Math.round((endTime.getTime() - sessionStart.getTime()) / 1000);
+
+      const session: StoredWateringSession = {
+        id: `${plant.id}-${sessionStart.getTime()}`,
+        plantId: plant.id,
+        plantName: plant.plant_name || params.plantName || 'Planta',
+        sensorId: plant.sensor_id?.toString() ?? '',
         startTime: sessionStart.toISOString(),
-        endTime: new Date().toISOString(),
-        humidityStart: 30,
-        humidityEnd: currentHumidity,
+        endTime: endTime.toISOString(),
+        durationSeconds,
+        humidityStart,
+        humidityEnd: currentHumidity ?? 0,
         targetHumidity,
-        isActive: false,
       };
-      await wateringAPI.recordWatering(plant.id, session);
+
+      await saveWateringSession(session);
+      Alert.alert('Riego registrado', `Duración: ${formatDuration(durationSeconds)}\nHumedad: ${humidityStart}% → ${currentHumidity}%`);
     }
-  }, [plant, sessionStart, currentHumidity, targetHumidity, stopPolling]);
+  }, [plant, sessionStart, currentHumidity, targetHumidity, humidityStart, stopPolling, params.plantName]);
 
   /* --- detener automáticamente si llega al límite --- */
 
   useEffect(() => {
-    if (isWatering && currentHumidity >= targetHumidity) {
+    if (isWatering && currentHumidity != null && currentHumidity >= targetHumidity) {
       stopWatering();
     }
   }, [currentHumidity, targetHumidity, isWatering, stopWatering]);
@@ -222,22 +265,31 @@ export default function WateringScreen() {
     return () => stopPolling();
   }, [stopPolling]);
 
-  /* --- helpers de texto --- */
+  /* --- helpers --- */
 
-  const reachedLimit = currentHumidity >= targetHumidity;
-  const speechText = !isWatering && !reachedLimit
+  const reachedLimit = currentHumidity != null && currentHumidity >= targetHumidity;
+
+  const speechText = noSensor
+    ? 'Necesito un sensor para monitorear mi humedad'
+    : sensorError
+    ? 'No puedo leer el sensor... ¿está encendido?'
+    : !isWatering && !reachedLimit
     ? 'Presiona para comenzar el riego'
     : isWatering
     ? '¡Qué rica agua! 💧'
     : '¡Deja de regarme! Ya estoy feliz 🌱';
 
-  const progressPercent = Math.min((currentHumidity / targetHumidity) * 100, 100);
+  const progressPercent = currentHumidity != null
+    ? Math.min((currentHumidity / targetHumidity) * 100, 100)
+    : 0;
 
   const imageUri =
     plant?.character_image_url ||
     plant?.default_render_url ||
     plant?.original_photo_url ||
     undefined;
+
+  const canStartWatering = !noSensor && !sensorError && !reachedLimit;
 
   /* --- render --- */
 
@@ -253,7 +305,10 @@ export default function WateringScreen() {
         <SafeAreaView>
           <View style={styles.headerBar}>
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => {
+                if (isWatering) stopWatering();
+                router.back();
+              }}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Ionicons name="arrow-back" size={24} color={Colors.white} />
@@ -267,7 +322,6 @@ export default function WateringScreen() {
       <View style={styles.body}>
         {/* Planta + gotas */}
         <View style={styles.plantArea}>
-          {/* Gotas animadas solo si está regando */}
           {isWatering &&
             Array.from({ length: DROP_COUNT }).map((_, i) => (
               <WaterDrop key={i} delay={i * 220} left={20 + i * 14} />
@@ -287,62 +341,116 @@ export default function WateringScreen() {
         </View>
 
         {/* Burbuja de diálogo */}
-        <View style={styles.speechBubble}>
+        <View style={[styles.speechBubble, noSensor && styles.speechBubbleWarning]}>
           <Text style={styles.speechText}>{speechText}</Text>
         </View>
 
-        {/* Gauge de humedad */}
-        <View style={styles.gaugeContainer}>
-          <Text style={styles.gaugeLabel}>Humedad del suelo</Text>
-          <View style={styles.gaugeTrack}>
-            <LinearGradient
-              colors={['#64B5F6', '#4CAF50']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.gaugeFill, { width: `${progressPercent}%` }]}
-            />
+        {/* Aviso sin sensor */}
+        {noSensor && (
+          <View style={styles.noSensorBox}>
+            <Ionicons name="hardware-chip-outline" size={24} color={Colors.accent} />
+            <Text style={styles.noSensorText}>
+              Esta planta no tiene un sensor asignado. Asigna un sensor desde la pantalla de dispositivos para ver datos de humedad en tiempo real.
+            </Text>
           </View>
-          <View style={styles.gaugeValues}>
-            <Text style={styles.gaugeValueText}>{currentHumidity}%</Text>
-            <Text style={styles.gaugeTargetText}>Meta: {targetHumidity}%</Text>
+        )}
+
+        {/* Gauge de humedad (solo si hay sensor) */}
+        {!noSensor && (
+          <View style={styles.gaugeContainer}>
+            <Text style={styles.gaugeLabel}>Humedad del suelo (sensor real)</Text>
+            <View style={styles.gaugeTrack}>
+              <LinearGradient
+                colors={['#64B5F6', '#4CAF50']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.gaugeFill, { width: `${progressPercent}%` }]}
+              />
+            </View>
+            <View style={styles.gaugeValues}>
+              <Text style={styles.gaugeValueText}>
+                {currentHumidity != null ? `${currentHumidity}%` : '--'}
+              </Text>
+              <Text style={styles.gaugeTargetText}>Meta: {targetHumidity}%</Text>
+            </View>
+            {sensorError && (
+              <View style={styles.sensorErrorRow}>
+                <Ionicons name="warning-outline" size={14} color={Colors.warning} />
+                <Text style={styles.sensorErrorText}>
+                  Error leyendo sensor. Reintentando...
+                </Text>
+              </View>
+            )}
           </View>
-        </View>
+        )}
 
         {/* Botón principal */}
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <TouchableOpacity
-            style={[
-              styles.waterButton,
-              reachedLimit && styles.waterButtonDone,
-              isWatering && styles.waterButtonActive,
-            ]}
-            onPress={isWatering ? stopWatering : reachedLimit ? () => router.back() : startWatering}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={reachedLimit ? 'checkmark-circle' : isWatering ? 'pause-circle' : 'water'}
-              size={28}
-              color={Colors.white}
-            />
-            <Text style={styles.waterButtonText}>
-              {reachedLimit
-                ? 'Riego completado - Volver'
-                : isWatering
-                ? 'Detener Riego'
-                : 'Comenzar Riego'}
-            </Text>
-          </TouchableOpacity>
+          {noSensor ? (
+            <TouchableOpacity
+              style={[styles.waterButton, { backgroundColor: Colors.accent }]}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back-circle" size={28} color={Colors.white} />
+              <Text style={styles.waterButtonText}>Volver y asignar sensor</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.waterButton,
+                reachedLimit && styles.waterButtonDone,
+                isWatering && styles.waterButtonActive,
+                !canStartWatering && !isWatering && styles.waterButtonDisabled,
+              ]}
+              onPress={
+                isWatering
+                  ? stopWatering
+                  : reachedLimit
+                  ? () => router.back()
+                  : canStartWatering
+                  ? startWatering
+                  : undefined
+              }
+              activeOpacity={0.8}
+              disabled={!canStartWatering && !isWatering && !reachedLimit}
+            >
+              <Ionicons
+                name={reachedLimit ? 'checkmark-circle' : isWatering ? 'pause-circle' : 'water'}
+                size={28}
+                color={Colors.white}
+              />
+              <Text style={styles.waterButtonText}>
+                {reachedLimit
+                  ? 'Riego completado - Volver'
+                  : isWatering
+                  ? 'Detener Riego'
+                  : 'Comenzar Riego'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
 
         {/* Info de sesión */}
         {(isWatering || reachedLimit) && sessionStart && (
           <Text style={styles.sessionInfo}>
-            Inicio: {sessionStart.toLocaleTimeString()} | Humedad: {currentHumidity}%
+            Inicio: {sessionStart.toLocaleTimeString()} | Humedad: {humidityStart}% → {currentHumidity ?? '--'}%
           </Text>
         )}
       </View>
     </View>
   );
+}
+
+/* -------------------------------------------------- */
+/*  Helpers                                           */
+/* -------------------------------------------------- */
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s}s`;
 }
 
 /* -------------------------------------------------- */
@@ -425,11 +533,33 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
     maxWidth: '90%',
   },
+  speechBubbleWarning: {
+    borderWidth: 1,
+    borderColor: Colors.accent,
+  },
   speechText: {
     fontSize: Typography.sizes.base,
     color: Colors.text,
     textAlign: 'center',
     fontWeight: Typography.weights.medium,
+  },
+
+  /* --- sin sensor --- */
+  noSensorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.backgroundLighter,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.lg,
+    width: '100%',
+  },
+  noSensorText: {
+    flex: 1,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
 
   /* --- gauge --- */
@@ -468,6 +598,16 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     alignSelf: 'flex-end',
   },
+  sensorErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  sensorErrorText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.warning,
+  },
 
   /* --- botón de riego --- */
   waterButton: {
@@ -487,6 +627,9 @@ const styles = StyleSheet.create({
   },
   waterButtonDone: {
     backgroundColor: Colors.success,
+  },
+  waterButtonDisabled: {
+    opacity: 0.5,
   },
   waterButtonText: {
     fontSize: Typography.sizes.base,
