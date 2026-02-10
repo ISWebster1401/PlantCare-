@@ -239,6 +239,24 @@ export const plantsAPI = {
     });
     return response.data;
   },
+
+  /**
+   * Elimina una planta del usuario.
+   * // TODO: verificar endpoint real del backend (DELETE /plants/{plantId})
+   */
+  deletePlant: async (plantId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/plants/${plantId}`);
+    return response.data;
+  },
+
+  /**
+   * Renombra una planta.
+   * // TODO: verificar endpoint real del backend (PATCH /plants/{plantId})
+   */
+  renamePlant: async (plantId: number, newName: string): Promise<PlantResponse> => {
+    const response = await api.patch(`/plants/${plantId}`, { plant_name: newName });
+    return response.data;
+  },
 };
 
 // ============================================
