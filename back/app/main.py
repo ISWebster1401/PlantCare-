@@ -52,6 +52,13 @@ app.add_middleware(
 
 
 
+# Suprimir warning de pgdbtoolkit cuando no hay extensión vector en la DB
+import logging as std_logging
+try:
+    std_logging.getLogger("pgdbtoolkit.async_db").setLevel(std_logging.ERROR)
+except Exception:
+    pass
+
 # Eventos de la aplicación
 @app.on_event("startup")
 async def startup_event():

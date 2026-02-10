@@ -1,4 +1,39 @@
-# 🔧 Solución de Problemas - Expo Timeout
+# 🔧 Solución de Problemas - PlantCare Mobile
+
+## Error "PlatformConstants could not be found" / "runtime not ready"
+
+Si la app se abre en Expo Go pero ves una pantalla roja con **Invariant Violation** y algo como *'PlatformConstants' could not be found* o *TurboModuleRegistry.getEnforcing*, suele ser por **caché antigua** (bundle de otra versión de SDK) o porque **Expo Go no coincide** con el SDK del proyecto.
+
+### Pasos (hacer en este orden):
+
+1. **Actualizar Expo Go en el teléfono**  
+   En App Store (iOS) o Play Store (Android), busca "Expo Go" e instala la última versión (SDK 54).
+
+2. **Cerrar Expo Go por completo**  
+   En iOS: subir y quitar la app del carrusel. En Android: Forzar cierre desde Ajustes.
+
+3. **Limpiar caché y arrancar de nuevo** (en la carpeta `mobile`):
+   ```bash
+   npm run start:fresh
+   ```
+   O manualmente:
+   ```bash
+   rm -rf .expo node_modules/.cache .metro
+   npx expo start --clear
+   ```
+
+4. **Abrir de nuevo en el teléfono**  
+   Escanea el QR otra vez (o entra por "Enter URL manually" con la URL que muestra Metro). No abras un proyecto "reciente" antiguo en Expo Go.
+
+5. **Si sigue fallando**, alinear dependencias con Expo:
+   ```bash
+   npx expo install --fix
+   npm run start:fresh
+   ```
+
+El proyecto está en **Expo SDK 54**; Expo Go en el dispositivo debe ser también la versión para SDK 54 (la última en la tienda).
+
+---
 
 ## Problema: "the request timed out" al escanear QR
 

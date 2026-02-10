@@ -48,3 +48,10 @@ redis[hiredis]>=5.0.0
 
 # Polars para agregaciones rápidas (10x más rápido que pandas)
 polars>=0.19.0
+
+# ============================================
+# Load Testing (solo para desarrollo)
+# ============================================
+locust>=2.20.0
+faker>=22.0.0
+tqdm>=4.66.0
