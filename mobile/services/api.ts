@@ -22,6 +22,8 @@ import {
   DeviceCodeBatch,
   DeviceCodeResponse,
   PokedexEntryResponse,
+  WateringSession,
+  WateringHistoryEntry,
 } from '../types';
 
 // Log de configuración de API al iniciar
@@ -590,6 +592,35 @@ export const adminAPI = {
   getSensorById: async (sensorId: string): Promise<DeviceAdminResponse> => {
     const response = await api.get(`/admin/sensors/${sensorId}`);
     return response.data;
+  },
+};
+
+// ============================================
+// WATERING API
+// ============================================
+
+export const wateringAPI = {
+  /**
+   * Registra un evento de riego para una planta.
+   * // TODO: conectar con endpoint real cuando el backend lo implemente
+   */
+  recordWatering: async (
+    plantId: number,
+    session: Omit<WateringSession, 'plantId'>,
+  ): Promise<{ message: string }> => {
+    // TODO: conectar con endpoint real - POST /plants/{plantId}/watering
+    console.log('[wateringAPI] recordWatering stub called', { plantId, session });
+    return { message: 'Riego registrado (stub)' };
+  },
+
+  /**
+   * Obtiene historial de riegos de una planta.
+   * // TODO: conectar con endpoint real cuando el backend lo implemente
+   */
+  getHistory: async (plantId: number): Promise<WateringHistoryEntry[]> => {
+    // TODO: conectar con endpoint real - GET /plants/{plantId}/watering-history
+    console.log('[wateringAPI] getHistory stub called', { plantId });
+    return [];
   },
 };
 

@@ -225,6 +225,29 @@ export interface DeviceCodeResponse {
 }
 
 // ============================================
+// WATERING TYPES
+// ============================================
+
+export interface WateringSession {
+  plantId: number;
+  startTime: string;
+  endTime?: string;
+  humidityStart: number;
+  humidityEnd?: number;
+  targetHumidity: number;
+  isActive: boolean;
+}
+
+export interface WateringHistoryEntry {
+  id: string;
+  plantId: number;
+  date: string;
+  durationSeconds: number;
+  humidityStart: number;
+  humidityEnd: number;
+}
+
+// ============================================
 // POKEDEX TYPES
 // ============================================
 
