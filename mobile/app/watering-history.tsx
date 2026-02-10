@@ -1,11 +1,12 @@
 /**
  * Pantalla de Historial de Riego
  *
- * - Muestra lecturas del sensor agrupadas por fecha
- * - Si no hay sensor ni datos, muestra un empty state amigable
- * - Preparada para conectar con endpoint real de historial de riego
+ * - Lee sesiones de riego guardadas en AsyncStorage
+ * - Filtra por plantId para mostrar solo los riegos de esa planta
+ * - Muestra fecha, duración, humedad inicio/fin y si alcanzó la meta
+ * - Empty state si no hay riegos registrados
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,12 +15,12 @@ import {
   ActivityIndicator,
   SafeAreaView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { sensorsAPI, wateringAPI } from '../services/api';
-import { SensorReadingResponse } from '../types';
 import {
   Colors,
   Gradients,
@@ -30,12 +31,22 @@ import {
 } from '../constants/DesignSystem';
 
 /* -------------------------------------------------- */
-/*  Tipos auxiliares                                  */
+/*  Constantes y tipo (igual que en watering.tsx)     */
 /* -------------------------------------------------- */
 
-interface GroupedReadings {
-  date: string; // YYYY-MM-DD
-  readings: SensorReadingResponse[];
+const STORAGE_KEY = 'plantcare_watering_sessions';
+
+interface StoredWateringSession {
+  id: string;
+  plantId: number;
+  plantName: string;
+  sensorId: string;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  humidityStart: number;
+  humidityEnd: number;
+  targetHumidity: number;
 }
 
 /* -------------------------------------------------- */
@@ -50,44 +61,45 @@ export default function WateringHistoryScreen() {
     sensorId: string;
   }>();
 
-  const [groups, setGroups] = useState<GroupedReadings[]>([]);
+  const [sessions, setSessions] = useState<StoredWateringSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
+  const loadSessions = useCallback(async () => {
     setLoading(true);
     try {
-      if (params.sensorId) {
-        // Obtener lecturas reales del sensor
-        const readings = await sensorsAPI.getSensorReadings(params.sensorId, 50);
-        setGroups(groupByDate(readings));
-      } else {
-        // Sin sensor: intentar stub de historial de riego
-        // TODO: conectar con endpoint real cuando exista
-        await wateringAPI.getHistory(parseInt(params.plantId, 10));
-        setGroups([]);
-      }
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const all: StoredWateringSession[] = raw ? JSON.parse(raw) : [];
+      const plantId = parseInt(params.plantId, 10);
+      const filtered = all.filter((s) => s.plantId === plantId);
+      setSessions(filtered);
     } catch (e) {
-      console.error('Error cargando historial:', e);
-      setGroups([]);
+      console.error('Error cargando historial de riego:', e);
+      setSessions([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.plantId]);
 
-  const groupByDate = (readings: SensorReadingResponse[]): GroupedReadings[] => {
-    const map: Record<string, SensorReadingResponse[]> = {};
-    for (const r of readings) {
-      const date = r.timestamp?.split('T')[0] ?? r.created_at?.split('T')[0] ?? 'Sin fecha';
-      if (!map[date]) map[date] = [];
-      map[date].push(r);
+  // Recargar cuando la pantalla recibe foco (ej. volver del riego)
+  useFocusEffect(
+    useCallback(() => {
+      loadSessions();
+    }, [loadSessions]),
+  );
+
+  /* --- helpers de formato --- */
+
+  const formatDate = (iso: string): string => {
+    try {
+      return new Date(iso).toLocaleDateString('es-CL', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return iso;
     }
-    return Object.entries(map)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([date, readings]) => ({ date, readings }));
   };
 
   const formatTime = (iso: string): string => {
@@ -101,71 +113,126 @@ export default function WateringHistoryScreen() {
     }
   };
 
-  const formatDate = (dateStr: string): string => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      return d.toLocaleDateString('es-CL', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-      });
-    } catch {
-      return dateStr;
-    }
+  const formatDuration = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m < 60) return `${m}m ${s}s`;
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
   };
 
-  const getHumidityColor = (moisture: number): string => {
-    if (moisture >= 70) return Colors.success;
-    if (moisture >= 40) return Colors.warning;
-    return Colors.error;
+  const handleDeleteSession = (sessionId: string) => {
+    Alert.alert(
+      'Eliminar registro',
+      '¿Seguro que quieres eliminar este registro de riego?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const raw = await AsyncStorage.getItem(STORAGE_KEY);
+              const all: StoredWateringSession[] = raw ? JSON.parse(raw) : [];
+              const updated = all.filter((s) => s.id !== sessionId);
+              await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+              setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+            } catch (e) {
+              console.error('Error eliminando sesión:', e);
+            }
+          },
+        },
+      ],
+    );
   };
 
-  /* --- render items --- */
+  /* --- render item --- */
 
-  const renderReading = ({ item }: { item: SensorReadingResponse }) => (
-    <View style={styles.readingRow}>
-      <View style={styles.readingTime}>
-        <Ionicons name="time-outline" size={14} color={Colors.textMuted} />
-        <Text style={styles.readingTimeText}>{formatTime(item.timestamp)}</Text>
-      </View>
+  const renderSession = ({ item }: { item: StoredWateringSession }) => {
+    const reachedGoal = item.humidityEnd >= item.targetHumidity;
+    const humidityDelta = item.humidityEnd - item.humidityStart;
 
-      <View style={styles.readingStats}>
-        <View style={styles.readingStat}>
+    return (
+      <View style={styles.sessionCard}>
+        {/* Encabezado: fecha y hora */}
+        <View style={styles.sessionHeader}>
+          <View style={styles.sessionDateRow}>
+            <Ionicons name="calendar-outline" size={14} color={Colors.textMuted} />
+            <Text style={styles.sessionDate}>{formatDate(item.startTime)}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => handleDeleteSession(item.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Hora de inicio y fin */}
+        <Text style={styles.sessionTime}>
+          {formatTime(item.startTime)} - {formatTime(item.endTime)}
+        </Text>
+
+        {/* Stats */}
+        <View style={styles.sessionStats}>
+          <View style={styles.sessionStat}>
+            <Ionicons name="time-outline" size={18} color={Colors.secondary} />
+            <Text style={styles.sessionStatValue}>{formatDuration(item.durationSeconds)}</Text>
+            <Text style={styles.sessionStatLabel}>Duración</Text>
+          </View>
+
+          <View style={styles.sessionStat}>
+            <Ionicons name="water-outline" size={18} color={Colors.primary} />
+            <Text style={styles.sessionStatValue}>
+              {item.humidityStart}% → {item.humidityEnd}%
+            </Text>
+            <Text style={styles.sessionStatLabel}>Humedad</Text>
+          </View>
+
+          <View style={styles.sessionStat}>
+            <Ionicons
+              name={reachedGoal ? 'checkmark-circle' : 'close-circle'}
+              size={18}
+              color={reachedGoal ? Colors.success : Colors.warning}
+            />
+            <Text
+              style={[
+                styles.sessionStatValue,
+                { color: reachedGoal ? Colors.success : Colors.warning },
+              ]}
+            >
+              {reachedGoal ? 'Sí' : 'No'}
+            </Text>
+            <Text style={styles.sessionStatLabel}>Meta</Text>
+          </View>
+        </View>
+
+        {/* Barra visual de humedad */}
+        <View style={styles.miniGaugeTrack}>
           <View
             style={[
-              styles.indicator,
-              { backgroundColor: getHumidityColor(item.soil_moisture) },
+              styles.miniGaugeFillStart,
+              { width: `${Math.min((item.humidityStart / item.targetHumidity) * 100, 100)}%` },
             ]}
           />
-          <Text style={styles.readingStatValue}>{item.soil_moisture}%</Text>
-          <Text style={styles.readingStatLabel}>Humedad</Text>
+          <LinearGradient
+            colors={['#64B5F6', reachedGoal ? '#4CAF50' : '#FFB74D']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[
+              styles.miniGaugeFillEnd,
+              { width: `${Math.min((item.humidityEnd / item.targetHumidity) * 100, 100)}%` },
+            ]}
+          />
         </View>
 
-        <View style={styles.readingStat}>
-          <Ionicons name="thermometer-outline" size={14} color={Colors.textSecondary} />
-          <Text style={styles.readingStatValue}>{item.temperature}°C</Text>
-          <Text style={styles.readingStatLabel}>Temp</Text>
-        </View>
-
-        {item.air_humidity != null && (
-          <View style={styles.readingStat}>
-            <Ionicons name="water-outline" size={14} color={Colors.textSecondary} />
-            <Text style={styles.readingStatValue}>{item.air_humidity}%</Text>
-            <Text style={styles.readingStatLabel}>Aire</Text>
-          </View>
+        {humidityDelta > 0 && (
+          <Text style={styles.deltaText}>+{humidityDelta}% de humedad</Text>
         )}
       </View>
-    </View>
-  );
-
-  const renderGroup = ({ item }: { item: GroupedReadings }) => (
-    <View style={styles.dateGroup}>
-      <Text style={styles.dateTitle}>{formatDate(item.date)}</Text>
-      {item.readings.map((r) => (
-        <View key={r.id}>{renderReading({ item: r })}</View>
-      ))}
-    </View>
-  );
+    );
+  };
 
   /* --- render --- */
 
@@ -200,6 +267,11 @@ export default function WateringHistoryScreen() {
         <Text style={styles.plantHeaderText}>
           {params.plantName || 'Mi planta'}
         </Text>
+        {sessions.length > 0 && (
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{sessions.length}</Text>
+          </View>
+        )}
       </View>
 
       {/* Contenido */}
@@ -208,12 +280,12 @@ export default function WateringHistoryScreen() {
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.centeredText}>Cargando historial...</Text>
         </View>
-      ) : groups.length === 0 ? (
+      ) : sessions.length === 0 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyEmoji}>🌵</Text>
           <Text style={styles.emptyTitle}>Aún no has regado esta planta</Text>
           <Text style={styles.emptySubtitle}>
-            Los datos de riego aparecerán aquí una vez que registres tu primer riego.
+            Cuando registres un riego desde la pantalla de riego, aparecerá aquí con todos los detalles.
           </Text>
           <TouchableOpacity
             style={styles.goBackBtn}
@@ -225,9 +297,9 @@ export default function WateringHistoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={groups}
-          keyExtractor={(item) => item.date}
-          renderItem={renderGroup}
+          data={sessions}
+          keyExtractor={(item) => item.id}
+          renderItem={renderSession}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
@@ -271,9 +343,24 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   plantHeaderText: {
+    flex: 1,
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.semibold,
     color: Colors.text,
+  },
+  countBadge: {
+    backgroundColor: Colors.primary,
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  countBadgeText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
   },
 
   /* --- estados --- */
@@ -327,59 +414,79 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
   },
 
-  /* --- grupo por fecha --- */
-  dateGroup: {
-    marginBottom: Spacing.lg,
-  },
-  dateTitle: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.semibold,
-    color: Colors.textSecondary,
-    textTransform: 'capitalize',
-    marginBottom: Spacing.sm,
-  },
-
-  /* --- fila de lectura --- */
-  readingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  /* --- card de sesión --- */
+  sessionCard: {
     backgroundColor: Colors.backgroundLight,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
     ...Shadows.sm,
   },
-  readingTime: {
+  sessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sessionDateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    width: 70,
+    gap: Spacing.xs,
   },
-  readingTimeText: {
+  sessionDate: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+  },
+  sessionTime: {
     fontSize: Typography.sizes.xs,
     color: Colors.textMuted,
+    marginTop: 2,
+    marginBottom: Spacing.md,
   },
-  readingStats: {
-    flex: 1,
+
+  /* --- stats dentro de card --- */
+  sessionStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    marginBottom: Spacing.md,
   },
-  readingStat: {
+  sessionStat: {
     alignItems: 'center',
     gap: 2,
   },
-  readingStatValue: {
+  sessionStatValue: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.bold,
     color: Colors.text,
   },
-  readingStatLabel: {
+  sessionStatLabel: {
     fontSize: Typography.sizes.xs - 1,
     color: Colors.textMuted,
   },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+
+  /* --- mini gauge --- */
+  miniGaugeTrack: {
+    width: '100%',
+    height: 6,
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  miniGaugeFillStart: {
+    position: 'absolute',
+    height: '100%',
+    backgroundColor: 'rgba(100,181,246,0.3)',
+    borderRadius: BorderRadius.full,
+  },
+  miniGaugeFillEnd: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
+  },
+  deltaText: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.success,
+    marginTop: Spacing.xs,
+    textAlign: 'right',
   },
 });
