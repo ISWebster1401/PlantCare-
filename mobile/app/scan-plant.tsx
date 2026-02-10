@@ -18,12 +18,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI } from '../services/api';
-import { PlantIdentify } from '../types';
+import { PlantIdentify, PlantResponse } from '../types';
 import { PlantSpeciesAutocomplete } from '../components/PlantSpeciesAutocomplete';
+import { Model3DViewer } from '../components/Model3DViewer';
 import { Button, Card, Badge } from '../components/ui';
 import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
 
-type Step = 'name' | 'photo' | 'identifying' | 'results' | 'creating';
+type Step = 'name' | 'photo' | 'identifying' | 'results' | 'creating' | 'created';
 
 export default function ScanPlantScreen() {
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function ScanPlantScreen() {
   const [photo, setPhoto] = useState<{ uri: string; type: string; name: string } | null>(null);
   const [identification, setIdentification] = useState<PlantIdentify | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [createdPlant, setCreatedPlant] = useState<PlantResponse | null>(null);
 
   const requestCameraPermission = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -151,13 +153,9 @@ export default function ScanPlantScreen() {
     setIsLoading(true);
 
     try {
-      await plantsAPI.createPlant(photo, plantName.trim(), plantSpecies.trim() || undefined);
-      Alert.alert('¡Éxito!', 'Tu planta ha sido agregada a tu jardín', [
-        {
-          text: 'OK',
-          onPress: () => router.replace('/(tabs)/garden'),
-        },
-      ]);
+      const plant = await plantsAPI.createPlant(photo, plantName.trim(), plantSpecies.trim() || undefined);
+      setCreatedPlant(plant);
+      setStep('created');
     } catch (error: any) {
       console.error('Error creando planta:', error);
       Alert.alert('Error', error.response?.data?.detail || 'No se pudo crear la planta');
@@ -383,6 +381,93 @@ export default function ScanPlantScreen() {
               </Text>
             </View>
           </View>
+        );
+
+      case 'created':
+        if (!createdPlant) return null;
+        const createdImageUri =
+          createdPlant.character_image_url ||
+          createdPlant.default_render_url ||
+          createdPlant.original_photo_url ||
+          undefined;
+        const createdMood = (createdPlant.character_mood || 'happy') as string;
+
+        return (
+          <ScrollView style={styles.stepContainer} contentContainerStyle={styles.createdContent}>
+            <View style={styles.iconContainer}>
+              <View style={[styles.iconCircle, { borderColor: Colors.success, backgroundColor: `${Colors.success}20` }]}>
+                <Text style={styles.iconEmoji}>✅</Text>
+              </View>
+            </View>
+
+            <Text style={styles.stepTitle}>¡Planta agregada al jardín!</Text>
+            <Text style={styles.stepDescription}>
+              Así se ve el personaje de <Text style={{ fontWeight: Typography.weights.bold, color: Colors.text }}>{createdPlant.plant_name || plantName}</Text>
+            </Text>
+
+            {/* Imagen del personaje */}
+            {createdImageUri && (
+              <View style={styles.createdImageWrapper}>
+                <Image
+                  source={{ uri: createdImageUri }}
+                  style={styles.createdImage}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
+
+            {/* Modelo 3D si existe */}
+            {createdPlant.model_3d_url && (
+              <View style={styles.created3dWrapper}>
+                <Text style={styles.created3dLabel}>Modelo 3D</Text>
+                <Model3DViewer
+                  modelUrl={createdPlant.model_3d_url}
+                  style={styles.created3dViewer}
+                  autoRotate
+                  characterMood={createdMood}
+                />
+              </View>
+            )}
+
+            {/* Info rápida */}
+            {createdPlant.plant_type && (
+              <View style={styles.createdInfoRow}>
+                <Ionicons name="leaf" size={16} color={Colors.primaryLight} />
+                <Text style={styles.createdInfoText}>
+                  {createdPlant.plant_type}
+                  {createdPlant.scientific_name ? ` — ${createdPlant.scientific_name}` : ''}
+                </Text>
+              </View>
+            )}
+
+            <Button
+              title="Ver en mi jardín"
+              onPress={() => router.replace('/(tabs)/garden')}
+              variant="primary"
+              size="lg"
+              icon="leaf"
+              iconPosition="left"
+              fullWidth
+              style={styles.addButton}
+            />
+
+            <Button
+              title="Escanear otra planta"
+              onPress={() => {
+                setStep('name');
+                setPhoto(null);
+                setPlantName('');
+                setPlantSpecies('');
+                setIdentification(null);
+                setCreatedPlant(null);
+              }}
+              variant="ghost"
+              size="md"
+              icon="add-circle-outline"
+              iconPosition="left"
+              fullWidth
+            />
+          </ScrollView>
         );
 
       default:
@@ -643,5 +728,66 @@ const styles = StyleSheet.create({
   addButton: {
     marginTop: Spacing.md,
     marginBottom: Spacing.md,
+  },
+  /* ── Created step ── */
+  createdContent: {
+    padding: Spacing.lg,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.xl * 2,
+    flexGrow: 1,
+  },
+  createdImageWrapper: {
+    alignSelf: 'center',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    overflow: 'hidden',
+    borderWidth: 4,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.backgroundLighter,
+    marginBottom: Spacing.lg,
+  },
+  createdImage: {
+    width: '100%',
+    height: '100%',
+  },
+  created3dWrapper: {
+    alignSelf: 'center',
+    width: '100%',
+    height: 240,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: Colors.backgroundLighter,
+    marginBottom: Spacing.lg,
+    borderWidth: 2,
+    borderColor: Colors.primaryLight,
+  },
+  created3dLabel: {
+    position: 'absolute',
+    top: Spacing.sm,
+    alignSelf: 'center',
+    zIndex: 10,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    backgroundColor: `${Colors.background}CC`,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    overflow: 'hidden',
+  },
+  created3dViewer: {
+    flex: 1,
+  },
+  createdInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  createdInfoText: {
+    fontSize: Typography.sizes.base,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
   },
 });
