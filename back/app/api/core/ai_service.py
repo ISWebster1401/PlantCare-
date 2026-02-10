@@ -457,6 +457,20 @@ FORMATO DE RESPUESTA:
     ) -> Dict[str, Any]:
         """Chat con memoria de conversación y funciones/tools"""
         try:
+            # TESTING MODE - Retornar mock sin llamar a OpenAI
+            if settings.TESTING_MODE:
+                import asyncio
+                import random
+                from load_testing.mock_data import get_mock_chat_response, get_mock_ai_usage
+                await asyncio.sleep(random.uniform(0.1, 0.3))  # Simular delay
+                mock_response = get_mock_chat_response()
+                mock_usage = get_mock_ai_usage()
+                logger.info(f"🧪 TESTING_MODE: Retornando mock para chat_with_memory")
+                return {
+                    "response": mock_response,
+                    "usage": mock_usage
+                }
+            
             if client is None:
                 raise Exception("Servicio de IA no disponible - cliente no configurado")
             
@@ -662,6 +676,18 @@ Tienes acceso a funciones para consultar tus datos de sensores, información de 
     ) -> AsyncGenerator[str, None]:
         """Chat con streaming de respuestas"""
         try:
+            # TESTING MODE - Retornar mock streamed
+            if settings.TESTING_MODE:
+                import asyncio
+                from load_testing.mock_data import get_mock_chat_response
+                mock_response = get_mock_chat_response()
+                logger.info(f"🧪 TESTING_MODE: Streaming mock response")
+                # Simular streaming palabra por palabra
+                for word in mock_response.split():
+                    await asyncio.sleep(0.03)  # Simular delay entre palabras
+                    yield word + " "
+                return
+            
             if client is None:
                 raise Exception("Servicio de IA no disponible - cliente no configurado")
             
@@ -765,6 +791,16 @@ Tienes acceso a funciones para consultar tus datos de sensores, información de 
     async def get_plant_recommendation(self, user_query: str) -> Dict[str, Any]:
         """Método legacy - mantiene compatibilidad con código existente"""
         try:
+            # TESTING MODE - Retornar mock sin llamar a OpenAI
+            if settings.TESTING_MODE:
+                import asyncio
+                import random
+                from load_testing.mock_data import get_mock_recommendation_response
+                await asyncio.sleep(random.uniform(0.1, 0.3))  # Simular delay
+                mock_result = get_mock_recommendation_response()
+                logger.info(f"🧪 TESTING_MODE: Retornando mock para get_plant_recommendation")
+                return mock_result
+            
             if client is None:
                 logger.error("❌ Cliente OpenAI no configurado")
                 raise Exception("Servicio de IA no disponible - cliente no configurado")

@@ -657,6 +657,7 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 "id": "SERIAL PRIMARY KEY",
                 "user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE",
                 "title": "VARCHAR(255) NOT NULL",
+                "plant_id": "INTEGER REFERENCES plants(id) ON DELETE SET NULL",
                 "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             })
@@ -668,6 +669,10 @@ async def _create_tables(db: AsyncPgDbToolkit):
             await db.execute_query("""
                 CREATE INDEX IF NOT EXISTS idx_ai_conversations_updated_at 
                 ON ai_conversations(updated_at DESC)
+            """)
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_ai_conversations_plant_id 
+                ON ai_conversations(plant_id)
             """)
             logger.info("✅ Tabla ai_conversations creada exitosamente")
         else:

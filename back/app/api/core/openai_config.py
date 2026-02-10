@@ -4,6 +4,8 @@ Configuración de OpenAI para identificación de plantas y generación de person
 import openai
 import os
 import json
+import asyncio
+import random
 from typing import Dict, Optional
 import logging
 from .config import settings
@@ -40,6 +42,14 @@ async def identify_plant_with_vision(image_url: str, plant_species: Optional[str
     Raises:
         Exception: Si falla la identificación
     """
+    # TESTING MODE - Retornar mock sin llamar a OpenAI
+    if settings.TESTING_MODE:
+        from load_testing.mock_data import get_mock_plant_identification
+        await asyncio.sleep(random.uniform(0.15, 0.35))  # Simular delay de API
+        mock_result = get_mock_plant_identification()
+        logger.info(f"🧪 TESTING_MODE: Retornando mock para identificación de planta: {mock_result['plant_type']}")
+        return mock_result
+    
     if not settings.OPENAI_API_KEY:
         raise Exception("OPENAI_API_KEY no está configurada. Por favor, configura la variable de entorno OPENAI_API_KEY.")
     
@@ -308,6 +318,14 @@ async def generate_character_with_dalle(plant_type: str, plant_name: str, mood: 
     Raises:
         Exception: Si falla la generación
     """
+    # TESTING MODE - Retornar URL placeholder sin llamar a DALL-E
+    if settings.TESTING_MODE:
+        await asyncio.sleep(random.uniform(0.5, 1.0))  # Simular delay de generación
+        # URL placeholder de imagen genérica
+        mock_url = f"https://placehold.co/1024x1024/228B22/white?text={plant_name}"
+        logger.info(f"🧪 TESTING_MODE: Retornando mock URL para DALL-E: {mock_url}")
+        return mock_url
+    
     try:
         mood_descriptions = {
             "happy": "smiling, energetic, vibrant colors",

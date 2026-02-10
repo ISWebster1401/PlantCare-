@@ -131,6 +131,13 @@ class Settings(BaseSettings):
     LOG_FILE: str = os.getenv("LOG_FILE", "plantcare.log")
     LOG_FORMAT: str = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
+    # ============================================
+    # Modo Testing para Load Testing
+    # ============================================
+    # Cuando TESTING_MODE=true, las llamadas a OpenAI se reemplazan con mocks
+    # Esto permite hacer pruebas de carga sin gastar dinero en tokens
+    TESTING_MODE: bool = os.getenv("TESTING_MODE", "false").lower() == "true"
+
     # Configuración específica de PlantCare
     MAX_SENSORS_PER_USER: int = int(os.getenv("MAX_SENSORS_PER_USER", "10"))
     DATA_RETENTION_DAYS: int = int(os.getenv("DATA_RETENTION_DAYS", "365"))
@@ -214,6 +221,15 @@ try:
     else:
         logger.warning("⚠️ REDIS_URL no está configurado. El cache no estará disponible.")
         logger.warning("💡 Verifica que el archivo .env contenga REDIS_URL")
+    
+    # Validar Testing Mode
+    if settings.TESTING_MODE:
+        logger.warning("=" * 60)
+        logger.warning("🧪 TESTING_MODE ACTIVADO")
+        logger.warning("=" * 60)
+        logger.warning("⚠️ Las llamadas a OpenAI serán reemplazadas con mocks")
+        logger.warning("⚠️ NO usar en producción - solo para load testing")
+        logger.warning("=" * 60)
         
 except Exception as e:
     logger.error(f"Error cargando configuración: {e}")

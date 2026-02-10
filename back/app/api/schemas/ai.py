@@ -72,3 +72,31 @@ class AIChatResponse(BaseModel):
     response: str
     tokens_used: Dict[str, int]
     timestamp: str
+
+
+# ============================================
+# Realtime / Voice (Llamar a la planta)
+# ============================================
+
+class RealtimeTokenRequest(BaseModel):
+    """Request para obtener token efímero de la API Realtime (voz)"""
+    conversation_id: Optional[int] = None
+    plant_id: Optional[int] = None
+
+
+class RealtimeTokenResponse(BaseModel):
+    """Respuesta con client_secret efímero para conectar a Realtime API"""
+    client_secret: str
+    expires_in: Optional[int] = None
+
+
+class VoiceMessageItem(BaseModel):
+    """Un mensaje del transcript de una llamada de voz"""
+    role: str = Field(..., pattern="^(user|assistant)$")
+    content: str = Field(..., min_length=0, max_length=50000)
+
+
+class RealtimeSyncRequest(BaseModel):
+    """Request para sincronizar transcript de una llamada de voz al historial de chat"""
+    conversation_id: int
+    messages: List[VoiceMessageItem]
