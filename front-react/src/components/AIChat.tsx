@@ -60,7 +60,8 @@ const getConversationPreview = (conversation: Conversation) => {
 const AIChat: React.FC = () => {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  // Puede ser ID numérico de backend, 'new' para conversaciones locales, o null
+  const [activeConversationId, setActiveConversationId] = useState<number | string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -70,14 +71,7 @@ const AIChat: React.FC = () => {
   const streamingMessageIdRef = useRef<string | null>(null);
 
   // Cargar conversaciones desde backend
-  useEffect(() => {
-    if (user) {
-      loadConversations();
-      loadDevices();
-    }
-  }, [user]);
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       const convs = await aiAPI.getConversations();
       if (convs && convs.length > 0) {
@@ -130,16 +124,23 @@ const AIChat: React.FC = () => {
       setConversations([fallbackConv]);
       setActiveConversationId(null);
     }
-  };
+  }, [activeConversationId]);
 
-  const loadDevices = async () => {
+  const loadDevices = useCallback(async () => {
     try {
       const deviceList = await aiAPI.getMyDevices();
       setDevices(deviceList);
     } catch (error) {
       console.error('Error loading devices:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+      loadDevices();
+    }
+  }, [user, loadConversations, loadDevices]);
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
