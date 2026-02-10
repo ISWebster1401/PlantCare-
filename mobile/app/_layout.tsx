@@ -25,6 +25,8 @@ export default function RootLayout() {
         <Stack.Screen name="change-email" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />
+        <Stack.Screen name="watering" options={{ headerShown: false }} />
+        <Stack.Screen name="watering-history" options={{ headerShown: false }} />
       </Stack>
     </AuthProvider>
   );

@@ -571,6 +571,27 @@ export default function AIChatScreen() {
     Alert.alert('Copiado', 'Mensaje copiado al portapapeles');
   };
 
+  const handleVoiceCall = () => {
+    if (!selectedPlant && (activeConversationId === null || activeConversationId === 'new')) {
+      Alert.alert(
+        'Elige una planta',
+        'Selecciona una planta para poder llamarla por voz.',
+        [{ text: 'Elegir planta', onPress: () => setShowPlantSelector(true) }, { text: 'Cancelar', style: 'cancel' }]
+      );
+      return;
+    }
+    const conversationId =
+      typeof activeConversationId === 'number' ? activeConversationId : undefined;
+    router.push({
+      pathname: '/voice-call',
+      params: {
+        plantId: selectedPlant?.id?.toString() ?? '',
+        plantName: selectedPlant?.plant_name ?? 'Planta',
+        conversationId: conversationId?.toString() ?? '',
+      },
+    });
+  };
+
   const renderMessage = ({ item }: { item: AIMessage }) => {
     const animValue = messageAnimations.current.get(item.id) || new Animated.Value(1);
     const opacity = animValue.interpolate({
@@ -674,14 +695,7 @@ export default function AIChatScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.plantCardImageContainer}>
-                {item.model_3d_url ? (
-                  <Model3DViewer
-                    modelUrl={item.model_3d_url}
-                    style={styles.plantCardImage}
-                    autoRotate={true}
-                    characterMood={item.character_mood}
-                  />
-                ) : item.character_image_url ? (
+                {item.character_image_url ? (
                   <Image
                     source={{ uri: item.character_image_url }}
                     style={styles.plantCardImage}
@@ -692,6 +706,13 @@ export default function AIChatScreen() {
                     source={{ uri: item.default_render_url }}
                     style={styles.plantCardImage}
                     resizeMode="cover"
+                  />
+                ) : item.model_3d_url ? (
+                  <Model3DViewer
+                    modelUrl={item.model_3d_url}
+                    style={styles.plantCardImage}
+                    autoRotate={true}
+                    characterMood={item.character_mood}
                   />
                 ) : (
                   <View style={styles.plantCardImagePlaceholder}>
@@ -807,6 +828,19 @@ export default function AIChatScreen() {
 
             <View style={styles.inputSafeArea}>
               <View style={styles.inputContainer}>
+                <TouchableOpacity
+                  onPress={handleVoiceCall}
+                  style={styles.callButton}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Llamar a la planta por voz"
+                  accessibilityRole="button"
+                >
+                  <Ionicons
+                    name="call"
+                    size={24}
+                    color={Colors.primary}
+                  />
+                </TouchableOpacity>
                 <TextInput
                   style={styles.input}
                   value={inputMessage}
@@ -1070,6 +1104,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     backgroundColor: Colors.backgroundLight,
     gap: Spacing.md,
+  },
+  callButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary + '20',
   },
   input: {
     flex: 1,

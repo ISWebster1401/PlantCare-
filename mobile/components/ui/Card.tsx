@@ -119,12 +119,19 @@ export const Card: React.FC<CardProps> = ({
   );
 
   if (onPress) {
+    // Extract flex from the style so the TouchableOpacity wrapper also expands
+    const flatStyle = StyleSheet.flatten(style) || {};
+    const wrapperStyle: ViewStyle = {};
+    if (flatStyle.flex !== undefined) wrapperStyle.flex = flatStyle.flex;
+    if (flatStyle.minWidth !== undefined) wrapperStyle.minWidth = flatStyle.minWidth;
+
     return (
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.8}
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
+        style={wrapperStyle}
       >
         {cardContent}
       </TouchableOpacity>
