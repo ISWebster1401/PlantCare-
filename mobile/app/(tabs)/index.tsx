@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import { plantsAPI, sensorsAPI } from '../../services/api';
-import { StatCard, Button, Card } from '../../components/ui';
+import { StatCard, Button, Card, Emoji } from '../../components/ui';
 import { PlantAIIcon } from '../../components/PlantAIIcon';
 import { Colors, Typography, Spacing, Gradients } from '../../constants/DesignSystem';
 import { Config } from '../../constants/Config';
@@ -131,7 +131,7 @@ export default function HomeScreen() {
           >
             <View style={styles.actionContent}>
               <View style={styles.actionIconPrimary}>
-                <Text style={styles.actionEmojiPrimary}>📷</Text>
+                <Emoji name="camera" size={32} />
               </View>
               <View style={styles.actionTextContainer}>
                 <Text style={styles.actionTitlePrimary}>Escanear Nueva Planta</Text>

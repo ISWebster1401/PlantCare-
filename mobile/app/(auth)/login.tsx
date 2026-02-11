@@ -22,7 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { LoginCredentials } from '../../types';
 import { Config } from '../../constants/Config';
-import { Button, Card } from '../../components/ui';
+import { Button, Card, Emoji } from '../../components/ui';
 import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../../constants/DesignSystem';
 
 // Verificar si estamos en Expo Go (desarrollo) o en standalone build (producción)
@@ -161,7 +161,7 @@ export default function LoginScreen() {
         <View style={styles.content}>
           {/* Logo y título */}
           <View style={styles.header}>
-            <Text style={styles.emoji}>🌱</Text>
+            <Emoji name="plant" size={56} style={styles.emoji} />
             <Text style={styles.title}>PlantCare</Text>
             <Text style={styles.subtitle}>¡Cuida tus plantas de forma divertida!</Text>
           </View>

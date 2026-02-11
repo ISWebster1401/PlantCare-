@@ -16,7 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { authAPI } from '../../services/api';
-import { Button, Card } from '../../components/ui';
+import { Button, Card, Emoji } from '../../components/ui';
 import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../../constants/DesignSystem';
 
 export default function VerifyEmailScreen() {
@@ -93,7 +93,7 @@ export default function VerifyEmailScreen() {
       >
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.emoji}>✉️</Text>
+            <Emoji name="envelope" size={56} style={styles.emoji} />
             <Text style={styles.title}>Verifica tu correo</Text>
             <Text style={styles.subtitle}>
               Te enviamos un código de 4 dígitos a tu email. Ingrésalo para activar tu cuenta.
