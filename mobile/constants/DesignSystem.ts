@@ -213,7 +213,8 @@ export const Animations = {
 export type PlantMoodType = 'happy' | 'thirsty' | 'sick' | 'sleeping' | 'excited' | 'loved';
 
 export interface PlantMood {
-  emoji: string;
+  emoji: string;        // Nombre para componente Emoji (ej: 'happy')
+  emojiUnicode?: string; // Fallback Unicode si no hay SVG
   color: string;
   message: string;
   animation: 'bounce' | 'shake' | 'wobble' | 'pulse' | 'jump' | 'hearts';
@@ -221,37 +222,43 @@ export interface PlantMood {
 
 export const PlantMoods: Record<PlantMoodType, PlantMood> = {
   happy: {
-    emoji: '😊',
+    emoji: 'happy',
+    emojiUnicode: '😊',
     color: '#4CAF50',
     message: '¡Estoy feliz!',
     animation: 'bounce',
   },
   thirsty: {
-    emoji: '😰',
+    emoji: 'thirsty',
+    emojiUnicode: '😰',
     color: '#FFB74D',
     message: '¡Tengo sed!',
     animation: 'shake',
   },
   sick: {
-    emoji: '🤒',
+    emoji: 'sick',
+    emojiUnicode: '🤒',
     color: '#EF5350',
     message: 'No me siento bien...',
     animation: 'wobble',
   },
   sleeping: {
-    emoji: '😴',
+    emoji: 'sleeping',
+    emojiUnicode: '😴',
     color: '#64B5F6',
     message: 'Zzz...',
     animation: 'pulse',
   },
   excited: {
-    emoji: '🤩',
+    emoji: 'excited',
+    emojiUnicode: '🤩',
     color: '#FFD700',
     message: '¡Increíble!',
     animation: 'jump',
   },
   loved: {
-    emoji: '🥰',
+    emoji: 'loved',
+    emojiUnicode: '🥰',
     color: '#E91E63',
     message: '¡Me cuidas tan bien!',
     animation: 'hearts',
@@ -266,24 +273,28 @@ export type HealthStatus = 'healthy' | 'warning' | 'critical';
 export interface HealthStatusConfig {
   label: string;
   color: string;
-  emoji: string;
+  emoji: string;        // Nombre para componente Emoji
+  emojiUnicode?: string; // Fallback Unicode
 }
 
 export const HealthStatuses: Record<HealthStatus, HealthStatusConfig> = {
   healthy: {
     label: 'Saludable',
     color: Colors.healthy,
-    emoji: '✅',
+    emoji: 'check',
+    emojiUnicode: '✅',
   },
   warning: {
     label: 'Atención',
     color: Colors.warning,
-    emoji: '⚠️',
+    emoji: 'warning',
+    emojiUnicode: '⚠️',
   },
   critical: {
     label: 'Crítico',
     color: Colors.critical,
-    emoji: '🚨',
+    emoji: 'alert',
+    emojiUnicode: '🚨',
   },
 };
 
