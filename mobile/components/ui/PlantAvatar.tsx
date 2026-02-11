@@ -14,8 +14,8 @@ import Animated, {
   withSpring,
   interpolate,
 } from 'react-native-reanimated';
-import { Text } from 'react-native';
 import { Colors, BorderRadius, Shadows, PlantMoods, PlantMoodType, HealthStatuses, HealthStatus } from '../../constants/DesignSystem';
+import { Emoji } from './Emoji';
 
 export interface PlantAvatarProps {
   imageUrl?: string;
@@ -229,9 +229,7 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
               },
             ]}
           >
-            <Text style={[styles.placeholderEmoji, { fontSize: size * 0.4 }]}>
-              🌱
-            </Text>
+            <Emoji name="plant" size={size * 0.4} />
           </View>
         )}
 
@@ -252,9 +250,7 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
               },
             ]}
           >
-            <Text style={[styles.moodEmoji, { fontSize: emojiSize * 0.55 }]}>
-              {moodConfig.emoji}
-            </Text>
+            <Emoji name={moodConfig.emoji} size={emojiSize * 0.55} />
           </View>
         )}
       </AnimatedView>
@@ -285,17 +281,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderEmoji: {
-    textAlign: 'center',
-  },
   moodBadge: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.md,
-  },
-  moodEmoji: {
-    textAlign: 'center',
-    lineHeight: 1, // Asegura que el emoji no se corte verticalmente
   },
 });

@@ -12,8 +12,8 @@ import Animated, {
   withTiming,
   withSequence,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, BorderRadius, Spacing, HealthStatuses, HealthStatus } from '../../constants/DesignSystem';
+import { Emoji } from './Emoji';
 
 export interface BadgeProps {
   status: HealthStatus;
@@ -119,18 +119,21 @@ export const Badge: React.FC<BadgeProps> = ({
             ]}
           />
         )}
-        <Text
-          style={[
-            styles.text,
-            {
-              fontSize: sizeStyle.fontSize,
-              color: statusConfig.color,
-            },
-            textStyle,
-          ]}
-        >
-          {statusConfig.emoji} {displayLabel}
-        </Text>
+        <View style={styles.labelRow}>
+          <Emoji name={statusConfig.emoji} size={sizeStyle.iconSize} />
+          <Text
+            style={[
+              styles.text,
+              {
+                fontSize: sizeStyle.fontSize,
+                color: statusConfig.color,
+              },
+              textStyle,
+            ]}
+          >
+            {displayLabel}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -147,6 +150,11 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   dot: {
     marginRight: Spacing.xs,
