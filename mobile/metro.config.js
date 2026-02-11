@@ -4,6 +4,18 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
+// Soporte para SVGs como componentes (Twemoji emojis)
+config.transformer = {
+  ...config.transformer,
+  babelTransformerPath: require.resolve('react-native-svg-transformer'),
+};
+
+config.resolver = {
+  ...config.resolver,
+  assetExts: config.resolver.assetExts.filter((ext) => ext !== 'svg'),
+  sourceExts: [...config.resolver.sourceExts, 'svg'],
+};
+
 // Deshabilitar validación estricta de package exports para evitar warnings de Three.js
 config.resolver.unstable_enablePackageExports = false;
 
