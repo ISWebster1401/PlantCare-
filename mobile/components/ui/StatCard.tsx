@@ -3,7 +3,7 @@
  * 
  * Tarjeta de estadísticas con animación de contador
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -13,7 +13,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, CardProps } from './Card';
-import { Colors, Typography, Spacing, BorderRadius } from '../../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius } from '../../constants/DesignSystem';
+import { useThemeColors } from '../../context/ThemeContext';
 
 export interface StatCardProps extends Omit<CardProps, 'children'> {
   icon: keyof typeof Ionicons.glyphMap;
@@ -29,13 +30,16 @@ export const StatCard: React.FC<StatCardProps> = ({
   icon,
   value,
   label,
-  color = Colors.primary,
+  color,
   iconSize = 32,
   showAnimation = true,
   formatValue,
   style,
   ...cardProps
 }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const effectiveColor = color || colors.primary;
   const animatedValue = useSharedValue(0);
 
   useEffect(() => {
@@ -67,10 +71,10 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <Card style={style} {...cardProps}>
       <View style={styles.container}>
-        <View style={[styles.iconContainer, { backgroundColor: `${color}20` }]}>
-          <Ionicons name={icon} size={iconSize} color={color} />
+        <View style={[styles.iconContainer, { backgroundColor: `${effectiveColor}20` }]}>
+          <Ionicons name={icon} size={iconSize} color={effectiveColor} />
           {value > 0 && (
-            <View style={[styles.badge, { backgroundColor: color }]}>
+            <View style={[styles.badge, { backgroundColor: effectiveColor }]}>
               <Text style={styles.badgeText}>{displayValue}</Text>
             </View>
           )}
@@ -84,7 +88,8 @@ export const StatCard: React.FC<StatCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
+  StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -109,10 +114,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: Colors.background,
+    borderColor: colors.background,
   },
   badgeText: {
-    color: Colors.white,
+    color: colors.white,
     fontSize: 11,
     fontWeight: Typography.weights.bold,
     lineHeight: 14,
@@ -123,12 +128,12 @@ const styles = StyleSheet.create({
   value: {
     fontSize: Typography.sizes.xxl,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: Spacing.xs,
   },
   label: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.regular,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
 });

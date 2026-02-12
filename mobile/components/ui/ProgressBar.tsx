@@ -14,7 +14,8 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, BorderRadius, Spacing, Gradients } from '../../constants/DesignSystem';
+import { BorderRadius, Spacing, Gradients } from '../../constants/DesignSystem';
+import { useThemeColors } from '../../context/ThemeContext';
 
 export interface ProgressBarProps {
   progress: number; // 0-100
@@ -37,6 +38,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   style,
   accessibilityLabel,
 }) => {
+  const colors = useThemeColors();
   const progressValue = useSharedValue(0);
   const shimmerTranslate = useSharedValue(-100);
 
@@ -78,11 +80,11 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   });
 
   // Función para convertir string[] a tupla válida para LinearGradient
-  const getGradientColors = (colors: string[] | undefined): [string, string, ...string[]] => {
-    if (!colors || colors.length < 2) {
-      return [Colors.primary, Colors.primaryLight];
+  const getGradientColors = (inputColors: string[] | undefined): [string, string, ...string[]] => {
+    if (!inputColors || inputColors.length < 2) {
+      return [colors.primary, colors.primaryLight];
     }
-    return colors as [string, string, ...string[]];
+    return inputColors as [string, string, ...string[]];
   };
 
   // Determinar colores para el gradiente
@@ -176,7 +178,7 @@ const styles = StyleSheet.create({
   background: {
     position: 'absolute',
     width: '100%',
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: '#00000020', // se sobreescribe con theme si se usa inline
   },
   progress: {
     position: 'relative',
