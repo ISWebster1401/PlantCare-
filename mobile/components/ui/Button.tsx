@@ -21,7 +21,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, BorderRadius, Spacing, Animations } from '../../constants/DesignSystem';
+import { Typography, BorderRadius, Spacing, Animations } from '../../constants/DesignSystem';
+import { useThemeColors } from '../../context/ThemeContext';
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -43,25 +44,14 @@ export interface ButtonProps {
   accessibilityLabel?: string;
 }
 
-const variantStyles: Record<ButtonVariant, { bg: string; text: string; border?: string }> = {
-  primary: {
-    bg: Colors.primary,
-    text: Colors.white,
-  },
-  secondary: {
-    bg: Colors.secondary,
-    text: Colors.white,
-  },
-  ghost: {
-    bg: Colors.transparent,
-    text: Colors.primary,
-    border: Colors.primary,
-  },
-  danger: {
-    bg: Colors.error,
-    text: Colors.white,
-  },
-};
+function getVariantStyles(colors: ReturnType<typeof useThemeColors>): Record<ButtonVariant, { bg: string; text: string; border?: string }> {
+  return {
+    primary: { bg: colors.primary, text: colors.white },
+    secondary: { bg: colors.secondary, text: colors.white },
+    ghost: { bg: colors.transparent, text: colors.primary, border: colors.primary },
+    danger: { bg: colors.error, text: colors.white },
+  };
+}
 
 const sizeStyles: Record<ButtonSize, { height: number; padding: number; fontSize: number }> = {
   sm: {
@@ -95,10 +85,12 @@ export const Button: React.FC<ButtonProps> = ({
   textStyle,
   accessibilityLabel,
 }) => {
+  const colors = useThemeColors();
+  const variantStylesMap = getVariantStyles(colors);
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
-  const variantStyle = variantStyles[variant];
+  const variantStyle = variantStylesMap[variant];
   const sizeStyle = sizeStyles[size];
 
   const handlePressIn = () => {

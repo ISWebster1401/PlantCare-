@@ -12,7 +12,8 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, BorderRadius, Shadows, Spacing, Gradients } from '../../constants/DesignSystem';
+import { BorderRadius, Shadows, Spacing } from '../../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../../context/ThemeContext';
 
 export type CardVariant = 'default' | 'elevated' | 'outlined' | 'glass';
 
@@ -38,6 +39,8 @@ export const Card: React.FC<CardProps> = ({
   delay = 0,
   accessibilityLabel,
 }) => {
+  const colors = useThemeColors();
+  const themeGradients = useThemeGradients();
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
 
@@ -60,13 +63,13 @@ export const Card: React.FC<CardProps> = ({
       case 'elevated':
         return {
           ...Shadows.lg,
-          backgroundColor: Colors.backgroundLight,
+          backgroundColor: colors.backgroundLight,
         };
       case 'outlined':
         return {
-          backgroundColor: Colors.backgroundLight,
+          backgroundColor: colors.backgroundLight,
           borderWidth: 2,
-          borderColor: Colors.primary,
+          borderColor: colors.primary,
         };
       case 'glass':
         return {
@@ -76,18 +79,17 @@ export const Card: React.FC<CardProps> = ({
         };
       default:
         return {
-          backgroundColor: Colors.backgroundLight,
+          backgroundColor: colors.backgroundLight,
           ...Shadows.md,
         };
     }
   };
 
-  // Convertir gradient a tupla para TypeScript
-  const getGradientColors = (colors: string[] | undefined) => {
-    if (!colors || colors.length < 2) {
-      return [Colors.backgroundLight, Colors.backgroundLight] as const;
+  const getGradientColors = (colorList: string[] | undefined) => {
+    if (!colorList || colorList.length < 2) {
+      return [colors.backgroundLight, colors.backgroundLight] as const;
     }
-    return colors as [string, string, ...string[]];
+    return colorList as [string, string, ...string[]];
   };
 
   const cardContent = (
@@ -108,7 +110,7 @@ export const Card: React.FC<CardProps> = ({
         />
       ) : variant === 'default' ? (
         <LinearGradient
-          colors={getGradientColors(Array.from(Gradients.card))}
+          colors={getGradientColors(Array.from(themeGradients.card))}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
