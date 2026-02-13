@@ -6,7 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Card, PlantAvatar, Badge, ProgressBar } from './ui';
+import { Card, PlantAvatar, Badge, ProgressBar, Emoji } from './ui';
 import { Colors, Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType, BorderRadius } from '../constants/DesignSystem';
 import { PlantResponse } from '../types';
 
@@ -160,9 +160,10 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
           {/* Mensaje del mood */}
           {PlantMoods[mood] && (
             <View style={styles.moodContainer}>
-              <Text style={styles.moodText}>
-                {PlantMoods[mood].emoji} {PlantMoods[mood].message}
-              </Text>
+              <View style={styles.moodRow}>
+                <Emoji name={PlantMoods[mood].emoji} size={16} />
+                <Text style={styles.moodText}>{PlantMoods[mood].message}</Text>
+              </View>
             </View>
           )}
         </View>
@@ -232,6 +233,12 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.backgroundLighter,
+  },
+  moodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    justifyContent: 'center',
   },
   moodText: {
     fontSize: Typography.sizes.sm,

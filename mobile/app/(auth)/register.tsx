@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { UserRegistration } from '../../types';
-import { Button, Card } from '../../components/ui';
+import { Button, Card, Emoji } from '../../components/ui';
 import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../../constants/DesignSystem';
 
 export default function RegisterScreen() {
@@ -109,7 +109,7 @@ export default function RegisterScreen() {
       >
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.emoji}>🌱</Text>
+            <Emoji name="plant" size={56} style={styles.emoji} />
             <Text style={styles.title}>Únete a PlantCare</Text>
             <Text style={styles.subtitle}>Crea tu cuenta y comienza a cuidar tus plantas</Text>
           </View>

@@ -1022,8 +1022,28 @@ async def upload_plant_model(
             )
         
         # Subir archivo a Supabase Storage en carpeta 3d_models/
-        logger.info(f"Subiendo modelo 3D: {file.filename} ({file_size} bytes)")
-        model_url = upload_file(file.file, folder="3d_models", max_size_mb=50)
+        logger.info(f"📤 Subiendo modelo 3D: {file.filename} ({file_size} bytes, {file_size / 1024:.1f} KB)")
+        
+        # Leer todo el contenido ANTES de pasar a upload_file para asegurar que no se pierda
+        file.file.seek(0)
+        file_bytes = file.file.read()
+        logger.info(f"📏 Bytes leídos del upload: {len(file_bytes)} bytes ({len(file_bytes) / 1024:.1f} KB)")
+        
+        if len(file_bytes) != file_size:
+            logger.warning(f"⚠️ DISCREPANCIA: file_size={file_size} pero bytes leídos={len(file_bytes)}")
+        
+        if len(file_bytes) < 1000:
+            logger.warning(f"⚠️ Archivo muy pequeño ({len(file_bytes)} bytes). ¿Es un modelo real o un placeholder?")
+        
+        # Subir usando BytesIO para evitar problemas con SpooledTemporaryFile
+        import io
+        file_buffer = io.BytesIO(file_bytes)
+        model_url = upload_file(
+            file_buffer, 
+            folder="3d_models", 
+            max_size_mb=50, 
+            original_filename=file.filename
+        )
         
         # Preparar datos para insertar/actualizar en plant_models
         model_plant_type = plant_type or "Planta"
@@ -1237,8 +1257,19 @@ async def update_plant_model(
         
         # 4. Si se subió un nuevo archivo, reemplazarlo
         if file:
-            logger.info(f"📤 Actualizando archivo del modelo {model_id}")
-            new_model_url = upload_file(file.file, folder="3d_models", max_size_mb=50)
+            logger.info(f"📤 Actualizando archivo del modelo {model_id}: {file.filename}")
+            # Leer todo el contenido para evitar problemas con SpooledTemporaryFile
+            file.file.seek(0)
+            update_file_bytes = file.file.read()
+            logger.info(f"📏 Bytes leídos: {len(update_file_bytes)} ({len(update_file_bytes) / 1024:.1f} KB)")
+            import io
+            update_file_buffer = io.BytesIO(update_file_bytes)
+            new_model_url = upload_file(
+                update_file_buffer, 
+                folder="3d_models", 
+                max_size_mb=50,
+                original_filename=file.filename
+            )
             
             # Actualizar metadata con información del nuevo archivo
             current_metadata["last_file_update"] = datetime.now().isoformat()

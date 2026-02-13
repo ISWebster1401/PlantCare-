@@ -11,9 +11,14 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
-  SafeAreaView,
   Image,
+  Modal,
+  Pressable,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,46 +57,6 @@ function DetailStatCard({
   );
 }
 
-function GradientHeader({
-  title,
-  onBack,
-}: {
-  title: string;
-  onBack: () => void;
-}) {
-  return (
-    <LinearGradient
-      colors={Gradients.primary}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.headerGradient}
-    >
-      <SafeAreaView>
-        <View style={styles.headerBar}>
-          <TouchableOpacity
-            onPress={onBack}
-            style={styles.headerBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
-
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {title}
-          </Text>
-
-          <TouchableOpacity
-            style={styles.headerBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="ellipsis-vertical" size={24} color={Colors.white} />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </LinearGradient>
-  );
-}
-
 /* -------------------------------------------------- */
 /*  Pantalla principal                                */
 /* -------------------------------------------------- */
@@ -103,6 +68,12 @@ export default function PlantDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [show3D, setShow3D] = useState(false);
+
+  // Menú de 3 puntos
+  const [menuVisible, setMenuVisible] = useState(false);
+  // Modal de renombrar
+  const [renameVisible, setRenameVisible] = useState(false);
+  const [newName, setNewName] = useState('');
 
   useEffect(() => {
     loadPlant();
@@ -125,6 +96,58 @@ export default function PlantDetailScreen() {
       Alert.alert('Error', 'No se pudo cargar la información de la planta');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /* --- acciones del menú --- */
+
+  const handleDeletePlant = () => {
+    setMenuVisible(false);
+    Alert.alert(
+      'Eliminar planta',
+      `¿Estás seguro de que quieres eliminar "${plant?.plant_name || 'esta planta'}"? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            if (!plant) return;
+            try {
+              await plantsAPI.deletePlant(plant.id);
+              Alert.alert('Planta eliminada', 'La planta fue eliminada correctamente.');
+              router.back();
+            } catch (e: any) {
+              console.error('Error eliminando planta:', e);
+              Alert.alert('Error', e?.response?.data?.detail || 'No se pudo eliminar la planta.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleOpenRename = () => {
+    setMenuVisible(false);
+    setNewName(plant?.plant_name || '');
+    setRenameVisible(true);
+  };
+
+  const handleConfirmRename = async () => {
+    if (!plant || !newName.trim()) return;
+    const trimmed = newName.trim();
+    if (trimmed === plant.plant_name) {
+      setRenameVisible(false);
+      return;
+    }
+    try {
+      const updated = await plantsAPI.renamePlant(plant.id, trimmed);
+      setPlant(updated);
+      setRenameVisible(false);
+      Alert.alert('Nombre actualizado', `Tu planta ahora se llama "${trimmed}".`);
+    } catch (e: any) {
+      console.error('Error renombrando planta:', e);
+      Alert.alert('Error', e?.response?.data?.detail || 'No se pudo cambiar el nombre.');
     }
   };
 
@@ -158,7 +181,17 @@ export default function PlantDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <GradientHeader title="Cargando..." onBack={() => router.back()} />
+        <LinearGradient colors={Gradients.primary} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerBar}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+                <Ionicons name="arrow-back" size={24} color={Colors.white} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Cargando...</Text>
+              <View style={styles.headerBtn} />
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
         <View style={styles.centeredState}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.stateText}>Cargando planta...</Text>
@@ -170,7 +203,17 @@ export default function PlantDetailScreen() {
   if (error || !plant) {
     return (
       <View style={styles.container}>
-        <GradientHeader title="Error" onBack={() => router.back()} />
+        <LinearGradient colors={Gradients.primary} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerBar}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+                <Ionicons name="arrow-back" size={24} color={Colors.white} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Error</Text>
+              <View style={styles.headerBtn} />
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
         <View style={styles.centeredState}>
           <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
           <Text style={[styles.stateText, { color: Colors.error, marginBottom: Spacing.lg }]}>
@@ -195,7 +238,37 @@ export default function PlantDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <GradientHeader title="Detalle de Planta" onBack={() => router.back()} />
+      {/* Header con gradiente */}
+      <LinearGradient
+        colors={Gradients.primary}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
+      >
+        <SafeAreaView edges={['top']}>
+          <View style={styles.headerBar}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.headerBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.white} />
+            </TouchableOpacity>
+
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              Detalle de Planta
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setMenuVisible(true)}
+              style={styles.headerBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="ellipsis-vertical" size={24} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
       <ScrollView
         style={styles.scrollView}
@@ -280,7 +353,7 @@ export default function PlantDetailScreen() {
               <Model3DViewer
                 modelUrl={plant.model_3d_url}
                 style={styles.model3dViewer}
-                autoRotate
+                autoRotate={false}
                 characterMood={mood}
               />
             ) : (
@@ -324,6 +397,84 @@ export default function PlantDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ================================================ */}
+      {/*  Modal: Menú de 3 puntos                         */}
+      {/* ================================================ */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+          <View style={styles.menuContainer}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleOpenRename}>
+              <Ionicons name="pencil-outline" size={20} color={Colors.text} />
+              <Text style={styles.menuItemText}>Cambiar nombre</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleDeletePlant}>
+              <Ionicons name="trash-outline" size={20} color={Colors.error} />
+              <Text style={[styles.menuItemText, { color: Colors.error }]}>
+                Eliminar planta
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ================================================ */}
+      {/*  Modal: Renombrar planta                         */}
+      {/* ================================================ */}
+      <Modal
+        visible={renameVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRenameVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.renameContainer}>
+            <Text style={styles.renameTitle}>Cambiar nombre</Text>
+            <Text style={styles.renameSubtitle}>
+              Escribe el nuevo nombre para tu planta
+            </Text>
+            <TextInput
+              style={styles.renameInput}
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Nombre de la planta"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              maxLength={50}
+              selectTextOnFocus
+            />
+            <View style={styles.renameButtons}>
+              <TouchableOpacity
+                style={styles.renameBtnCancel}
+                onPress={() => setRenameVisible(false)}
+              >
+                <Text style={styles.renameBtnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.renameBtnConfirm,
+                  !newName.trim() && { opacity: 0.5 },
+                ]}
+                onPress={handleConfirmRename}
+                disabled={!newName.trim()}
+              >
+                <Text style={styles.renameBtnConfirmText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -560,5 +711,100 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.semibold,
     color: Colors.white,
+  },
+
+  /* --- modal overlay (compartido) --- */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  /* --- menú de 3 puntos --- */
+  menuContainer: {
+    position: 'absolute',
+    top: 100,
+    right: Spacing.lg,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    minWidth: 200,
+    ...Shadows.lg,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  menuItemText: {
+    fontSize: Typography.sizes.base,
+    color: Colors.text,
+    fontWeight: Typography.weights.medium,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: Colors.backgroundLighter,
+    marginHorizontal: Spacing.md,
+  },
+
+  /* --- modal renombrar --- */
+  renameContainer: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    width: '85%',
+    maxWidth: 360,
+    ...Shadows.lg,
+  },
+  renameTitle: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  renameSubtitle: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+  },
+  renameInput: {
+    backgroundColor: Colors.backgroundLighter,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.sizes.base,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    marginBottom: Spacing.lg,
+  },
+  renameButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.md,
+  },
+  renameBtnCancel: {
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  renameBtnCancelText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
+    fontWeight: Typography.weights.semibold,
+  },
+  renameBtnConfirm: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  renameBtnConfirmText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.white,
+    fontWeight: Typography.weights.semibold,
   },
 });

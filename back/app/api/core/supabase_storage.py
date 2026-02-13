@@ -106,7 +106,8 @@ def upload_file(
     file: BinaryIO, 
     folder: str = "plantcare", 
     content_type: Optional[str] = None,
-    max_size_mb: int = 50
+    max_size_mb: int = 50,
+    original_filename: Optional[str] = None
 ) -> str:
     """
     Sube un archivo binario genérico a Supabase Storage y retorna URL pública.
@@ -117,6 +118,7 @@ def upload_file(
                  NOTA: No incluyas el nombre del bucket aquí, solo la ruta dentro del bucket
         content_type: Tipo MIME del archivo (ej: "model/gltf-binary", "image/jpeg")
                      Si no se especifica, se detecta automáticamente por extensión
+        original_filename: Nombre original del archivo (para preservar extensión)
         max_size_mb: Tamaño máximo permitido en MB (por defecto 50MB)
     
     Returns:
@@ -153,7 +155,9 @@ def upload_file(
         
         # Obtener extensión del archivo
         file_extension = ""
-        if hasattr(file, 'name') and file.name:
+        if original_filename:
+            file_extension = os.path.splitext(original_filename)[1].lower()
+        if not file_extension and hasattr(file, 'name') and file.name:
             file_extension = os.path.splitext(file.name)[1].lower()
         
         # Si no hay extensión, usar .bin como fallback

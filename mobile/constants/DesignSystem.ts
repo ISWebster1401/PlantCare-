@@ -1,65 +1,179 @@
 /**
  * 🌱 PlantCare Design System
- * Estilo Duolingo/Pokémon para niños
- * 
- * Sistema de diseño completo con paleta de colores, tipografía,
- * espaciado, animaciones y estados de plantas.
+ * Soporta modo claro y oscuro (Light / Dark)
  */
 
 import { ViewStyle } from 'react-native';
 
 // ============================================
-// PALETA DE COLORES
+// TIPO DE PALETA (para tema)
 // ============================================
-export const Colors = {
-  // Primarios
-  primary: '#4CAF50',        // Verde principal
-  primaryLight: '#81C784',  // Verde claro
-  primaryDark: '#388E3C',   // Verde oscuro
-  
-  // Fondos
-  background: '#1A2634',     // Fondo principal oscuro
-  backgroundLight: '#243447', // Cards y superficies
-  backgroundLighter: '#2D4258', // Elementos elevados
-  
-  // Acentos
-  accent: '#FFB74D',         // Naranja cálido (recompensas)
-  accentLight: '#FFCC80',    // Naranja claro
-  secondary: '#64B5F6',      // Azul agua
-  
-  // Estados de planta
-  healthy: '#4CAF50',        // Saludable
-  warning: '#FFB74D',        // Necesita atención
-  critical: '#EF5350',       // Crítico
-  
-  // UI
-  text: '#FFFFFF',
-  textSecondary: '#B0BEC5',
-  textMuted: '#78909C',
-  
-  // Feedback
+export interface ThemeColors {
+  background: string;
+  backgroundLight: string;
+  backgroundLighter: string;
+  backgroundAlt: string;
+  primary: string;
+  primaryLight: string;
+  primaryDark: string;
+  primaryPastel: string;
+  accent: string;
+  accentBright: string;
+  accentLight: string;
+  secondary: string;
+  secondaryLight: string;
+  secondaryDark: string;
+  pink: string;
+  purple: string;
+  yellow: string;
+  coral: string;
+  mint: string;
+  healthy: string;
+  success: string;
+  warning: string;
+  critical: string;
+  error: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  textDark: string;
+  white: string;
+  black: string;
+  overlay: string;
+  transparent: string;
+  xp: string;
+  scanner: string;
+  scannerGlow: string;
+}
+
+// ============================================
+// PALETA CLARA (Light) - verde suave, casi sin blanco puro
+// ============================================
+export const LightColors: ThemeColors = {
+  // Fondos: base verde muy claro, cards apenas más claras
+  background: '#E7F5E7',
+  backgroundLight: '#F5FBF5',
+  backgroundLighter: '#DDEFE2',
+  backgroundAlt: '#E3F4E6',
+  primary: '#4CAF50',
+  primaryLight: '#81C784',
+  primaryDark: '#2E7D32',
+  primaryPastel: '#C8E6C9',
+  accent: '#FFB74D',
+  accentBright: '#FF9800',
+  accentLight: '#FFCC80',
+  secondary: '#64B5F6',
+  secondaryLight: '#90CAF9',
+  secondaryDark: '#1976D2',
+  pink: '#F48FB1',
+  purple: '#CE93D8',
+  yellow: '#FFF176',
+  coral: '#FF8A80',
+  mint: '#80CBC4',
+  healthy: '#66BB6A',
   success: '#66BB6A',
+  warning: '#FFA726',
+  critical: '#EF5350',
   error: '#EF5350',
-  xp: '#FFD700',             // Dorado para XP/puntos
-  
-  // Extras
+  text: '#1B5E20',
+  textSecondary: '#558B2F',
+  textMuted: '#81C784',
+  textDark: '#2E2E2E',
   white: '#FFFFFF',
   black: '#000000',
+  overlay: 'rgba(0,0,0,0.3)',
   transparent: 'transparent',
+  xp: '#FFD700',
+  scanner: '#00E676',
+  scannerGlow: '#69F0AE',
 };
 
 // ============================================
-// GRADIENTES
+// PALETA OSCURA (Dark)
+// ============================================
+export const DarkColors: ThemeColors = {
+  background: '#0D1F0D',
+  backgroundLight: '#1A2E1A',
+  backgroundLighter: '#243B24',
+  backgroundAlt: '#1E3220',
+  primary: '#66BB6A',
+  primaryLight: '#81C784',
+  primaryDark: '#388E3C',
+  primaryPastel: '#2E5C30',
+  accent: '#FFB74D',
+  accentBright: '#FF9800',
+  accentLight: '#FFCC80',
+  secondary: '#64B5F6',
+  secondaryLight: '#90CAF9',
+  secondaryDark: '#1976D2',
+  pink: '#F48FB1',
+  purple: '#CE93D8',
+  yellow: '#FFF176',
+  coral: '#FF8A80',
+  mint: '#80CBC4',
+  healthy: '#66BB6A',
+  success: '#66BB6A',
+  warning: '#FFA726',
+  critical: '#EF5350',
+  error: '#EF5350',
+  text: '#E8F5E9',
+  textSecondary: '#A5D6A7',
+  textMuted: '#81C784',
+  textDark: '#FFFFFF',
+  white: '#FFFFFF',
+  black: '#000000',
+  overlay: 'rgba(0,0,0,0.5)',
+  transparent: 'transparent',
+  xp: '#FFD700',
+  scanner: '#00E676',
+  scannerGlow: '#69F0AE',
+};
+
+/** @deprecated Usar useThemeColors() o LightColors/DarkColors según tema */
+export const Colors = LightColors;
+
+// ============================================
+// GRADIENTES (Light)
 // ============================================
 export const Gradients = {
-  primary: ['#4CAF50', '#81C784'] as const,
-  sunset: ['#FFB74D', '#FF8A65'] as const,
+  sky: ['#E3F2FD', '#BBDEFB', '#90CAF9'] as const,
+  grass: ['#E8F5E9', '#C8E6C9', '#A5D6A7'] as const,
+  sunset: ['#FFF8E1', '#FFECB3', '#FFE082'] as const,
+  primary: ['#66BB6A', '#4CAF50'] as const,
+  greenButton: ['#66BB6A', '#4CAF50'] as const,
+  blueButton: ['#64B5F6', '#42A5F5'] as const,
+  orangeButton: ['#FFB74D', '#FFA726'] as const,
   ocean: ['#64B5F6', '#4FC3F7'] as const,
-  card: ['#243447', '#2D4258'] as const,
+  scanner: ['#00E676', '#69F0AE'] as const,
+  magic: ['#CE93D8', '#BA68C8'] as const,
+  card: ['#FFFFFF', '#F5F5F5'] as const,
   xp: ['#FFD700', '#FFA726'] as const,
   healthy: ['#4CAF50', '#66BB6A'] as const,
   warning: ['#FFB74D', '#FFA726'] as const,
   critical: ['#EF5350', '#E57373'] as const,
+};
+
+export type ThemeGradients = Record<string, readonly string[]>;
+
+// ============================================
+// GRADIENTES (Dark)
+// ============================================
+export const DarkGradients: ThemeGradients = {
+  sky: ['#1A2E3A', '#243B4A', '#2D4A5C'] as const,
+  grass: ['#1A2E1A', '#243B24', '#2E4A2E'] as const,
+  sunset: ['#3D3520', '#4A4228', '#5C5230'] as const,
+  primary: ['#2E7D32', '#388E3C'] as const,
+  greenButton: ['#388E3C', '#2E7D32'] as const,
+  blueButton: ['#1976D2', '#1E88E5'] as const,
+  orangeButton: ['#F57C00', '#FF9800'] as const,
+  ocean: ['#1565C0', '#1976D2'] as const,
+  scanner: ['#00C853', '#00E676'] as const,
+  magic: ['#7B1FA2', '#8E24AA'] as const,
+  card: ['#1A2E1A', '#243B24'] as const,
+  xp: ['#FFC107', '#FFD54F'] as const,
+  healthy: ['#388E3C', '#43A047'] as const,
+  warning: ['#F57C00', '#FF9800'] as const,
+  critical: ['#D32F2F', '#E53935'] as const,
 };
 
 // ============================================
@@ -150,19 +264,40 @@ export const BorderRadius = {
 };
 
 export const Shadows = {
+  soft: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  medium: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  float: {
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   md: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 5,
   },
   lg: {
     shadowColor: '#000',
@@ -174,9 +309,9 @@ export const Shadows = {
   glow: (color: string): ViewStyle => ({
     shadowColor: color,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
   }),
 };
 
@@ -213,7 +348,8 @@ export const Animations = {
 export type PlantMoodType = 'happy' | 'thirsty' | 'sick' | 'sleeping' | 'excited' | 'loved';
 
 export interface PlantMood {
-  emoji: string;
+  emoji: string;        // Nombre para componente Emoji (ej: 'happy')
+  emojiUnicode?: string; // Fallback Unicode si no hay SVG
   color: string;
   message: string;
   animation: 'bounce' | 'shake' | 'wobble' | 'pulse' | 'jump' | 'hearts';
@@ -221,37 +357,43 @@ export interface PlantMood {
 
 export const PlantMoods: Record<PlantMoodType, PlantMood> = {
   happy: {
-    emoji: '😊',
+    emoji: 'happy',
+    emojiUnicode: '😊',
     color: '#4CAF50',
     message: '¡Estoy feliz!',
     animation: 'bounce',
   },
   thirsty: {
-    emoji: '😰',
+    emoji: 'thirsty',
+    emojiUnicode: '😰',
     color: '#FFB74D',
     message: '¡Tengo sed!',
     animation: 'shake',
   },
   sick: {
-    emoji: '🤒',
+    emoji: 'sick',
+    emojiUnicode: '🤒',
     color: '#EF5350',
     message: 'No me siento bien...',
     animation: 'wobble',
   },
   sleeping: {
-    emoji: '😴',
+    emoji: 'sleeping',
+    emojiUnicode: '😴',
     color: '#64B5F6',
     message: 'Zzz...',
     animation: 'pulse',
   },
   excited: {
-    emoji: '🤩',
+    emoji: 'excited',
+    emojiUnicode: '🤩',
     color: '#FFD700',
     message: '¡Increíble!',
     animation: 'jump',
   },
   loved: {
-    emoji: '🥰',
+    emoji: 'loved',
+    emojiUnicode: '🥰',
     color: '#E91E63',
     message: '¡Me cuidas tan bien!',
     animation: 'hearts',
@@ -266,24 +408,28 @@ export type HealthStatus = 'healthy' | 'warning' | 'critical';
 export interface HealthStatusConfig {
   label: string;
   color: string;
-  emoji: string;
+  emoji: string;        // Nombre para componente Emoji
+  emojiUnicode?: string; // Fallback Unicode
 }
 
 export const HealthStatuses: Record<HealthStatus, HealthStatusConfig> = {
   healthy: {
     label: 'Saludable',
-    color: Colors.healthy,
-    emoji: '✅',
+    color: LightColors.success,
+    emoji: 'check',
+    emojiUnicode: '✅',
   },
   warning: {
     label: 'Atención',
     color: Colors.warning,
-    emoji: '⚠️',
+    emoji: 'warning',
+    emojiUnicode: '⚠️',
   },
   critical: {
     label: 'Crítico',
     color: Colors.critical,
-    emoji: '🚨',
+    emoji: 'alert',
+    emojiUnicode: '🚨',
   },
 };
 

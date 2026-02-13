@@ -1,84 +1,20 @@
 /**
- * Context de tema (Dark/Light mode) para PlantCare Mobile
+ * Context de tema (Dark/Light/System) para PlantCare Mobile
+ * Integrado con DesignSystem (LightColors, DarkColors, Gradients)
  */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'react-native';
+import type { ThemeColors, ThemeGradients } from '../constants/DesignSystem';
+import { LightColors, DarkColors, Gradients, DarkGradients } from '../constants/DesignSystem';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 
-interface Colors {
-  // Backgrounds
-  background: string;
-  surface: string;
-  surfaceSecondary: string;
-  
-  // Text
-  text: string;
-  textSecondary: string;
-  textTertiary: string;
-  
-  // Borders
-  border: string;
-  borderLight: string;
-  
-  // Accents
-  primary: string;
-  primaryDark: string;
-  error: string;
-  warning: string;
-  
-  // Icons
-  icon: string;
-  iconSecondary: string;
-}
-
-interface Theme {
+export interface Theme {
   mode: 'dark' | 'light';
-  colors: Colors;
+  colors: ThemeColors;
+  gradients: ThemeGradients;
 }
-
-const darkColors: Colors = {
-  background: '#0a1929',
-  surface: '#1e293b',
-  surfaceSecondary: '#334155',
-  
-  text: '#ffffff',
-  textSecondary: '#cbd5e1',
-  textTertiary: '#94a3b8',
-  
-  border: '#334155',
-  borderLight: '#475569',
-  
-  primary: '#4caf50',
-  primaryDark: '#388e3c',
-  error: '#f44336',
-  warning: '#ff9800',
-  
-  icon: '#ffffff',
-  iconSecondary: '#64748b',
-};
-
-const lightColors: Colors = {
-  background: '#ffffff',
-  surface: '#f8fafc',
-  surfaceSecondary: '#e2e8f0',
-  
-  text: '#0f172a',
-  textSecondary: '#334155',
-  textTertiary: '#64748b',
-  
-  border: '#e2e8f0',
-  borderLight: '#cbd5e1',
-  
-  primary: '#4caf50',
-  primaryDark: '#388e3c',
-  error: '#f44336',
-  warning: '#ff9800',
-  
-  icon: '#0f172a',
-  iconSecondary: '#64748b',
-};
 
 interface ThemeContextType {
   theme: Theme;
@@ -97,6 +33,18 @@ export const useTheme = () => {
   return context;
 };
 
+/** Hook para obtener colores del tema actual (Design System completo) */
+export const useThemeColors = (): ThemeColors => {
+  const { theme } = useTheme();
+  return theme.colors;
+};
+
+/** Hook para obtener gradientes del tema actual */
+export const useThemeGradients = (): ThemeGradients => {
+  const { theme } = useTheme();
+  return theme.gradients;
+};
+
 interface ThemeProviderProps {
   children: ReactNode;
 }
@@ -105,13 +53,12 @@ const THEME_STORAGE_KEY = 'theme_mode';
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const systemColorScheme = useColorScheme();
-  const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Determinar el tema actual basado en el modo
   const getCurrentTheme = (): 'dark' | 'light' => {
     if (themeMode === 'system') {
-      return systemColorScheme === 'light' ? 'light' : 'dark';
+      return systemColorScheme === 'dark' ? 'dark' : 'light';
     }
     return themeMode;
   };
@@ -119,18 +66,16 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const currentThemeMode = getCurrentTheme();
   const theme: Theme = {
     mode: currentThemeMode,
-    colors: currentThemeMode === 'light' ? lightColors : darkColors,
+    colors: currentThemeMode === 'light' ? LightColors : DarkColors,
+    gradients: currentThemeMode === 'light' ? Gradients : DarkGradients,
   };
 
-  // Cargar tema guardado al iniciar
   useEffect(() => {
     loadTheme();
   }, []);
 
-  // Actualizar tema cuando cambia el sistema
   useEffect(() => {
     if (themeMode === 'system') {
-      // Forzar re-render cuando cambia el sistema
       setThemeModeState('system');
     }
   }, [systemColorScheme]);
@@ -162,17 +107,20 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     await setThemeMode(newMode);
   };
 
-  // No renderizar hasta cargar el tema
   if (isLoading) {
     return null;
   }
 
-  const value: ThemeContextType = {
-    theme,
-    themeMode,
-    setThemeMode,
-    toggleTheme,
-  };
-
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider
+      value={{
+        theme,
+        themeMode,
+        setThemeMode,
+        toggleTheme,
+      }}
+    >
+      {children}
+    </ThemeContext.Provider>
+  );
 };

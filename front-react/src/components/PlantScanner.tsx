@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { plantsAPI } from '../services/api';
 import { PlantSpeciesAutocomplete } from './PlantSpeciesAutocomplete';
+import { Model3DViewer } from './Model3DViewer';
 import './PlantScanner.css';
 
 interface PlantScannerProps {
@@ -8,13 +9,14 @@ interface PlantScannerProps {
 }
 
 export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) => {
-  const [step, setStep] = useState<'name' | 'photo' | 'identifying' | 'identified' | 'creating'>('name');
+  const [step, setStep] = useState<'name' | 'photo' | 'identifying' | 'identified' | 'creating' | 'created'>('name');
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>('');
   const [plantName, setPlantName] = useState('');
   const [plantSpecies, setPlantSpecies] = useState(''); // Campo opcional para especie
   const [identifiedData, setIdentifiedData] = useState<any>(null);
   const [error, setError] = useState<string>('');
+  const [createdPlant, setCreatedPlant] = useState<any | null>(null);
 
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,15 +64,11 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
       // Crear planta (el modelo se asigna automáticamente según el tipo)
       // Pasar especie si el usuario la proporcionó
       const plant = await plantsAPI.createPlant(image, plantName, plantSpecies.trim() || undefined);
-      
+      // Notificar hacia afuera (Dashboard / Jardín)
       onPlantCreated(plant);
-      // Reset form
-      setImage(null);
-      setPreview('');
-      setPlantName('');
-      setPlantSpecies('');
-      setIdentifiedData(null);
-      setStep('name');
+      // Guardar planta creada para mostrar el personaje/modelo
+      setCreatedPlant(plant);
+      setStep('created');
     } catch (error: any) {
       console.error('Error creating plant:', error);
       setError(error.response?.data?.detail || 'Error creando la planta');
@@ -88,6 +86,18 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
       setStep('photo');
       setIdentifiedData(null);
     }
+  };
+
+  const handleFinishCreated = () => {
+    // Reset completo del flujo para poder escanear otra planta
+    setImage(null);
+    setPreview('');
+    setPlantName('');
+    setPlantSpecies('');
+    setIdentifiedData(null);
+    setCreatedPlant(null);
+    setError('');
+    setStep('name');
   };
 
   return (
@@ -234,6 +244,55 @@ export const PlantScanner: React.FC<PlantScannerProps> = ({ onPlantCreated }) =>
             <div className="spinner"></div>
             <h3>🎨 Creando tu planta...</h3>
             <p>Generando el personaje único de <strong>{plantName}</strong></p>
+          </div>
+        </div>
+      )}
+
+      {/* Paso 6: Planta creada y personaje visible */}
+      {step === 'created' && createdPlant && (
+        <div className="scanner-step">
+          <div className="created-header">
+            <div className="success-icon">✅</div>
+            <h3>¡Tu planta se agregó al jardín!</h3>
+          </div>
+
+          <p className="created-subtitle">
+            Así se ve el personaje de <strong>{createdPlant.plant_name || plantName}</strong>
+          </p>
+
+          <div className="created-preview">
+            {/* Imagen de personaje si existe */}
+            {(createdPlant.character_image_url || createdPlant.default_render_url || createdPlant.original_photo_url) && (
+              <div className="created-image-wrapper">
+                <img
+                  src={
+                    createdPlant.character_image_url ||
+                    createdPlant.default_render_url ||
+                    createdPlant.original_photo_url
+                  }
+                  alt={createdPlant.plant_name || 'Planta creada'}
+                  className="created-image"
+                />
+              </div>
+            )}
+
+            {/* Modelo 3D si hay model_3d_url */}
+            {createdPlant.model_3d_url && (
+              <div className="created-3d-wrapper">
+                <Model3DViewer
+                  modelUrl={createdPlant.model_3d_url}
+                  characterMood={createdPlant.character_mood}
+                  autoRotate
+                  className="created-3d-viewer"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="created-actions">
+            <button className="btn-primary" onClick={handleFinishCreated}>
+              ➕ Agregar otra planta
+            </button>
           </div>
         </div>
       )}

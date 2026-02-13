@@ -1,7 +1,7 @@
 /**
  * Componente para renderizar modelos 3D .glb usando Three.js en React web
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 // Usar importación estática con ruta completa para evitar problemas de webpack
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -31,15 +31,18 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   const animationFrameRef = useRef<number | null>(null);
   const currentActionRef = useRef<THREE.AnimationAction | null>(null);
 
-  // Mapeo de character_mood a nombres de animación
-  const animationMap: Record<string, string> = {
-    'happy': 'Happy',
-    'sad': 'Sad',
-    'thirsty': 'Sad',
-    'overwatered': 'Sick',
-    'sick': 'Sick'
-  };
-
+  // Mapeo de character_mood a nombres de animación (memoizado para identidad estable)
+  const animationMap = useMemo<Record<string, string>>(
+    () => ({
+      happy: 'Happy',
+      sad: 'Sad',
+      thirsty: 'Sad',
+      overwatered: 'Sick',
+      sick: 'Sick',
+    }),
+    [],
+  );
+  
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -232,7 +235,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
         });
       }
     };
-  }, [modelUrl, autoRotate, characterMood]);
+  }, [modelUrl, autoRotate, characterMood, animationMap]);
 
   return (
     <div 

@@ -22,3 +22,9 @@ export type { StatCardProps } from './StatCard';
 
 export { PlantAvatar } from './PlantAvatar';
 export type { PlantAvatarProps } from './PlantAvatar';
+
+export { Emoji, InlineEmoji } from './Emoji';
+export type { EmojiProps, EmojiName } from './Emoji';
+
+export { TextWithEmoji } from './TextWithEmoji';
+export type { TextWithEmojiProps } from './TextWithEmoji';
