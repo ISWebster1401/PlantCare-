@@ -6,10 +6,13 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .config import settings
 from ..schemas.user import TokenData, UserInDB
-from app.db.queries import get_user_by_email, create_user, update_user_last_login
+from app.db.queries import get_user_by_email, create_user, update_user_last_login, update_user
 from app.api.core.database import get_db
 import logging
 from pgdbtoolkit import AsyncPgDbToolkit
+import secrets
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -163,7 +166,9 @@ class AuthService:
             if not user:
                 return None
             
-            if not AuthService.verify_password(password, user["password_hash"]):
+            # Compatibilidad con ambos esquemas
+            password_field = user.get("hashed_password") or user.get("password_hash")
+            if not password_field or not AuthService.verify_password(password, password_field):
                 return None
             
             # Actualizar último login
@@ -206,11 +211,14 @@ class AuthService:
             # Hash de la contraseña
             password_hash = AuthService.get_password_hash(user_data["password"])
             
-            # Crear usuario
-            user_dict = user_data.copy()
-            user_dict.pop("password", None)
-            user_dict.pop("confirm_password", None)
-            user_dict["password_hash"] = password_hash
+            # Crear usuario (ESQUEMA V2 CON role_id)
+            user_dict = {
+                "email": user_data["email"],
+                "full_name": user_data.get("full_name", ""),
+                "hashed_password": password_hash,
+                "role_id": 1,  # 1 = user, 2 = admin
+                "is_active": True
+            }
             
             logger.info("AuthService: Creando usuario en base de datos")
             # ✅ CORRECTO: Pasar db a create_user también
@@ -229,6 +237,108 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error interno del servidor: {str(e)}"
+            )
+
+    @staticmethod
+    async def authenticate_google_user(credential: str, db: AsyncPgDbToolkit) -> UserInDB:
+        """
+        Autentica o registra un usuario usando Google ID token.
+        """
+        try:
+            if not settings.GOOGLE_CLIENT_ID:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="La autenticación con Google no está configurada"
+                )
+
+            request = google_requests.Request()
+            try:
+                id_info = google_id_token.verify_oauth2_token(
+                    credential,
+                    request,
+                    settings.GOOGLE_CLIENT_ID
+                )
+            except Exception as e:
+                logger.error(f"Error verificando token de Google: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token de Google inválido"
+                )
+
+            email = id_info.get("email")
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No se pudo obtener el email de Google"
+                )
+
+            if not id_info.get("email_verified", False):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Tu cuenta de Google aún no está verificada"
+                )
+
+            # Solo validar dominio si GOOGLE_ALLOWED_DOMAINS está configurado y no está vacío
+            if settings.GOOGLE_ALLOWED_DOMAINS and settings.GOOGLE_ALLOWED_DOMAINS.strip():
+                allowed_domains = [
+                    domain.strip().lower()
+                    for domain in settings.GOOGLE_ALLOWED_DOMAINS.split(",")
+                    if domain.strip()
+                ]
+                if allowed_domains:
+                    domain = email.split("@")[-1].lower()
+                    if domain not in allowed_domains:
+                        logger.warning(f"Intento de login con dominio no autorizado: {domain}")
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="El dominio de tu email no está autorizado"
+                        )
+            else:
+                logger.info("GOOGLE_ALLOWED_DOMAINS no configurado, permitiendo cualquier dominio")
+
+            full_name = id_info.get("name", "")
+            if not full_name:
+                first_name = id_info.get("given_name", "Usuario")
+                last_name = id_info.get("family_name", "PlantCare")
+                full_name = f"{first_name} {last_name}"
+
+            user = await get_user_by_email(db, email)
+
+            if user:
+                # Compatibilidad con ambos esquemas
+                is_active = user.get("is_active") or user.get("active", True)
+                if not is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Usuario inactivo, contacta al administrador"
+                    )
+
+                updates = {
+                    "full_name": full_name,
+                }
+                await update_user(db, user["id"], updates)
+                user = await get_user_by_email(db, email)
+            else:
+                random_secret = secrets.token_urlsafe(32)
+                password_hash = AuthService.get_password_hash(random_secret)
+                user_payload = {
+                    "email": email,
+                    "full_name": full_name,
+                    "hashed_password": password_hash,
+                    "role": "user",
+                    "is_active": True,
+                }
+                user = await create_user(db, user_payload)
+                user = await get_user_by_email(db, email)
+            return user
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error autenticando usuario con Google: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error interno del servidor"
             )
 
 # Función para obtener el usuario actual desde el token
@@ -263,6 +373,9 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
+        # Log temporal para debug
+        logger.info(f"[DEBUG AUTH] Usuario obtenido de BD: email={user.get('email')}, role_id={user.get('role_id')}, keys={list(user.keys())}")
+        
         return user
         
     except HTTPException:
@@ -281,7 +394,9 @@ async def get_current_active_user(current_user: UserInDB = Depends(get_current_u
     Verifica que el usuario esté activo después de validar el token
     Se usa como Dependency en endpoints como /api/ai/ask, /api/devices/connect
     """
-    if not current_user["active"]:
+    # ← SOLO 4 ESPACIOS (el nivel de la función)
+    is_active = current_user.get("is_active") or current_user.get("active", True)
+    if not is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Usuario inactivo"

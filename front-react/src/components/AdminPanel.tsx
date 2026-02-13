@@ -1,144 +1,343 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { adminAPI } from '../services/api';
 import './AdminPanel.css';
 
 interface User {
   id: number;
-  first_name: string;
-  last_name: string;
   email: string;
-  phone?: string;
-  region?: string;
-  vineyard_name?: string;
-  hectares?: number;
-  grape_type?: string;
-  role_id: number;
-  role_name?: string;
-  created_at: string;
-  last_login?: string;
-  active: boolean;
-  device_count: number;
+  full_name: string;
+  is_active: boolean;
+  plants_count: number;
+  sensors_count: number;
 }
 
-interface Device {
+interface Sensor {
+  id: string;
+  device_id: string;
+  name: string;
+  user_email?: string | null;
+  plant_name?: string | null;
+  status: string;
+  is_connected: boolean;
+  last_connection?: string | null;
+}
+
+interface Plant {
   id: number;
-  device_code: string;
-  name?: string;
-  device_type: string;
-  location?: string;
-  plant_type?: string;
-  user_id?: number;
-  user_name?: string;
-  user_email?: string;
-  created_at: string;
-  last_seen?: string;
-  connected_at?: string;
-  active: boolean;
-  connected: boolean;
+  plant_name: string;
+  plant_type: string | null;
+  user_email: string;
+  sensor_connected: boolean;
+  sensor_device_id: string | null;
+}
+
+interface PlantModel {
+  id: number;
+  plant_type: string;
+  name: string;
+  model_3d_url: string;
+  default_render_url: string | null;
+  is_default: boolean;
+  metadata?: any;
 }
 
 interface AdminStats {
   total_users: number;
   active_users: number;
-  inactive_users: number;
-  admin_users: number;
-  total_devices: number;
-  connected_devices: number;
-  unconnected_devices: number;
-  active_devices: number;
-  total_readings_today: number;
-  total_readings_week: number;
-  new_users_today: number;
-  new_users_week: number;
-  new_devices_today: number;
-  new_devices_week: number;
-}
-
-interface DeviceCodeBatch {
-  device_type: string;
-  quantity: number;
-  prefix?: string;
+  total_sensors: number;
+  connected_sensors: number;
+  total_plants: number;
 }
 
 const AdminPanel: React.FC = () => {
-  const { user, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'devices' | 'codes' | 'quotes'>('dashboard');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'sensors' | 'plants' | 'models'>('dashboard');
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Estados de datos
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [sensors, setSensors] = useState<Sensor[]>([]);
+  const [plants, setPlants] = useState<Plant[]>([]);
+  const [models, setModels] = useState<PlantModel[]>([]);
 
-  // Estados para filtros
-  const [userFilters, setUserFilters] = useState({
-    search: '',
-    role_id: '',
-    active: '',
-    region: ''
-  });
+  // Estados para formulario de subida de modelo
+  const [uploadingModel, setUploadingModel] = useState(false);
+  const [modelFile, setModelFile] = useState<File | null>(null);
+  const [modelPlantType, setModelPlantType] = useState('');
+  const [modelName, setModelName] = useState('');
+  const [modelIsDefault, setModelIsDefault] = useState(false);
+  
+  // Estados para edición de modelo
+  const [editingModel, setEditingModel] = useState<PlantModel | null>(null);
+  const [editModelFile, setEditModelFile] = useState<File | null>(null);
+  const [editModelPlantType, setEditModelPlantType] = useState('');
+  const [editModelName, setEditModelName] = useState('');
+  const [editModelIsDefault, setEditModelIsDefault] = useState(false);
+  const [updatingModel, setUpdatingModel] = useState(false);
 
-  const [deviceFilters, setDeviceFilters] = useState({
-    search: '',
-    device_type: '',
-    connected: '',
-    active: ''
-  });
+  // Tipos de plantas comunes
+  const commonPlantTypes = [
+    'Suculenta',
+    'Monstera',
+    'Pothos',
+    'Sansevieria',
+    'Ficus',
+    'Cactus',
+    'Aloe',
+    'Helecho',
+    'Dólar',
+    'Planta'
+  ];
 
-  // Estado para generar códigos
-  const [codeGeneration, setCodeGeneration] = useState<DeviceCodeBatch>({
-    device_type: 'humidity_sensor',
-    quantity: 1
-  });
+  // Nombres de modelos comunes (basados en el tipo seleccionado)
+  const getModelNameOptions = (plantType: string) => {
+    if (!plantType) {
+      return [
+        'Suculenta Default',
+        'Monstera Default',
+        'Pothos Default',
+        'Sansevieria Default',
+        'Ficus Default',
+        'Cactus Default',
+        'Aloe Default',
+        'Helecho Default',
+        'Dólar Default',
+        'Planta Genérica'
+      ];
+    }
+    return [`${plantType} Default`, `${plantType} Model`, `${plantType} Variant`];
+  };
 
-  const [generatedCodes, setGeneratedCodes] = useState<any[]>([]);
+  const loadStats = async () => {
+    try {
+      setError(null);
+      const data = await adminAPI.getStats();
+      setStats(data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error cargando estadísticas');
+      console.error('Error loading stats:', err);
+    }
+  };
 
-  // Estados para cotizaciones
-  interface Quote {
-    id: number;
-    reference_id: string;
-    name: string;
-    email: string;
-    phone?: string;
-    company?: string;
-    location?: string;
-    project_type?: string;
-    coverage_area?: string;
-    desired_date?: string;
-    has_existing_infrastructure?: boolean | null;
-    requires_installation?: boolean | null;
-    requires_training?: boolean | null;
-    num_devices: number;
-    budget_range?: string;
-    status: string;
-    quoted_price?: number;
-    quoted_at?: string;
-    created_at: string;
-    message?: string;
-    ip_address?: string;
-  }
+  const loadUsers = async () => {
+    try {
+      setError(null);
+      const data = await adminAPI.getUsers();
+      setUsers(data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error cargando usuarios');
+      console.error('Error loading users:', err);
+    }
+  };
 
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [quoteFilters, setQuoteFilters] = useState({
-    status: '',
-    search: ''
-  });
-  const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
+  const loadSensors = async () => {
+    try {
+      setError(null);
+      const data = await adminAPI.getSensors();
+      setSensors(data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error cargando sensores');
+      console.error('Error loading sensors:', err);
+    }
+  };
 
-  // ✅ HOOK MOVIDO AQUÍ - ANTES DEL RETURN CONDICIONAL
+  const loadPlants = async () => {
+    try {
+      setError(null);
+      const data = await adminAPI.getPlants();
+      setPlants(data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error cargando plantas');
+      console.error('Error loading plants:', err);
+    }
+  };
+
+  const loadModels = async () => {
+    try {
+      setError(null);
+      const data = await adminAPI.getModels();
+      setModels(data || []);
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Error cargando modelos 3D';
+      // Solo mostrar error si no es un 404 o lista vacía
+      if (err.response?.status !== 404) {
+        setError(errorMessage);
+      }
+      setModels([]);
+      console.error('Error loading models:', err);
+    }
+  };
+
+  const handleUploadModel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modelFile) {
+      setError('Por favor selecciona un archivo .glb');
+      return;
+    }
+
+    try {
+      setUploadingModel(true);
+      setError(null);
+      // Si se seleccionó un tipo de planta, marcar como default automáticamente si es el primero
+      // El backend manejará esto automáticamente si is_default no se especifica
+      const isFirstOfType = modelPlantType ? !models.some(m => m.plant_type === modelPlantType) : false;
+      const shouldBeDefault: boolean = Boolean(modelIsDefault) || isFirstOfType;
+      await adminAPI.uploadModel(
+        modelFile, 
+        modelPlantType || undefined, 
+        modelName || undefined, 
+        shouldBeDefault
+      );
+      
+      // Limpiar formulario
+      setModelFile(null);
+      setModelPlantType('');
+      setModelName('');
+      setModelIsDefault(false);
+      
+      // Recargar modelos
+      await loadModels();
+      
+      alert('✅ Modelo 3D subido exitosamente');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error subiendo modelo 3D');
+      console.error('Error uploading model:', err);
+    } finally {
+      setUploadingModel(false);
+    }
+  };
+
+  const handleEditModel = (model: PlantModel) => {
+    setEditingModel(model);
+    setEditModelPlantType(model.plant_type);
+    setEditModelName(model.name);
+    setEditModelIsDefault(model.is_default);
+    setEditModelFile(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingModel(null);
+    setEditModelPlantType('');
+    setEditModelName('');
+    setEditModelIsDefault(false);
+    setEditModelFile(null);
+  };
+
+  const handleUpdateModel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingModel) return;
+
+    try {
+      setUpdatingModel(true);
+      setError(null);
+      
+      await adminAPI.updateModel(
+        editingModel.id,
+        editModelFile || undefined,
+        editModelPlantType || undefined,
+        editModelName || undefined,
+        editModelIsDefault
+      );
+      
+      // Limpiar formulario
+      handleCancelEdit();
+      
+      // Recargar modelos
+      await loadModels();
+      
+      alert('✅ Modelo 3D actualizado exitosamente');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error actualizando modelo 3D');
+      console.error('Error updating model:', err);
+    } finally {
+      setUpdatingModel(false);
+    }
+  };
+
   useEffect(() => {
-    if (activeTab === 'dashboard') {
-      loadStats();
-    } else if (activeTab === 'users') {
-      loadUsers();
-    } else if (activeTab === 'devices') {
-      loadDevices();
-    } else if (activeTab === 'quotes') {
-      loadQuotes();
+    if (activeTab === 'models') {
+      loadModels();
     }
   }, [activeTab]);
 
-  // ✅ AHORA SÍ LA VERIFICACIÓN DE ADMIN
-  if (!user || user.role_id !== 2) {
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if (activeTab === 'dashboard') {
+        await loadStats();
+      } else if (activeTab === 'users') {
+        await loadUsers();
+      } else if (activeTab === 'sensors') {
+        await loadSensors();
+      } else if (activeTab === 'plants') {
+        await loadPlants();
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const toggleUserStatus = async (userId: number) => {
+    if (!window.confirm('¿Estás seguro de que deseas cambiar el estado de este usuario?')) {
+      return;
+    }
+
+    try {
+      setError(null);
+      await adminAPI.toggleUserStatus(userId);
+      await loadUsers();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'No se pudo actualizar el usuario');
+      console.error('Error toggling user status:', err);
+    }
+  };
+
+  const deletePlant = async (plantId: number, plantName: string) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la planta "${plantName}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      setError(null);
+      await adminAPI.deletePlant(plantId);
+      await loadPlants();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'No se pudo eliminar la planta');
+      console.error('Error deleting plant:', err);
+    }
+  };
+
+  useEffect(() => {
+    const isAdmin = user && (user.role_id === 2 || user.role_id === 3 || user.role === 'admin');
+    if (!isAdmin) {
+      return;
+    }
+
+    setLoading(true);
+    const loadData = async () => {
+      try {
+        if (activeTab === 'dashboard') {
+          await loadStats();
+        } else if (activeTab === 'users') {
+          await loadUsers();
+        } else if (activeTab === 'sensors') {
+          await loadSensors();
+        } else if (activeTab === 'plants') {
+          await loadPlants();
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [activeTab, user]);
+
+  const isAdmin = user && (user.role_id === 2 || user.role_id === 3 || user.role === 'admin');
+  if (!isAdmin) {
     return (
       <div className="admin-panel">
         <div className="access-denied">
@@ -149,139 +348,451 @@ const AdminPanel: React.FC = () => {
     );
   }
 
-  const apiCall = async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
+  const renderDashboard = () => {
+    if (!stats) return null;
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Error desconocido' }));
-      throw new Error(errorData.detail || `Error ${response.status}`);
-    }
+    return (
+      <div className="dashboard-section">
+        <div className="stats-grid">
+          <div className="stat-card users">
+            <div className="stat-icon">👥</div>
+            <div className="stat-info">
+              <h3>Usuarios</h3>
+              <div className="stat-number">{stats.total_users}</div>
+              <div className="stat-details">
+                <span className="active">{stats.active_users} activos</span>
+              </div>
+            </div>
+          </div>
 
-    return response.json();
+          <div className="stat-card devices">
+            <div className="stat-icon">📱</div>
+            <div className="stat-info">
+              <h3>Sensores</h3>
+              <div className="stat-number">{stats.total_sensors}</div>
+              <div className="stat-details">
+                <span className="connected">{stats.connected_sensors} conectados</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="stat-card plants">
+            <div className="stat-icon">🌱</div>
+            <div className="stat-info">
+              <h3>Plantas</h3>
+              <div className="stat-number">{stats.total_plants}</div>
+              <div className="stat-details">
+                <span>Total registradas</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
-  const loadStats = async () => {
-    try {
-      setLoading(true);
-      const data = await apiCall('/api/admin/stats');
-      setStats(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const renderUsers = () => {
+    return (
+      <div className="users-section">
+        <div className="section-header">
+          <h2>Gestión de Usuarios</h2>
+          <button onClick={handleRefresh} className="btn-primary" disabled={refreshing}>
+            {refreshing ? '🔄' : '🔄'} Actualizar
+          </button>
+        </div>
+
+        {users.length === 0 ? (
+          <div className="empty-state">
+            <p>No hay usuarios registrados</p>
+          </div>
+        ) : (
+          <div className="users-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Estado</th>
+                  <th>Plantas</th>
+                  <th>Sensores</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(userItem => (
+                  <tr key={userItem.id}>
+                    <td>{userItem.id}</td>
+                    <td>{userItem.full_name}</td>
+                    <td>{userItem.email}</td>
+                    <td>
+                      <span className={`status-badge ${userItem.is_active ? 'active' : 'inactive'}`}>
+                        {userItem.is_active ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td>{userItem.plants_count}</td>
+                    <td>{userItem.sensors_count}</td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => toggleUserStatus(userItem.id)}
+                          className={`btn-sm ${userItem.is_active ? 'btn-warning' : 'btn-success'}`}
+                          title={userItem.is_active ? 'Desactivar' : 'Activar'}
+                        >
+                          {userItem.is_active ? '⏸️' : '▶️'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
   };
 
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      Object.entries(userFilters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-      });
-      
-      const data = await apiCall(`/api/admin/users?${params}`);
-      setUsers(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const renderSensors = () => {
+    return (
+      <div className="devices-section">
+        <div className="section-header">
+          <h2>Gestión de Sensores</h2>
+          <button onClick={handleRefresh} className="btn-primary" disabled={refreshing}>
+            {refreshing ? '🔄' : '🔄'} Actualizar
+          </button>
+        </div>
+
+        {sensors.length === 0 ? (
+          <div className="empty-state">
+            <p>No hay sensores registrados</p>
+          </div>
+        ) : (
+          <div className="devices-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Código</th>
+                  <th>Nombre</th>
+                  <th>Usuario</th>
+                  <th>Planta</th>
+                  <th>Estado</th>
+                  <th>Conexión</th>
+                  <th>Última Conexión</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sensors.map(sensor => (
+                  <tr key={sensor.id}>
+                    <td>{sensor.id.substring(0, 8)}...</td>
+                    <td><code>{sensor.device_id}</code></td>
+                    <td>{sensor.name}</td>
+                    <td>{sensor.user_email || <span className="unassigned">Sin asignar</span>}</td>
+                    <td>{sensor.plant_name || '-'}</td>
+                    <td>
+                      <span className={`status-badge ${sensor.status === 'active' ? 'active' : 'inactive'}`}>
+                        {sensor.status}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${sensor.is_connected ? 'connected' : 'available'}`}>
+                        {sensor.is_connected ? 'Conectado' : 'Desconectado'}
+                      </span>
+                    </td>
+                    <td>
+                      {sensor.last_connection ? 
+                        new Date(sensor.last_connection).toLocaleString() : 
+                        'Nunca'
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
   };
 
-  const loadDevices = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      Object.entries(deviceFilters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-      });
-      
-      const data = await apiCall(`/api/admin/devices?${params}`);
-      setDevices(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const renderPlants = () => {
+    return (
+      <div className="plants-section">
+        <div className="section-header">
+          <h2>Gestión de Plantas</h2>
+          <button onClick={handleRefresh} className="btn-primary" disabled={refreshing}>
+            {refreshing ? '🔄' : '🔄'} Actualizar
+          </button>
+        </div>
+
+        {plants.length === 0 ? (
+          <div className="empty-state">
+            <p>No hay plantas registradas</p>
+          </div>
+        ) : (
+          <div className="plants-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>Usuario</th>
+                  <th>Sensor</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plants.map(plant => (
+                  <tr key={plant.id}>
+                    <td>{plant.id}</td>
+                    <td>{plant.plant_name}</td>
+                    <td>{plant.plant_type || '-'}</td>
+                    <td>{plant.user_email}</td>
+                    <td>
+                      {plant.sensor_connected ? (
+                        <span className="status-badge connected">
+                          {plant.sensor_device_id || 'Conectado'}
+                        </span>
+                      ) : (
+                        <span className="unassigned">Sin sensor</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => deletePlant(plant.id, plant.plant_name)}
+                          className="btn-sm btn-danger"
+                          title="Eliminar planta"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
   };
 
-  const loadQuotes = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (quoteFilters.status) params.append('status', quoteFilters.status);
-      if (quoteFilters.search) params.append('search', quoteFilters.search);
-      
-      const data = await apiCall(`/api/admin/quotes?${params}`);
-      setQuotes(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const renderModels = () => {
+    return (
+      <div className="models-section">
+        <div className="section-header">
+          <h2>Gestión de Modelos 3D</h2>
+          <button onClick={handleRefresh} className="btn-primary" disabled={refreshing}>
+            {refreshing ? '🔄' : '🔄'} Actualizar
+          </button>
+        </div>
 
-  const updateQuote = async (quoteId: number, updates: Partial<Quote>) => {
-    try {
-      await apiCall(`/api/admin/quotes/${quoteId}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates)
-      });
-      loadQuotes();
-      setEditingQuote(null);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
+        {/* Formulario de subida */}
+        <div className="models-upload-form">
+          <h3>Subir Nuevo Modelo 3D</h3>
+          <form onSubmit={handleUploadModel}>
+            <div className="form-group">
+              <label htmlFor="model-file">Archivo .glb *</label>
+              <input
+                type="file"
+                id="model-file"
+                accept=".glb"
+                onChange={(e) => setModelFile(e.target.files?.[0] || null)}
+                required
+                disabled={uploadingModel}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="model-plant-type">Tipo de Planta (opcional)</label>
+              <select
+                id="model-plant-type"
+                value={modelPlantType}
+                onChange={(e) => {
+                  setModelPlantType(e.target.value);
+                  // Auto-completar nombre del modelo si está vacío
+                  if (!modelName && e.target.value) {
+                    setModelName(`${e.target.value} Default`);
+                  }
+                }}
+                disabled={uploadingModel}
+                className="form-select"
+              >
+                <option value="">Seleccionar tipo de planta...</option>
+                {commonPlantTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="model-name">Nombre del Modelo (opcional)</label>
+              <select
+                id="model-name"
+                value={modelName}
+                onChange={(e) => setModelName(e.target.value)}
+                disabled={uploadingModel}
+                className="form-select"
+              >
+                <option value="">Seleccionar nombre del modelo...</option>
+                {getModelNameOptions(modelPlantType).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={modelIsDefault}
+                  onChange={(e) => setModelIsDefault(e.target.checked)}
+                  disabled={uploadingModel}
+                />
+                Marcar como modelo predeterminado
+              </label>
+            </div>
+            <button type="submit" className="btn-primary" disabled={uploadingModel || !modelFile}>
+              {uploadingModel ? 'Subiendo...' : '📤 Subir Modelo'}
+            </button>
+          </form>
+        </div>
 
-  const generateDeviceCodes = async () => {
-    try {
-      setLoading(true);
-      const data = await apiCall('/api/admin/devices/generate-codes', {
-        method: 'POST',
-        body: JSON.stringify(codeGeneration)
-      });
-      setGeneratedCodes(data);
-      setError('');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleUserStatus = async (userId: number, currentStatus: boolean) => {
-    try {
-      await apiCall(`/api/admin/users/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ active: !currentStatus })
-      });
-      loadUsers();
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
-  // ✅ CONFIRM CORREGIDO CON WINDOW.CONFIRM
-  const deleteUser = async (userId: number) => {
-    if (!window.confirm('¿Estás seguro de que quieres eliminar este usuario?')) return;
-    
-    try {
-      await apiCall(`/api/admin/users/${userId}`, {
-        method: 'DELETE'
-      });
-      loadUsers();
-    } catch (err: any) {
-      setError(err.message);
-    }
+        {/* Lista de modelos */}
+        <div className="models-list">
+          <h3>Modelos Existentes</h3>
+          {models.length === 0 ? (
+            <div className="empty-state">
+              <p>No hay modelos 3D registrados</p>
+            </div>
+          ) : (
+            <div className="models-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Tipo de Planta</th>
+                    <th>Nombre</th>
+                    <th>URL del Modelo</th>
+                    <th>Predeterminado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {models.map(model => (
+                    <React.Fragment key={model.id}>
+                      <tr>
+                        <td>{model.id}</td>
+                        <td>{model.plant_type}</td>
+                        <td>{model.name}</td>
+                        <td>
+                          <a href={model.model_3d_url} target="_blank" rel="noopener noreferrer" className="link">
+                            Ver modelo
+                          </a>
+                        </td>
+                        <td>
+                          {model.is_default ? (
+                            <span className="status-badge connected">Sí</span>
+                          ) : (
+                            <span className="unassigned">No</span>
+                          )}
+                        </td>
+                        <td>
+                          <button 
+                            onClick={() => handleEditModel(model)}
+                            className="btn-secondary btn-sm"
+                            disabled={updatingModel}
+                          >
+                            ✏️ Editar
+                          </button>
+                        </td>
+                      </tr>
+                      {editingModel?.id === model.id && (
+                        <tr>
+                          <td colSpan={6}>
+                            <div className="model-edit-form">
+                              <h4>Editar Modelo {model.id}</h4>
+                              <form onSubmit={handleUpdateModel}>
+                                <div className="form-group">
+                                  <label htmlFor="edit-model-file">Nuevo archivo .glb (opcional)</label>
+                                  <input
+                                    type="file"
+                                    id="edit-model-file"
+                                    accept=".glb"
+                                    onChange={(e) => setEditModelFile(e.target.files?.[0] || null)}
+                                    disabled={updatingModel}
+                                  />
+                                  <small>Dejar vacío para mantener el archivo actual</small>
+                                </div>
+                                <div className="form-group">
+                                  <label htmlFor="edit-model-plant-type">Tipo de Planta</label>
+                                  <select
+                                    id="edit-model-plant-type"
+                                    value={editModelPlantType}
+                                    onChange={(e) => setEditModelPlantType(e.target.value)}
+                                    disabled={updatingModel}
+                                    className="form-select"
+                                  >
+                                    {commonPlantTypes.map((type) => (
+                                      <option key={type} value={type}>
+                                        {type}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="form-group">
+                                  <label htmlFor="edit-model-name">Nombre del Modelo</label>
+                                  <input
+                                    type="text"
+                                    id="edit-model-name"
+                                    value={editModelName}
+                                    onChange={(e) => setEditModelName(e.target.value)}
+                                    disabled={updatingModel}
+                                    className="form-input"
+                                  />
+                                </div>
+                                <div className="form-group">
+                                  <label>
+                                    <input
+                                      type="checkbox"
+                                      checked={editModelIsDefault}
+                                      onChange={(e) => setEditModelIsDefault(e.target.checked)}
+                                      disabled={updatingModel}
+                                    />
+                                    Marcar como modelo predeterminado
+                                  </label>
+                                </div>
+                                <div className="form-actions">
+                                  <button type="submit" className="btn-primary" disabled={updatingModel}>
+                                    {updatingModel ? 'Actualizando...' : '💾 Guardar Cambios'}
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    onClick={handleCancelEdit}
+                                    className="btn-secondary"
+                                    disabled={updatingModel}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </form>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -305,458 +816,46 @@ const AdminPanel: React.FC = () => {
           👥 Usuarios
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'devices' ? 'active' : ''}`}
-          onClick={() => setActiveTab('devices')}
+          className={`tab-btn ${activeTab === 'sensors' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sensors')}
         >
-          📱 Dispositivos
+          📡 Sensores
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'codes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('codes')}
+          className={`tab-btn ${activeTab === 'plants' ? 'active' : ''}`}
+          onClick={() => setActiveTab('plants')}
         >
-          🏷️ Generar Códigos
+          🌱 Plantas
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'quotes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('quotes')}
+          className={`tab-btn ${activeTab === 'models' ? 'active' : ''}`}
+          onClick={() => setActiveTab('models')}
         >
-          💰 Cotizaciones
+          🎨 Modelos 3D
         </button>
       </div>
 
       {error && (
         <div className="error-message">
           ❌ {error}
-          <button onClick={() => setError('')}>×</button>
+          <button onClick={() => setError(null)}>×</button>
         </div>
       )}
 
       <div className="admin-content">
-        {loading && (
+        {loading && !refreshing ? (
           <div className="loading">
             <div className="spinner"></div>
             <p>Cargando...</p>
           </div>
-        )}
-
-        {activeTab === 'dashboard' && stats && (
-          <div className="dashboard-section">
-            <div className="stats-grid">
-              <div className="stat-card users">
-                <div className="stat-icon">👥</div>
-                <div className="stat-info">
-                  <h3>Usuarios</h3>
-                  <div className="stat-number">{stats.total_users}</div>
-                  <div className="stat-details">
-                    <span className="active">{stats.active_users} activos</span>
-                    <span className="inactive">{stats.inactive_users} inactivos</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="stat-card devices">
-                <div className="stat-icon">📱</div>
-                <div className="stat-info">
-                  <h3>Dispositivos</h3>
-                  <div className="stat-number">{stats.total_devices}</div>
-                  <div className="stat-details">
-                    <span className="connected">{stats.connected_devices} conectados</span>
-                    <span className="unconnected">{stats.unconnected_devices} disponibles</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="stat-card readings">
-                <div className="stat-icon">📊</div>
-                <div className="stat-info">
-                  <h3>Lecturas Hoy</h3>
-                  <div className="stat-number">{stats.total_readings_today}</div>
-                  <div className="stat-details">
-                    <span>{stats.total_readings_week} esta semana</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="stat-card growth">
-                <div className="stat-icon">📈</div>
-                <div className="stat-info">
-                  <h3>Crecimiento</h3>
-                  <div className="stat-number">+{stats.new_users_today}</div>
-                  <div className="stat-details">
-                    <span>usuarios hoy</span>
-                    <span>+{stats.new_devices_today} dispositivos</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'users' && (
-          <div className="users-section">
-            <div className="section-header">
-              <h2>Gestión de Usuarios</h2>
-              <div className="filters">
-                <input
-                  type="text"
-                  placeholder="Buscar usuarios..."
-                  value={userFilters.search}
-                  onChange={(e) => setUserFilters({...userFilters, search: e.target.value})}
-                />
-                <select
-                  value={userFilters.role_id}
-                  onChange={(e) => setUserFilters({...userFilters, role_id: e.target.value})}
-                >
-                  <option value="">Todos los roles</option>
-                  <option value="1">Usuario</option>
-                  <option value="2">Administrador</option>
-                </select>
-                <select
-                  value={userFilters.active}
-                  onChange={(e) => setUserFilters({...userFilters, active: e.target.value})}
-                >
-                  <option value="">Todos los estados</option>
-                  <option value="true">Activos</option>
-                  <option value="false">Inactivos</option>
-                </select>
-                <button onClick={loadUsers} className="btn-primary">
-                  🔍 Filtrar
-                </button>
-              </div>
-            </div>
-
-            <div className="users-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Nombre</th>
-                    <th>Email</th>
-                    <th>Viñedo</th>
-                    <th>Rol</th>
-                    <th>Dispositivos</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map(user => (
-                    <tr key={user.id}>
-                      <td>{user.id}</td>
-                      <td>{user.first_name} {user.last_name}</td>
-                      <td>{user.email}</td>
-                      <td>{user.vineyard_name || '-'}</td>
-                      <td>
-                        <span className={`role-badge ${user.role_id === 2 ? 'admin' : 'user'}`}>
-                          {user.role_name || (user.role_id === 2 ? 'Admin' : 'Usuario')}
-                        </span>
-                      </td>
-                      <td>{user.device_count}</td>
-                      <td>
-                        <span className={`status-badge ${user.active ? 'active' : 'inactive'}`}>
-                          {user.active ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button
-                            onClick={() => toggleUserStatus(user.id, user.active)}
-                            className={`btn-sm ${user.active ? 'btn-warning' : 'btn-success'}`}
-                          >
-                            {user.active ? '⏸️' : '▶️'}
-                          </button>
-                          {user.role_id !== 2 && (
-                            <button
-                              onClick={() => deleteUser(user.id)}
-                              className="btn-sm btn-danger"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'devices' && (
-          <div className="devices-section">
-            <div className="section-header">
-              <h2>Gestión de Dispositivos</h2>
-              <div className="filters">
-                <input
-                  type="text"
-                  placeholder="Buscar dispositivos..."
-                  value={deviceFilters.search}
-                  onChange={(e) => setDeviceFilters({...deviceFilters, search: e.target.value})}
-                />
-                <select
-                  value={deviceFilters.connected}
-                  onChange={(e) => setDeviceFilters({...deviceFilters, connected: e.target.value})}
-                >
-                  <option value="">Todos</option>
-                  <option value="true">Conectados</option>
-                  <option value="false">Disponibles</option>
-                </select>
-                <button onClick={loadDevices} className="btn-primary">
-                  🔍 Filtrar
-                </button>
-              </div>
-            </div>
-
-            <div className="devices-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Código</th>
-                    <th>Nombre</th>
-                    <th>Tipo</th>
-                    <th>Usuario</th>
-                    <th>Estado</th>
-                    <th>Última Conexión</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {devices.map(device => (
-                    <tr key={device.id}>
-                      <td>{device.id}</td>
-                      <td><code>{device.device_code}</code></td>
-                      <td>{device.name || '-'}</td>
-                      <td>{device.device_type}</td>
-                      <td>
-                        {device.user_name ? (
-                          <div>
-                            <div>{device.user_name}</div>
-                            <small>{device.user_email}</small>
-                          </div>
-                        ) : (
-                          <span className="unassigned">Sin asignar</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`status-badge ${device.connected ? 'connected' : 'available'}`}>
-                          {device.connected ? 'Conectado' : 'Disponible'}
-                        </span>
-                      </td>
-                      <td>
-                        {device.last_seen ? 
-                          new Date(device.last_seen).toLocaleString() : 
-                          'Nunca'
-                        }
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'quotes' && (
-          <div className="quotes-section">
-            <div className="section-header">
-              <h2>Gestión de Cotizaciones</h2>
-              <div className="filters">
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre, email o referencia..."
-                  value={quoteFilters.search}
-                  onChange={(e) => {
-                    setQuoteFilters({ ...quoteFilters, search: e.target.value });
-                    setTimeout(() => loadQuotes(), 500);
-                  }}
-                />
-                <select
-                  value={quoteFilters.status}
-                  onChange={(e) => {
-                    setQuoteFilters({ ...quoteFilters, status: e.target.value });
-                    loadQuotes();
-                  }}
-                >
-                  <option value="">Todos los estados</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="contacted">Contactado</option>
-                  <option value="quoted">Cotizado</option>
-                  <option value="accepted">Aceptada</option>
-                  <option value="rejected">Rechazada</option>
-                  <option value="cancelled">Cancelada</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="quotes-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Ref.</th>
-                    <th>Cliente</th>
-                    <th>Email</th>
-                    <th>Empresa</th>
-                    <th>Ubicación</th>
-                    <th>Sensores</th>
-                    <th>Estado</th>
-                    <th>Precio</th>
-                    <th>Fecha</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quotes.map(quote => (
-                    <tr key={quote.id}>
-                      <td><code>{quote.reference_id}</code></td>
-                      <td>{quote.name}</td>
-                      <td>{quote.email}</td>
-                      <td>{quote.company || '-'}</td>
-                      <td>{quote.location || '-'}</td>
-                      <td>{quote.num_devices}</td>
-                      <td>
-                        <span className={`status-badge status-${quote.status}`}>
-                          {quote.status === 'pending' ? 'Pendiente' :
-                           quote.status === 'contacted' ? 'Contactado' :
-                           quote.status === 'quoted' ? 'Cotizado' :
-                           quote.status === 'accepted' ? 'Aceptada' :
-                           quote.status === 'rejected' ? 'Rechazada' :
-                           'Cancelada'}
-                        </span>
-                      </td>
-                      <td>
-                        {quote.quoted_price ? 
-                          new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(quote.quoted_price) :
-                          '-'
-                        }
-                      </td>
-                      <td>{new Date(quote.created_at).toLocaleDateString('es-ES')}</td>
-                      <td>
-                        <button 
-                          className="btn-edit"
-                          onClick={() => setEditingQuote(quote)}
-                        >
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {editingQuote && (
-              <div className="modal-overlay" onClick={() => setEditingQuote(null)}>
-                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                  <h3>Editar Cotización {editingQuote.reference_id}</h3>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target as HTMLFormElement);
-                    updateQuote(editingQuote.id, {
-                      status: formData.get('status') as string,
-                      quoted_price: formData.get('quoted_price') ? parseFloat(formData.get('quoted_price') as string) : undefined,
-                      message: formData.get('message') as string || undefined
-                    });
-                  }}>
-                    <div className="form-group">
-                      <label>Estado:</label>
-                      <select name="status" defaultValue={editingQuote.status}>
-                        <option value="pending">Pendiente</option>
-                        <option value="contacted">Contactado</option>
-                        <option value="quoted">Cotizado</option>
-                        <option value="accepted">Aceptada</option>
-                        <option value="rejected">Rechazada</option>
-                        <option value="cancelled">Cancelada</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Precio Cotizado (CLP):</label>
-                      <input 
-                        type="number" 
-                        name="quoted_price" 
-                        defaultValue={editingQuote.quoted_price || ''}
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Mensaje/Notas:</label>
-                      <textarea 
-                        name="message" 
-                        rows={4}
-                        defaultValue={editingQuote.message || ''}
-                      />
-                    </div>
-                    <div className="form-actions">
-                      <button type="submit" className="btn-primary">Guardar</button>
-                      <button type="button" className="btn-secondary" onClick={() => setEditingQuote(null)}>Cancelar</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'codes' && (
-          <div className="codes-section">
-            <div className="section-header">
-              <h2>Generar Códigos de Dispositivos</h2>
-            </div>
-
-            <div className="code-generation">
-              <div className="generation-form">
-                <div className="form-group">
-                  <label>Tipo de Dispositivo:</label>
-                  <select
-                    value={codeGeneration.device_type}
-                    onChange={(e) => setCodeGeneration({...codeGeneration, device_type: e.target.value})}
-                  >
-                    <option value="humidity_sensor">Sensor de Humedad</option>
-                    <option value="temperature_sensor">Sensor de Temperatura</option>
-                    <option value="multi_sensor">Multi Sensor</option>
-                    <option value="irrigation_controller">Controlador de Riego</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Cantidad:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={codeGeneration.quantity}
-                    onChange={(e) => setCodeGeneration({...codeGeneration, quantity: parseInt(e.target.value)})}
-                  />
-                </div>
-
-                <button 
-                  onClick={generateDeviceCodes}
-                  className="btn-primary"
-                  disabled={loading}
-                >
-                  🏷️ Generar Códigos
-                </button>
-              </div>
-
-              {generatedCodes.length > 0 && (
-                <div className="generated-codes">
-                  <h3>Códigos Generados:</h3>
-                  <div className="codes-grid">
-                    {generatedCodes.map((code, index) => (
-                      <div key={index} className="code-card">
-                        <div className="code-value">{code.device_code}</div>
-                        <div className="code-type">{code.device_type}</div>
-                        <div className="code-date">
-                          {new Date(code.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        ) : (
+          <>
+            {activeTab === 'dashboard' && renderDashboard()}
+            {activeTab === 'users' && renderUsers()}
+            {activeTab === 'sensors' && renderSensors()}
+            {activeTab === 'plants' && renderPlants()}
+            {activeTab === 'models' && renderModels()}
+          </>
         )}
       </div>
     </div>

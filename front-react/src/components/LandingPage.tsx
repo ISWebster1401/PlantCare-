@@ -41,7 +41,7 @@ const LandingPage: React.FC = () => {
         </div>
         <div className="hero-content">
           <h1>PlantCare</h1>
-          <p>Automatización inteligente para viñas chilenas. Protege tu cosecha con tecnología de sensores avanzados.</p>
+          <p>Cuida tus plantas de forma divertida con personajes estilo Tamagotchi. Identifica plantas con IA y monitorea su salud en tiempo real.</p>
           <a href="#sobre" className="cta-button">Descubre Más</a>
         </div>
       </section>
@@ -50,10 +50,10 @@ const LandingPage: React.FC = () => {
       <section id="sobre" className="about">
         <div className="about-content">
           <div className="about-text">
-            <h2>Revolucionando la Viticultura</h2>
-            <p>PlantCare es una solución tecnológica innovadora diseñada específicamente para las viñas chilenas. Nuestro sistema de sensores inteligentes monitorea constantemente las condiciones ambientales críticas.</p>
-            <p>Detectamos cambios en la humedad del suelo, temperatura y niveles de luz solar en tiempo real, permitiendo a los agricultores tomar decisiones informadas y prevenir la pérdida de cultivos antes de que ocurra.</p>
-            <p>Con PlantCare, optimizas el rendimiento de tu viña mientras reduces costos operativos y aumentas la calidad de tu producción.</p>
+            <h2>¡Cuidado de Plantas Divertido! 🌱</h2>
+            <p>PlantCare es una plataforma gamificada que transforma el cuidado de plantas en una experiencia divertida y educativa. Escanea tu planta con IA, crea un personaje estilo Tamagotchi y monitorea su salud en tiempo real.</p>
+            <p>Nuestro sistema de sensores IoT mide la humedad del suelo y temperatura, mientras que la IA identifica tu planta y genera un personaje único con emociones que reflejan la salud real de tu planta.</p>
+            <p>Con PlantCare, los niños y adultos aprenden a cuidar plantas mientras ganan achievements y completan misiones educativas. ¡Haz que el cuidado de plantas sea divertido!</p>
           </div>
           <div className="about-visual">
             <div className="sensor-grid">
@@ -108,18 +108,18 @@ const LandingPage: React.FC = () => {
             </div>
             <div className="feature-card">
               <div className="feature-icon">🌐</div>
-              <h3>Acceso Remoto</h3>
-              <p>Monitorea tu viña desde cualquier lugar mediante nuestra plataforma web y aplicación móvil intuitiva.</p>
+              <h3>Jardín Digital</h3>
+              <p>Ve todas tus plantas en un jardín digital interactivo desde cualquier dispositivo. Cada planta tiene su propio personaje único.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon">💰</div>
-              <h3>Reducción de Costos</h3>
-              <p>Optimiza el uso de recursos como agua y energía, reduciendo costos operativos hasta en un 30%.</p>
+              <h3>Identificación con IA</h3>
+              <p>Sube una foto de tu planta y nuestra IA la identifica automáticamente, proporcionando información sobre cuidados y necesidades.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon">🏆</div>
-              <h3>Calidad Premium</h3>
-              <p>Mejora la calidad de tus uvas manteniendo condiciones óptimas de crecimiento durante todo el ciclo productivo.</p>
+              <h3>Gamificación</h3>
+              <p>Gana achievements, completa misiones y ve cómo tu personaje planta evoluciona según la salud real de tu planta.</p>
             </div>
           </div>
         </div>
@@ -130,18 +130,18 @@ const LandingPage: React.FC = () => {
         <div className="register-container">
           <div className="register-content">
             <h2>Únete a PlantCare</h2>
-            <p>Forma parte de la revolución tecnológica en la viticultura chilena. Registra tu viña y comienza a proteger tu cosecha con inteligencia artificial.</p>
+            <p>Comienza a cuidar tus plantas de forma divertida. Escanea tu primera planta, crea su personaje y comienza tu aventura en el cuidado de plantas.</p>
             
             <ul className="register-benefits">
-              <li>Monitoreo 24/7 de tus cultivos</li>
-              <li>Alertas tempranas ante condiciones críticas</li>
-              <li>Análisis predictivo de rendimiento</li>
-              <li>Soporte técnico especializado</li>
-              <li>Acceso desde cualquier dispositivo</li>
-              <li>Optimización automática de recursos</li>
+              <li>Identificación de plantas con IA</li>
+              <li>Personajes estilo Tamagotchi únicos</li>
+              <li>Monitoreo en tiempo real con sensores IoT</li>
+              <li>Sistema de gamificación con achievements</li>
+              <li>Notificaciones cuando tu planta necesita cuidado</li>
+              <li>Jardín digital interactivo</li>
             </ul>
             
-            <p>Más de <strong>500 viñas</strong> ya confían en PlantCare para maximizar su producción y calidad.</p>
+            <p>¡Únete a la comunidad de <strong>amantes de las plantas</strong> que están aprendiendo mientras se divierten!</p>
           </div>
           
           <RegisterFormEmbedded />
@@ -177,7 +177,7 @@ const LandingPage: React.FC = () => {
       <footer>
         <div className="footer-content">
           <div className="footer-logo">PlantCare</div>
-          <p className="footer-text">Transformando la agricultura chilena a través de la innovación tecnológica. Protegemos tu inversión, optimizamos tu producción.</p>
+          <p className="footer-text">Haciendo que el cuidado de plantas sea divertido y educativo. Aprende mientras cuidas tus plantas con IA y gamificación.</p>
         </div>
       </footer>
 

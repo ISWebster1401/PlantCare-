@@ -1,37 +1,25 @@
 export interface UserRegistration {
-  first_name: string;
-  last_name: string;
+  full_name: string;
   email: string;
-  phone: string;
-  region: string;
-  vineyard_name: string;
-  hectares: number;
-  grape_type: string;
   password: string;
   confirm_password: string;
 }
 
 export interface UserResponse {
   id: number;
-  first_name: string;
-  last_name: string;
+  full_name: string;
   email: string;
-  phone: string;
-  region: string;
-  vineyard_name: string;
-  hectares: number;
-  grape_type: string;
-  role_id: number;
-  avatar_url?: string;
-  is_verified: boolean;
+  role: string;
+  role_id?: number; // ID del rol (1=user, 2=admin)
+  is_active: boolean;
   created_at: string;
-  last_login: string | null;
-  active: boolean;
+  updated_at?: string | null;
 }
 
 export interface LoginCredentials {
   email: string;
   password: string;
+  remember_me?: boolean;
 }
 
 export interface AuthResponse {

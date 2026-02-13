@@ -4,20 +4,23 @@ import DashboardCharts from './DashboardCharts';
 import DeviceManager from './DeviceManager';
 import HumedadView from './HumedadView';
 import AIChat from './AIChat';
+import { AIChatMinimal } from './AIChatMinimal';
 import AdminPanel from './AdminPanel';
 import UserProfile from './UserProfile';
 import HelpCenter from './HelpCenter';
 import ContactForm from './ContactForm';
-import QuotesView from './QuotesView';
-import { DashboardIcon, DeviceIcon, DataIcon, AIIcon, AdminIcon, HelpIcon, UserIcon, QuoteIcon } from './Icons';
+// QuotesView eliminado - ya no se usa
+import { DigitalGarden } from './DigitalGarden';
+import { DashboardIcon, DeviceIcon, AIIcon, AdminIcon, HelpIcon, UserIcon } from './Icons';
 import './Dashboard.css';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [activeView, setActiveView] = useState<'dashboard' | 'devices' | 'humidity' | 'ai' | 'admin' | 'profile' | 'quotes'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'garden' | 'devices' | 'humidity' | 'ai' | 'admin' | 'profile'>('garden');
   const [showHelpCenter, setShowHelpCenter] = useState(false);
   const [showContactForm, setShowContactForm] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [showMiniAIChat, setShowMiniAIChat] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(true);
   const lastScrollYRef = useRef(0);
 
@@ -52,6 +55,13 @@ const Dashboard: React.FC = () => {
           </div>
           <nav className="header-nav">
             <button 
+              className={`nav-btn ${activeView === 'garden' ? 'active' : ''}`}
+              onClick={() => setActiveView('garden')}
+            >
+              🌿
+              <span className="nav-text">Tu Jardín</span>
+            </button>
+            <button 
               className={`nav-btn ${activeView === 'dashboard' ? 'active' : ''}`}
               onClick={() => setActiveView('dashboard')}
             >
@@ -66,33 +76,19 @@ const Dashboard: React.FC = () => {
               Dispositivos
             </button>
             <button 
-              className={`nav-btn ${activeView === 'humidity' ? 'active' : ''}`}
-              onClick={() => setActiveView('humidity')}
-            >
-              <DataIcon className="nav-icon" />
-              Datos
-            </button>
-            <button 
               className={`nav-btn ${activeView === 'ai' ? 'active' : ''}`}
               onClick={() => setActiveView('ai')}
             >
               <AIIcon className="nav-icon" />
               IA Chat
             </button>
-            <button 
-              className={`nav-btn ${activeView === 'quotes' ? 'active' : ''}`}
-              onClick={() => setActiveView('quotes')}
-            >
-              <QuoteIcon className="nav-icon" />
-              Cotizaciones
-            </button>
-            {user?.role_id === 2 && (
+            {(user?.role_id === 2 || user?.role_id === 3 || user?.role === 'admin') && (
               <button 
                 className={`nav-btn ${activeView === 'admin' ? 'active' : ''}`}
                 onClick={() => setActiveView('admin')}
               >
                 <AdminIcon className="nav-icon" />
-                Admin
+                {user?.role_id === 3 ? 'Superadmin' : 'Admin'}
               </button>
             )}
             <button 
@@ -110,7 +106,19 @@ const Dashboard: React.FC = () => {
                 title="Mi Perfil"
               >
                 <UserIcon className="nav-icon" />
-                {user?.first_name}
+                <span className="user-name-text">
+                  {user?.full_name}
+                  {user?.role_id === 3 && (
+                    <span className="role-badge superadmin-badge" title="Superadministrador">
+                      👑 Superadmin
+                    </span>
+                  )}
+                  {user?.role_id === 2 && (
+                    <span className="role-badge admin-badge" title="Administrador">
+                      🛠️ Admin
+                    </span>
+                  )}
+                </span>
               </button>
               <button className="logout-btn" onClick={logout}>
                 Cerrar Sesión
@@ -122,49 +130,49 @@ const Dashboard: React.FC = () => {
 
       {/* Contenido principal */}
       <main className="dashboard-main">
+        {activeView === 'garden' && <DigitalGarden />}
         {activeView === 'dashboard' && <DashboardCharts />}
         {activeView === 'devices' && <DeviceManager />}
         {activeView === 'humidity' && <HumedadView />}
         {activeView === 'ai' && <AIChat />}
-        {activeView === 'quotes' && <QuotesView />}
-        {activeView === 'admin' && user?.role_id === 2 && <AdminPanel />}
+        {activeView === 'admin' && (user?.role_id === 2 || user?.role_id === 3 || user?.role === 'admin') && <AdminPanel />}
       </main>
 
-      {/* Botón flotante de ayuda */}
-      <div className="floating-help">
-        <button 
-          className="help-fab"
-          onClick={() => setShowHelpCenter(true)}
-          title="¿Necesitas ayuda?"
-        >
-          💬
-        </button>
-        <div className="help-options">
-          <button 
-            className="help-option"
-            onClick={() => setShowContactForm(true)}
-            title="Contactar Soporte"
-          >
-            📧
-          </button>
-          <button 
-            className="help-option"
-            onClick={() => setActiveView('quotes')}
-            title="Solicitar Cotización"
-          >
-            💰
-          </button>
+      {/* Botón flotante azul para mini chat IA */}
+      <button
+        className="ai-fab"
+        onClick={() => setShowMiniAIChat((prev) => !prev)}
+        title="Chatear con PlantCare AI"
+      >
+        💬
+      </button>
+
+      {showMiniAIChat && (
+        <div className="ai-mini-chat-container">
+          <div className="ai-mini-chat-header">
+            <div className="ai-mini-chat-title">
+              <span className="ai-mini-chat-icon">🤖</span>
+              <span>PlantCare AI</span>
+            </div>
+            <button
+              className="ai-mini-chat-close"
+              onClick={() => setShowMiniAIChat(false)}
+              aria-label="Cerrar chat"
+            >
+              ×
+            </button>
+          </div>
+          <div className="ai-mini-chat-body">
+            <AIChatMinimal />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modales */}
       {showHelpCenter && (
+        // ✅ BIEN
         <HelpCenter
           onClose={() => setShowHelpCenter(false)}
-          onRequestQuote={() => {
-            setShowHelpCenter(false);
-            setActiveView('quotes');
-          }}
         />
       )}
       {showContactForm && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { deviceAPI } from '../services/api';
+// useAuth removido - no se usa actualmente
+import { deviceAPI, plantsAPI } from '../services/api';
 import './DeviceManager.css';
 
 interface Device {
@@ -15,6 +15,12 @@ interface Device {
   created_at: string;
 }
 
+interface Plant {
+  id: number;
+  plant_name: string;
+  plant_type: string;
+}
+
 interface DeviceListResponse {
   devices: Device[];
   total: number;
@@ -24,8 +30,9 @@ interface DeviceListResponse {
 }
 
 const DeviceManager: React.FC = () => {
-  const { token } = useAuth();
+  // Token no se usa actualmente pero se mantiene para futuras funcionalidades
   const [devices, setDevices] = useState<Device[]>([]);
+  const [plants, setPlants] = useState<Plant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showConnectForm, setShowConnectForm] = useState(false);
@@ -35,20 +42,25 @@ const DeviceManager: React.FC = () => {
   const [connectForm, setConnectForm] = useState({
     device_code: '',
     name: '',
-    location: '',
-    plant_type: ''
+    location: ''
   });
+  const [selectedPlantId, setSelectedPlantId] = useState<number | ''>('');
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadDevices();
+    loadData();
   }, []);
 
-  const loadDevices = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const response: DeviceListResponse = await deviceAPI.getMyDevices();
+      const [devicesResponse, plantsResponse] = await Promise.all([
+        deviceAPI.getMyDevices(),
+        plantsAPI.getMyPlants(),
+      ]);
+
+      const response: DeviceListResponse = devicesResponse;
       setDevices(response.devices);
       setStats({
         total: response.total,
@@ -56,6 +68,7 @@ const DeviceManager: React.FC = () => {
         active: response.active,
         offline: response.offline
       });
+      setPlants(plantsResponse || []);
     } catch (error: any) {
       setError(error.response?.data?.detail || 'Error al cargar dispositivos');
     } finally {
@@ -69,10 +82,25 @@ const DeviceManager: React.FC = () => {
     setConnectError(null);
 
     try {
-      await deviceAPI.connectDevice(connectForm);
-      setConnectForm({ device_code: '', name: '', location: '', plant_type: '' });
+      // Buscar planta seleccionada (si hay)
+      const selectedPlant =
+        typeof selectedPlantId === 'number'
+          ? plants.find((p) => p.id === selectedPlantId)
+          : undefined;
+
+      // Construir payload para el backend
+      await deviceAPI.connectDevice({
+        device_code: connectForm.device_code,
+        name: connectForm.name,
+        location: connectForm.location || undefined,
+        // Usamos el nombre de la planta como referencia de tipo
+        plant_type: selectedPlant ? selectedPlant.plant_name : undefined,
+      });
+
+      setConnectForm({ device_code: '', name: '', location: '' });
+      setSelectedPlantId('');
       setShowConnectForm(false);
-      await loadDevices(); // Recargar lista
+      await loadData(); // Recargar lista y plantas
     } catch (error: any) {
       setConnectError(error.response?.data?.detail || 'Error al conectar dispositivo');
     } finally {
@@ -84,7 +112,7 @@ const DeviceManager: React.FC = () => {
     if (window.confirm('¿Estás seguro de que quieres desconectar este dispositivo?')) {
       try {
         await deviceAPI.disconnectDevice(deviceId);
-        await loadDevices();
+        await loadData();
       } catch (error: any) {
         setError(error.response?.data?.detail || 'Error al desconectar dispositivo');
       }
@@ -293,14 +321,33 @@ const DeviceManager: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="plant_type">Tipo de Planta (opcional)</label>
-                <input
-                  type="text"
-                  id="plant_type"
-                  value={connectForm.plant_type}
-                  onChange={(e) => setConnectForm({ ...connectForm, plant_type: e.target.value })}
-                  placeholder="Rosa, Tomate, Ficus, etc."
-                />
+                <label htmlFor="plant_select">Planta a monitorear (opcional)</label>
+                {plants.length === 0 ? (
+                  <p className="no-plants-hint">
+                    Aún no tienes plantas en tu jardín. Crea tu primera planta en la sección
+                    <strong> “Tu Jardín”</strong> para poder asignarla a este dispositivo.
+                  </p>
+                ) : (
+                  <select
+                    id="plant_select"
+                    value={selectedPlantId}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSelectedPlantId(value ? parseInt(value, 10) : '');
+                    }}
+                  >
+                    <option value="">No asignar por ahora</option>
+                    {plants.map((plant) => (
+                      <option key={plant.id} value={plant.id}>
+                        {plant.plant_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <small>
+                  Luego podrás vincular este dispositivo a sensores específicos desde el gestor de
+                  sensores.
+                </small>
               </div>
 
               <div className="form-actions">

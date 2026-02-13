@@ -118,29 +118,86 @@ class EmailService:
         """
         try:
             if not self.api_key:
-                print("[EmailService] SENDGRID_API_KEY no configurada")
+                logger.error("[EmailService] SENDGRID_API_KEY no configurada. No se puede enviar email.")
+                print("⚠️ [EmailService] SENDGRID_API_KEY no configurada. Verifica tu archivo .env")
                 return False
 
-            subject = "Tu código de verificación - PlantCare"
+            subject = "🌱 Tu código de verificación - PlantCare"
             html_content = f"""
-                <div style='font-family: Arial, sans-serif; color:#0f172a'>
-                    <h2>Hola {user_name.split()[0]},</h2>
-                    <p>Usa este código para verificar tu correo en PlantCare:</p>
-                    <div style='font-size:32px; font-weight:bold; letter-spacing:6px; padding:16px 24px; display:inline-block; background:#0f172a; color:#fff; border-radius:12px;'>
-                        {code}
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 40px 20px; margin: 0;">
+                <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h1 style="color: #16a34a; margin: 0; font-size: 2rem;">🌱 PlantCare</h1>
                     </div>
-                    <p style='margin-top:16px; color:#334155'>Vence en {minutes_valid} minutos.</p>
-                    <p style='margin-top:24px'>Si no solicitaste este código, ignora este mensaje.</p>
+                    
+                    <h2 style="color: #0f172a; margin-bottom: 20px;">Hola {user_name.split()[0] if user_name else 'Usuario'},</h2>
+                    
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
+                        Usa este código para verificar tu correo en PlantCare:
+                    </p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; padding: 20px 30px; display: inline-block; background: linear-gradient(135deg, #16a34a, #22c55e); color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(22, 163, 74, 0.3);">
+                            {code}
+                        </div>
+                    </div>
+                    
+                    <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
+                        ⏰ Este código vence en <strong>{minutes_valid} minutos</strong>.
+                    </p>
+                    
+                    <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #e5e7eb;">
+                        <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
+                            Si no solicitaste este código, puedes ignorar este mensaje de forma segura.
+                        </p>
+                    </div>
                 </div>
+            </body>
+            </html>
             """
+            
+            plain_text = f"""
+🌱 PlantCare - Código de Verificación
 
-            return await self.send_email(
+Hola {user_name.split()[0] if user_name else 'Usuario'},
+
+Usa este código para verificar tu correo:
+
+{code}
+
+Este código vence en {minutes_valid} minutos.
+
+Si no solicitaste este código, ignora este mensaje.
+
+---
+Equipo PlantCare
+            """.strip()
+
+            result = await self.send_email(
                 to_email=to_email,
                 subject=subject,
-                html_content=html_content
+                html_content=html_content,
+                plain_text_content=plain_text
             )
+            
+            if result:
+                logger.info(f"✅ Email de verificación enviado exitosamente a {to_email}")
+            else:
+                logger.error(f"❌ Error enviando email de verificación a {to_email}")
+            
+            return result
+            
         except Exception as e:
-            print(f"[EmailService] Error enviando código: {e}")
+            logger.error(f"[EmailService] Error enviando código a {to_email}: {e}")
+            import traceback
+            logger.error(f"[EmailService] Traceback: {traceback.format_exc()}")
+            print(f"❌ [EmailService] Error enviando código: {e}")
             return False
 
     async def send_contact_form_notification(self, form_data: Dict[str, Any]) -> bool:
@@ -492,6 +549,108 @@ class EmailService:
             plain_text_content=plain_text  # ✅ Ahora sí lo incluimos
         )
 
+    async def send_quote_status_update(
+        self,
+        to_email: str,
+        user_name: str,
+        reference_id: str,
+        status: str,
+        admin_message: str,
+        admin_name: Optional[str] = None
+    ) -> bool:
+        """
+        Envía una actualización de estado personalizada al cliente.
+        """
+        if not self.api_key:
+            logger.error("[email] SENDGRID_API_KEY no configurada. No se envió estado de cotización.")
+            return False
+
+        status_titles = {
+            "pending": "Estado: En revisión",
+            "contacted": "Estado: Contactado",
+            "quoted": "Estado: Cotización disponible",
+            "accepted": "Estado: Aceptada",
+            "rejected": "Estado: Rechazada",
+            "cancelled": "Estado: Cancelada",
+        }
+
+        default_messages = {
+            "pending": "Tu solicitud está en revisión. Nuestro equipo te confirmará los próximos pasos muy pronto.",
+            "contacted": "Ya tomamos contacto contigo para avanzar con tu solicitud. Revisa tu correo o teléfono para más detalles.",
+            "quoted": "Tu cotización personalizada ya está disponible. Revisa la propuesta adjunta y cuéntanos tus comentarios.",
+            "accepted": "¡Excelente noticia! Aceptamos avanzar con tu proyecto. Coordinaremos contigo los próximos pasos.",
+            "rejected": "Hemos revisado tu solicitud y, por ahora, no podremos avanzar. Si deseas, conversemos alternativas.",
+            "cancelled": "La cotización fue cancelada según lo solicitado. Estamos disponibles si quieres retomarla en el futuro.",
+        }
+
+        normalized_status = status.lower().strip()
+        status_title = status_titles.get(normalized_status, "Actualización de tu cotización")
+        contact_name = admin_name or "Equipo PlantCare"
+        message_body = admin_message.strip() if admin_message else default_messages.get(
+            normalized_status,
+            "Seguimos trabajando en tu solicitud. Pronto recibirás más novedades."
+        )
+
+        subject = f"{status_title} - Cotización {reference_id}"
+
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+            <div style="max-width: 640px; margin: 0 auto; padding: 32px 24px;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <h1 style="color: #16a34a; margin: 0;">PlantCare</h1>
+                    <p style="color: #64748b; margin: 8px 0 0 0;">Actualización de tu solicitud</p>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; padding: 20px 24px; border-radius: 14px;">
+                    <h2 style="margin: 0 0 8px 0;">Hola {user_name},</h2>
+                    <p style="margin: 0; font-size: 15px;">Tenemos novedades sobre tu cotización <strong>{reference_id}</strong>.</p>
+                </div>
+
+                <div style="background: #f8fafc; border: 1px solid #d1fae5; border-radius: 12px; padding: 24px; margin: 24px 0;">
+                    <h3 style="color: #15803d; margin-top: 0;">{status_title}</h3>
+                    <p style="color: #0f172a; margin: 0; white-space: pre-line;">{message_body}</p>
+                </div>
+
+                <div style="background: #fff; border-left: 4px solid #22c55e; padding: 18px 22px; border-radius: 10px;">
+                    <p style="margin: 0; color: #0f172a;">
+                        Si tienes dudas o necesitas hacer algún cambio, puedes responder directamente a este correo o escribirnos a
+                        <a href="mailto:contacto@plantcare.cl" style="color: #16a34a; font-weight: 600;">contacto@plantcare.cl</a>.
+                    </p>
+                </div>
+
+                <div style="margin-top: 32px; text-align: center; color: #64748b; font-size: 14px;">
+                    <p style="margin-bottom: 8px;">Un saludo,<br><strong>{contact_name}</strong></p>
+                    <p style="margin: 0;">Equipo PlantCare</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        plain_text = f"""
+Hola {user_name},
+
+Tenemos novedades sobre tu cotización {reference_id}.
+
+{status_title}
+
+{message_body}
+
+Si tienes dudas o necesitas hacer algún cambio, responde a este correo o escríbenos a contacto@plantcare.cl.
+
+Un saludo,
+{contact_name}
+Equipo PlantCare
+        """.strip()
+
+        return await self.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            plain_text_content=plain_text
+        )
+
     async def send_verification_email(self, to_email: str, user_name: str, verify_url: str) -> bool:
         """Envía email de verificación de cuenta."""
         subject = "Verifica tu correo - PlantCare"
@@ -535,6 +694,77 @@ class EmailService:
         """
         plain_text = f"Hola {user_name}, tu código de verificación es: {code}. Expira en 24 horas."
         return await self.send_email(to_email=to_email, subject=subject, html_content=html_content, plain_text_content=plain_text)
+
+    async def send_email_change_code(self, to_email: str, user_name: str, code: str, minutes_valid: int = 15) -> bool:
+        """
+        Envía un código de verificación para cambio de email.
+        """
+        try:
+            if not self.api_key:
+                logger.error("[EmailService] SENDGRID_API_KEY no configurada. No se puede enviar email.")
+                print("⚠️ [EmailService] SENDGRID_API_KEY no configurada. Verifica tu archivo .env")
+                return False
+
+            subject = "🌱 Código para cambiar tu email - PlantCare"
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 40px 20px; margin: 0;">
+                <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h1 style="color: #16a34a; margin: 0; font-size: 2rem;">🌱 PlantCare</h1>
+                    </div>
+                    
+                    <h2 style="color: #0f172a; margin-bottom: 20px;">Hola {user_name.split()[0] if user_name else 'Usuario'},</h2>
+                    
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
+                        Has solicitado cambiar tu email. Usa este código para confirmar el cambio:
+                    </p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <div style="background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%); color: white; font-size: 36px; font-weight: bold; padding: 20px; border-radius: 12px; letter-spacing: 8px; display: inline-block;">
+                            {code}
+                        </div>
+                    </div>
+                    
+                    <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 30px;">
+                        Este código expira en {minutes_valid} minutos.
+                    </p>
+                    
+                    <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
+                        Si no solicitaste este cambio, ignora este email.
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            plain_text = f"""
+            Hola {user_name},
+            
+            Has solicitado cambiar tu email en PlantCare.
+            
+            Tu código de verificación es: {code}
+            
+            Este código expira en {minutes_valid} minutos.
+            
+            Si no solicitaste este cambio, ignora este email.
+            """
+            
+            return await self.send_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content,
+                plain_text_content=plain_text
+            )
+        except Exception as e:
+            logger.error(f"[EmailService] Error enviando código de cambio de email: {e}")
+            print(f"❌ [EmailService] Error enviando código: {e}")
+            return False
 
 # Instancia global del servicio de email
 email_service = EmailService()

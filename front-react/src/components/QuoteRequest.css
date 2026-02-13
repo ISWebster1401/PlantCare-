@@ -136,6 +136,7 @@
   font-size: 14px;
 }
 
+/* 🎨 FIX: Inputs con mejor visibilidad */
 .form-group input,
 .form-group select,
 .form-group textarea {
@@ -143,7 +144,7 @@
   border: 1px solid rgba(74, 222, 128, 0.2);
   border-radius: 10px;
   background: rgba(15, 23, 42, 0.6);
-  color: white;
+  color: rgba(255, 255, 255, 0.95) !important;
   font-size: 15px;
   transition: all 0.3s ease;
   font-family: inherit;
@@ -172,11 +173,12 @@
   border-color: #4ade80;
   background: rgba(15, 23, 42, 0.8);
   box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+  color: rgba(255, 255, 255, 0.95) !important;
 }
 
 .form-group input::placeholder,
 .form-group textarea::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.4) !important;
 }
 
 .form-group select {
@@ -186,11 +188,12 @@
   background-repeat: no-repeat;
   background-position: right 16px center;
   padding-right: 40px;
+  color: rgba(255, 255, 255, 0.95) !important;
 }
 
 .form-group select option {
   background: #1e293b;
-  color: white;
+  color: white !important;
 }
 
 .form-group textarea {

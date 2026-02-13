@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional
 from enum import Enum
 from datetime import datetime
@@ -8,28 +8,10 @@ class InquiryType(str, Enum):
     GENERAL = "general"
     TECHNICAL_SUPPORT = "technical_support"
     SALES = "sales"
-    QUOTE_REQUEST = "quote_request"
     PARTNERSHIP = "partnership"
     BILLING = "billing"
     FEEDBACK = "feedback"
 
-class ProjectType(str, Enum):
-    """Tipos de proyecto para cotizaciones"""
-    RESIDENTIAL = "residential"
-    COMMERCIAL = "commercial"
-    AGRICULTURAL = "agricultural"
-    RESEARCH = "research"
-    EDUCATIONAL = "educational"
-    OTHER = "other"
-
-class BudgetRange(str, Enum):
-    """Rangos de presupuesto para cotizaciones"""
-    UNDER_1000 = "under_1000"
-    RANGE_1000_5000 = "range_1000_5000"
-    RANGE_5000_10000 = "range_5000_10000"
-    RANGE_10000_25000 = "range_10000_25000"
-    RANGE_25000_50000 = "range_25000_50000"
-    OVER_50000 = "over_50000"
 
 class ContactForm(BaseModel):
     """Esquema para formulario de contacto general"""
@@ -60,50 +42,6 @@ class ContactForm(BaseModel):
     def validate_text_fields(cls, v):
         if not v.strip():
             raise ValueError('Este campo no puede estar vacío')
-        return v.strip()
-
-class QuoteRequest(BaseModel):
-    """Esquema para solicitud de cotización"""
-    # Información de contacto
-    name: str = Field(..., min_length=2, max_length=100, description="Nombre completo")
-    email: EmailStr = Field(..., description="Email de contacto")
-    phone: str = Field(..., min_length=7, max_length=20, description="Teléfono de contacto")
-    company: str = Field(..., min_length=2, max_length=200, description="Empresa u organización")
-    position: Optional[str] = Field(None, max_length=100, description="Cargo en la empresa")
-    
-    # Detalles del proyecto
-    project_type: ProjectType = Field(..., description="Tipo de proyecto")
-    sensor_quantity: int = Field(..., ge=1, le=10000, description="Cantidad de sensores estimada")
-    coverage_area: Optional[str] = Field(None, max_length=100, description="Área a cubrir (ej: 50 hectáreas)")
-    location: Optional[str] = Field(None, max_length=200, description="Ubicación del proyecto")
-    budget_range: BudgetRange = Field(..., description="Rango de presupuesto estimado")
-    desired_date: Optional[str] = Field(None, max_length=50, description="Fecha deseada de implementación")
-    description: str = Field(..., min_length=20, max_length=2000, description="Descripción detallada del proyecto")
-    
-    # Información adicional
-    has_existing_infrastructure: Optional[bool] = Field(None, description="¿Tiene infraestructura existente?")
-    requires_installation: Optional[bool] = Field(None, description="¿Requiere servicio de instalación?")
-    requires_training: Optional[bool] = Field(None, description="¿Requiere capacitación?")
-    
-    @field_validator('phone')
-    def validate_phone(cls, v):
-        cleaned = ''.join(filter(str.isdigit, v))
-        if len(cleaned) < 7 or len(cleaned) > 15:
-            raise ValueError('El número de teléfono debe tener entre 7 y 15 dígitos')
-        return v
-    
-    @field_validator('name', 'company')
-    def validate_required_text(cls, v):
-        if not v.strip():
-            raise ValueError('Este campo es obligatorio')
-        return v.strip()
-    
-    @field_validator('description')
-    def validate_description(cls, v):
-        if not v.strip():
-            raise ValueError('La descripción del proyecto es obligatoria')
-        if len(v.strip()) < 20:
-            raise ValueError('La descripción debe tener al menos 20 caracteres')
         return v.strip()
 
 class ContactResponse(BaseModel):

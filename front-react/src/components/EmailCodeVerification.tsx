@@ -40,23 +40,60 @@ const EmailCodeVerification: React.FC<Props> = ({ email, onVerified }) => {
       }, 1500);
     } catch (e: any) {
       setStatus('error');
-      setMessage(e?.response?.data?.detail || 'Código inválido o expirado');
+      // Manejar errores de validación de Pydantic
+      const errorDetail = e?.response?.data?.detail;
+      if (typeof errorDetail === 'string') {
+        setMessage(errorDetail);
+      } else if (Array.isArray(errorDetail)) {
+        // Si es un array de errores de validación
+        const errorMessages = errorDetail.map((err: any) => {
+          if (typeof err === 'string') return err;
+          if (err?.msg) return err.msg;
+          return 'Error de validación';
+        }).join(', ');
+        setMessage(errorMessages || 'Código inválido o expirado');
+      } else if (errorDetail && typeof errorDetail === 'object') {
+        // Si es un objeto de error
+        setMessage(errorDetail.msg || errorDetail.message || 'Código inválido o expirado');
+      } else {
+        setMessage('Código inválido o expirado');
+      }
     }
   };
 
   const resend = async () => {
     try {
+      setMessage('');
       await authAPI.resendCode(email);
       setMessage('Nuevo código enviado');
+      setStatus('idle');
     } catch (e: any) {
-      setMessage(e?.response?.data?.detail || 'No se pudo reenviar');
+      setStatus('error');
+      // Manejar errores de validación de Pydantic
+      const errorDetail = e?.response?.data?.detail;
+      if (typeof errorDetail === 'string') {
+        setMessage(errorDetail);
+      } else if (Array.isArray(errorDetail)) {
+        // Si es un array de errores de validación
+        const errorMessages = errorDetail.map((err: any) => {
+          if (typeof err === 'string') return err;
+          if (err?.msg) return err.msg;
+          return 'Error de validación';
+        }).join(', ');
+        setMessage(errorMessages || 'No se pudo reenviar el código');
+      } else if (errorDetail && typeof errorDetail === 'object') {
+        // Si es un objeto de error
+        setMessage(errorDetail.msg || errorDetail.message || 'No se pudo reenviar el código');
+      } else {
+        setMessage('No se pudo reenviar el código');
+      }
     }
   };
 
   return (
     <div className="verification-container">
       <div className="verification-box">
-        <div className="verification-icon loading" style={{ marginBottom: 20 }}>
+        <div className="verification-icon loading" >
           <div className="spinner"></div>
         </div>
         <h2>Verifica tu correo</h2>

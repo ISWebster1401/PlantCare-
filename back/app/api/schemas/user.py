@@ -7,36 +7,14 @@ class UserRole(str, Enum):
     """Roles de usuario disponibles"""
     USER = "user"
     ADMIN = "admin"
-    MODERATOR = "moderator"
 
 class UserBase(BaseModel):
-    """Esquema base para usuarios"""
-    first_name: str = Field(..., min_length=2, max_length=100, description="Nombre del usuario")
-    last_name: str = Field(..., min_length=2, max_length=100, description="Apellido del usuario")
+    """Esquema base para usuarios (ESQUEMA V2)"""
+    full_name: str = Field(..., min_length=2, max_length=255, description="Nombre completo del usuario")
     email: EmailStr = Field(..., description="Email único del usuario")
-    phone: Optional[str] = Field(None, max_length=20, description="Teléfono del usuario")
-    region: Optional[str] = Field(None, max_length=100, description="Región del usuario")
-    vineyard_name: Optional[str] = Field(None, max_length=200, description="Nombre del viñedo")
-    hectares: Optional[float] = Field(None, ge=0, le=999999.99, description="Hectáreas del viñedo")
-    grape_type: Optional[str] = Field(None, max_length=100, description="Tipo de uva")
-
-    @field_validator('phone')
-    def validate_phone(cls, v):
-        if v is not None:
-            # Remover espacios y caracteres especiales
-            cleaned = ''.join(filter(str.isdigit, v))
-            if len(cleaned) < 7 or len(cleaned) > 15:
-                raise ValueError('El número de teléfono debe tener entre 7 y 15 dígitos')
-        return v
-
-    @field_validator('hectares')
-    def validate_hectares(cls, v):
-        if v is not None and v <= 0:
-            raise ValueError('Las hectáreas deben ser mayores a 0')
-        return v
 
 class UserCreate(UserBase):
-    """Esquema para crear un nuevo usuario"""
+    """Esquema para crear un nuevo usuario (ESQUEMA V2)"""
     password: str = Field(..., min_length=8, max_length=128, description="Contraseña del usuario")
     confirm_password: str = Field(..., description="Confirmación de la contraseña")
 
@@ -63,52 +41,83 @@ class UserLogin(BaseModel):
     """Esquema para login de usuario"""
     email: EmailStr = Field(..., description="Email del usuario")
     password: str = Field(..., description="Contraseña del usuario")
+    remember_me: bool = Field(default=False, description="Si es True, el token durará 1 mes en lugar de 1 hora")
+
+class GoogleAuthRequest(BaseModel):
+    """Payload para autenticación con Google"""
+    credential: str = Field(..., description="ID token devuelto por Google Identity Services")
 
 class UserUpdate(BaseModel):
-    """Esquema para actualizar usuario"""
-    first_name: Optional[str] = Field(None, min_length=2, max_length=100)
-    last_name: Optional[str] = Field(None, min_length=2, max_length=100)
+    """Esquema para actualizar usuario (ESQUEMA V2)"""
+    full_name: Optional[str] = Field(None, max_length=255)
     phone: Optional[str] = Field(None, max_length=20)
-    region: Optional[str] = Field(None, max_length=100)
-    vineyard_name: Optional[str] = Field(None, max_length=200)
-    hectares: Optional[float] = Field(None, ge=0, le=999999.99)
-    grape_type: Optional[str] = Field(None, max_length=100)
-
+    bio: Optional[str] = Field(None, max_length=500)
+    location: Optional[str] = Field(None, max_length=100)
+    avatar_url: Optional[str] = Field(None, max_length=500)
+    
+    @field_validator('full_name')
+    @classmethod
+    def validate_full_name(cls, v):
+        if v is not None:
+            stripped = v.strip()
+            if len(stripped) < 2:
+                raise ValueError('El nombre debe tener al menos 2 caracteres')
+            if len(stripped) > 255:
+                raise ValueError('El nombre no puede tener más de 255 caracteres')
+            return stripped
+        return v
+    
     @field_validator('phone')
+    @classmethod
     def validate_phone(cls, v):
         if v is not None:
-            cleaned = ''.join(filter(str.isdigit, v))
-            if len(cleaned) < 7 or len(cleaned) > 15:
-                raise ValueError('El número de teléfono debe tener entre 7 y 15 dígitos')
+            stripped = v.strip()
+            if stripped and len(stripped) > 20:
+                raise ValueError('El teléfono no puede tener más de 20 caracteres')
+            return stripped if stripped else None
         return v
-
-    @field_validator('hectares')
-    def validate_hectares(cls, v):
-        if v is not None and v <= 0:
-            raise ValueError('Las hectáreas deben ser mayores a 0')
+    
+    @field_validator('bio')
+    @classmethod
+    def validate_bio(cls, v):
+        if v is not None:
+            stripped = v.strip()
+            if len(stripped) > 500:
+                raise ValueError('La biografía no puede tener más de 500 caracteres')
+            return stripped if stripped else None
+        return v
+    
+    @field_validator('location')
+    @classmethod
+    def validate_location(cls, v):
+        if v is not None:
+            stripped = v.strip()
+            if len(stripped) > 100:
+                raise ValueError('La ubicación no puede tener más de 100 caracteres')
+            return stripped if stripped else None
         return v
 
 class UserResponse(UserBase):
-    """Esquema de respuesta para usuario"""
+    """Esquema de respuesta para usuario (ESQUEMA V2 CON role_id)"""
     id: int
     role_id: int = 1
-    avatar_url: Optional[str] = None
-    is_verified: bool = False
+    role: Optional[str] = None  # Nombre del rol (se obtiene de la tabla roles)
+    is_active: bool = True
     created_at: datetime
-    last_login: Optional[datetime]
-    active: bool
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class UserInDB(UserResponse):
-    """Esquema interno para usuario en base de datos"""
-    password_hash: str
+    """Esquema interno para usuario en base de datos (ESQUEMA V2)"""
+    hashed_password: str
 
 class UserProfile(UserResponse):
     """Esquema extendido para perfil de usuario"""
-    device_count: int = 0
+    plant_count: int = 0
+    sensor_count: int = 0
+    achievement_count: int = 0
     last_activity: Optional[datetime] = None
-    preferences: Optional[dict] = None
 
 class Token(BaseModel):
     """Esquema para token de acceso"""
@@ -122,7 +131,7 @@ class TokenData(BaseModel):
     """Esquema para datos del token"""
     email: Optional[str] = None
     user_id: Optional[int] = None
-    role: Optional[UserRole] = None
+    role: Optional[str] = None
 
 class PasswordChange(BaseModel):
     """Esquema para cambio de contraseña"""
@@ -153,6 +162,10 @@ class PasswordReset(BaseModel):
     """Esquema para reset de contraseña"""
     email: EmailStr = Field(..., description="Email del usuario")
 
+class ResendCodeRequest(BaseModel):
+    """Esquema para reenviar código de verificación"""
+    email: EmailStr = Field(..., description="Email del usuario")
+
 class PasswordResetConfirm(BaseModel):
     """Esquema para confirmar reset de contraseña"""
     token: str = Field(..., description="Token de reset")
@@ -177,12 +190,20 @@ class PasswordResetConfirm(BaseModel):
             raise ValueError('La contraseña debe contener al menos un carácter especial')
         return v
 
+class EmailChangeRequest(BaseModel):
+    """Esquema para solicitar cambio de email"""
+    new_email: EmailStr = Field(..., description="Nuevo email del usuario")
+
+class EmailChangeConfirm(BaseModel):
+    """Esquema para confirmar cambio de email con código"""
+    new_email: EmailStr = Field(..., description="Nuevo email del usuario")
+    code: str = Field(..., min_length=4, max_length=4, description="Código de verificación de 4 dígitos")
+
 class UserStats(BaseModel):
     """Esquema para estadísticas de usuario"""
-    total_devices: int
-    active_devices: int
+    total_plants: int
+    active_sensors: int
     total_readings: int
     last_reading: Optional[datetime]
-    alerts_count: int
-    recommendations_count: int
-    
+    notifications_count: int
+    achievements_count: int

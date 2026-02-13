@@ -1,0 +1,151 @@
+services:
+  # ============================================
+  # Backend FastAPI
+  # ============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: plantcare-backend
+    ports:
+      - "8000:8000"  # Cambiado a 8000 para consistencia
+    volumes:
+      # Volumen para desarrollo (hot reload)
+      - ./app:/app/app:ro  # Montar código como read-only (puedes cambiar a rw para hot reload)
+      # Volúmenes para persistencia de datos
+      - api_data:/app/data
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
+    networks:
+      - app_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Sobrescribir variables para Docker
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_PASSWORD=
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      # Hot reload para desarrollo (descomentar si necesitas)
+      # - RELOAD=true
+    env_file:
+      - .env  # Carga el resto de variables desde .env
+    healthcheck:
+      # Usamos /health (sin /api) porque el endpoint está definido así en main.py
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    restart: unless-stopped
+    user: root
+    command: >
+      sh -c "
+        echo '⏳ Esperando a que PostgreSQL esté listo...' &&
+        until pg_isready -h postgres -p 5432 -U $${DB_USER:-postgres} 2>/dev/null; do
+          sleep 2
+        done &&
+        echo '✅ PostgreSQL listo' &&
+        echo '⏳ Esperando a que Redis esté listo...' &&
+        until nc -z redis 6379 > /dev/null 2>&1; do
+          sleep 2
+        done &&
+        echo '✅ Redis listo' &&
+        echo '🚀 Iniciando PlantCare Backend...' &&
+        cd /app &&
+        /root/.local/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+      "
+
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: plantcare-postgres
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_DATABASE:-plantcare_db}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Puerto 5433 en host para evitar conflicto con PostgreSQL local
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Configuración de rendimiento (opcional)
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c max_connections=100
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+
+  # ============================================
+  # Redis Cache
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: plantcare-redis
+    ports:
+      - "6379:6379"  # Expuesto para desarrollo, comentar en producción
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  app_network:
+    name: plantcare_network
+    driver: bridge
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  api_data:
+    name: plantcare_api_data
+    driver: local
+  postgres_data:
+    name: plantcare_postgres_data
+    driver: local
+  uploads_data:
+    name: plantcare_uploads_data
+    driver: local
+  logs_data:
+    name: plantcare_logs_data
+    driver: local
+  redis_data:
+    name: plantcare_redis_data
+    driver: local

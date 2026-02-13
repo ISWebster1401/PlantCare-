@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from app.api.core.database import get_db
 from app.api.core.email_service import email_service
 from app.api.schemas.contact import (
-    ContactForm, QuoteRequest, ContactResponse, SupportTicket,
+    ContactForm, ContactResponse, SupportTicket,
     FAQItem, HelpCategory, HelpArticle
 )
 from pgdbtoolkit import AsyncPgDbToolkit
@@ -12,6 +12,7 @@ import time
 import uuid
 from datetime import datetime
 from typing import List, Optional
+import asyncio
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -130,179 +131,6 @@ async def send_contact_message(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
         )
-
-async def process_quote_submission(
-    quote_request: QuoteRequest,
-    request: Request,
-    db: AsyncPgDbToolkit,
-) -> ContactResponse:
-    """Procesa el registro de una cotización y gestiona las notificaciones."""
-    reference_id = "QT-PENDING"
-    request_start = time.perf_counter()
-
-    try:
-        # Generar ID de referencia único
-        reference_id = f"QT-{str(uuid.uuid4())[:8].upper()}"
-        
-        # Obtener IP del cliente
-        client_ip = request.client.host if request.client else "unknown"
-        
-        # Preparar datos para el email
-        quote_data = quote_request.model_dump()
-        quote_data["ip_address"] = client_ip
-        quote_data["reference_id"] = reference_id
-        quote_data["project_type"] = quote_request.project_type.value
-        quote_data["budget_range"] = quote_request.budget_range.value
-
-        logger.info(
-            "[contact] request_quote START ref=%s email=%s company=%s sensors=%s budget=%s ip=%s",
-            reference_id,
-            quote_data.get("email"),
-            quote_data.get("company"),
-            quote_data.get("sensor_quantity"),
-            quote_data.get("budget_range"),
-            client_ip,
-        )
-
-        # Obtener user_id si el usuario está autenticado (opcional)
-        user_id = None
-        try:
-            from app.api.core.auth_user import get_current_active_user
-            # Intentar obtener usuario actual si hay token
-            auth_header = request.headers.get("Authorization")
-            if auth_header and auth_header.startswith("Bearer "):
-                try:
-                    # Usar Depends de forma manual para obtener el usuario
-                    from fastapi import Depends
-                    # Esto es un workaround - normalmente usaríamos Depends en la función
-                    # pero como es opcional, lo hacemos manualmente
-                    credentials = HTTPAuthorizationCredentials(
-                        scheme="Bearer",
-                        credentials=auth_header.split(" ")[1]
-                    )
-                    current_user = await get_current_active_user(credentials=credentials, db=db)
-                    user_id = current_user["id"]
-                    logger.info(
-                        "[contact] request_quote user_resolved ref=%s user_email=%s user_id=%s",
-                        reference_id,
-                        current_user["email"],
-                        user_id,
-                    )
-                except Exception as auth_error:
-                    # Si falla la autenticación, continuar sin user_id
-                    logger.debug(f"No se pudo obtener usuario autenticado: {str(auth_error)}")
-        except Exception as e:
-            logger.debug(f"Error obteniendo user_id: {str(e)}")
-            pass
-
-        # Guardar en base de datos (tabla quotes)
-        try:
-            await db.insert_records("quotes", [{
-                "user_id": user_id,
-                "reference_id": reference_id,
-                "name": quote_request.name,
-                "email": quote_request.email,
-                "phone": quote_request.phone,
-                "company": quote_request.company,
-                "vineyard_name": quote_request.company,  # Usar company como vineyard_name si aplica
-                "location": quote_request.location,
-                "project_type": quote_request.project_type.value,
-                "coverage_area": quote_request.coverage_area,
-                "desired_date": quote_request.desired_date,
-                "has_existing_infrastructure": quote_request.has_existing_infrastructure,
-                "requires_installation": quote_request.requires_installation,
-                "requires_training": quote_request.requires_training,
-                "num_devices": quote_request.sensor_quantity,
-                "installation_type": "full" if quote_request.requires_installation else "self",
-                "budget_range": quote_request.budget_range.value,
-                "message": quote_request.description,
-                "ip_address": client_ip,
-                "status": "pending",
-                "created_at": datetime.utcnow()
-            }])
-            logger.info("[contact] request_quote stored ref=%s", reference_id)
-        except Exception as db_error:
-            logger.warning("[contact] request_quote store_failed ref=%s error=%s", reference_id, str(db_error))
-            # Continuar aunque falle la BD
-        
-        # Enviar email de notificación al equipo de ventas
-        logger.info("[contact] request_quote notification START ref=%s to=%s", reference_id, email_service.contact_email)
-        notification_start = time.perf_counter()
-        notification_sent = await email_service.send_quote_request_notification(quote_data)
-        logger.info(
-            "[contact] request_quote notification END ref=%s success=%s duration=%.2fs",
-            reference_id,
-            notification_sent,
-            time.perf_counter() - notification_start,
-        )
- 
-        # Enviar confirmación al usuario con el mensaje específico de cotización
-        logger.info("[contact] request_quote confirmation START ref=%s to=%s", reference_id, quote_request.email)
-        confirmation_start = time.perf_counter()
-        confirmation_sent = await email_service.send_quote_confirmation(
-            quote_request.email,
-            quote_request.name,
-            reference_id
-        )
-        logger.info(
-            "[contact] request_quote confirmation END ref=%s success=%s duration=%.2fs",
-            reference_id,
-            confirmation_sent,
-            time.perf_counter() - confirmation_start,
-        )
- 
-        if not notification_sent:
-            logger.warning("[contact] request_quote notification FAILED ref=%s", reference_id)
-
-        total_duration = time.perf_counter() - request_start
-        logger.info(
-            "[contact] request_quote DONE ref=%s company=%s total_duration=%.2fs",
-            reference_id,
-            quote_request.company,
-            total_duration,
-        )
-       
-        message_suffix = " Nuestro equipo de ventas te contactará lo antes posible."
-        if not notification_sent:
-            message_suffix += " (Aviso: el correo interno no pudo enviarse, revisaremos manualmente)."
-        if not confirmation_sent:
-            message_suffix += " (No pudimos enviarte el correo de confirmación, pero tu solicitud fue registrada)."
-
-        return ContactResponse(
-            success=True,
-            message=f"Tu solicitud de cotización ha sido registrada.{message_suffix}",
-            reference_id=reference_id,
-            estimated_response_time="12 horas"
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("[contact] request_quote ERROR ref=%s", reference_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
-        )
-
-
-@router.post("/request-quote", response_model=ContactResponse)
-async def request_quote(
-    quote_request: QuoteRequest,
-    request: Request,
-    db: AsyncPgDbToolkit = Depends(get_db)
-):
-    """
-    Envía una solicitud de cotización
-    
-    Args:
-        quote_request: Datos de la solicitud de cotización
-        request: Request para obtener IP del cliente
-        db: Conexión a la base de datos
-        
-    Returns:
-        ContactResponse: Confirmación del envío
-    """
-    return await process_quote_submission(quote_request, request, db)
 
 @router.get("/faq", response_model=List[FAQItem])
 async def get_faq(

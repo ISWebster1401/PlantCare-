@@ -30,8 +30,9 @@
   margin: 0 auto;
   padding: 24px 40px;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  gap: 40px;
 }
 
 .logo {
@@ -41,7 +42,6 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-right: 20px;
 }
 
 .logo-img {
@@ -76,6 +76,10 @@
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+}
+
+.nav-text {
+  display: inline-block;
 }
 
 .nav-btn:hover {
@@ -125,11 +129,47 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .user-name-btn:hover {
   background: rgba(74, 222, 128, 0.2);
   border-color: #4ade80;
+}
+
+.user-name-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.role-badge.superadmin-badge {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2);
+}
+
+.role-badge.admin-badge {
+  background: rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: #c4b5fd;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
 }
 
 .logout-btn {
@@ -272,12 +312,12 @@
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
   border: none;
   color: white;
   font-size: 24px;
   cursor: pointer;
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 8px 25px rgba(34, 197, 94, 0.4);
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
@@ -286,7 +326,7 @@
 
 .help-fab:hover {
   transform: translateY(-3px) scale(1.05);
-  box-shadow: 0 12px 35px rgba(59, 130, 246, 0.6);
+  box-shadow: 0 12px 35px rgba(34, 197, 94, 0.6);
 }
 
 .help-options {
@@ -321,11 +361,7 @@
 }
 
 .help-option:nth-child(1) {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-}
-
-.help-option:nth-child(2) {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
 }
 
 .help-option:hover {
@@ -333,22 +369,95 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
-/* Responsive para botones flotantes */
-@media (max-width: 768px) {
-  .floating-help {
-    bottom: 20px;
-    right: 20px;
-  }
-  
-  .help-fab {
-    width: 50px;
-    height: 50px;
-    font-size: 20px;
-  }
-  
-  .help-option {
-    width: 40px;
-    height: 40px;
-    font-size: 16px;
-  }
+/* FAB azul para mini chat IA */
+.ai-fab {
+  position: fixed;
+  bottom: 30px;
+  right: 110px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  background: radial-gradient(circle at 30% 30%, #60a5fa, #2563eb);
+  color: #e5f0ff;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 12px 32px rgba(37, 99, 235, 0.6);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  z-index: 950;
+}
+
+.ai-fab:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 16px 40px rgba(37, 99, 235, 0.8);
+  filter: brightness(1.05);
+}
+
+/* Contenedor mini chat IA */
+.ai-mini-chat-container {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  background: rgba(15, 23, 42, 0.98);
+  border-radius: 0;
+  border-left: 1px solid rgba(59, 130, 246, 0.5);
+  box-shadow: -16px 0 40px rgba(15, 23, 42, 0.9);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 960;
+}
+
+.ai-mini-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #1d2437, #1e293b);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.ai-mini-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: #22c55e;
+  font-size: 16px;
+}
+
+.ai-mini-chat-icon {
+  font-size: 20px;
+}
+
+.ai-mini-chat-close {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ai-mini-chat-close:hover {
+  background: rgba(148, 163, 184, 0.2);
+  color: #e5e7eb;
+}
+
+.ai-mini-chat-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-mini-chat-body .ai-chat {
+  height: 100%;
 }

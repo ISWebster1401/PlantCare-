@@ -42,11 +42,9 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
   const inquiryTypes = [
     { value: 'general', label: 'Consulta General' },
     { value: 'technical_support', label: 'Soporte Técnico' },
-    { value: 'sales', label: 'Ventas' },
-    { value: 'quote_request', label: 'Solicitar Cotización' },
-    { value: 'partnership', label: 'Alianzas' },
-    { value: 'billing', label: 'Facturación' },
-    { value: 'feedback', label: 'Comentarios' }
+    { value: 'garden_help', label: 'Ayuda con mi jardín' },
+    { value: 'app_feedback', label: 'Comentarios sobre la app' },
+    { value: 'bug_report', label: 'Reportar un problema' }
   ];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -144,7 +142,10 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
             </span>
             <h2>Contáctanos</h2>
           </div>
-          <p>Estamos aquí para ayudarte. Envíanos tu consulta y te responderemos pronto.</p>
+          <p>
+            ¿Tienes dudas sobre tu jardín, la app o las funciones de PlantCare? Escríbenos y te
+            responderemos lo antes posible.
+          </p>
           {onClose && (
             <button className="close-btn" onClick={onClose}>×</button>
           )}
@@ -191,14 +192,14 @@ const ContactForm: React.FC<ContactFormProps> = ({ onClose, initialType = 'gener
               />
             </div>
             <div className="form-group">
-              <label htmlFor="company">Empresa/Organización</label>
+              <label htmlFor="company">Opcional</label>
               <input
                 type="text"
                 id="company"
                 name="company"
                 value={formData.company}
                 onChange={handleInputChange}
-                placeholder="Nombre de tu empresa"
+                placeholder="Cuéntanos algo extra (ej: dónde tienes tus plantas)"
               />
             </div>
           </div>

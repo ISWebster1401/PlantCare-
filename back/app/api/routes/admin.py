@@ -1,24 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.core.auth_user import get_current_active_user
 from app.api.core.database import get_db
 from app.api.schemas.admin import (
-    UserAdminResponse, UserAdminCreate, UserAdminUpdate, DeviceAdminResponse,
-    DeviceCodeBatch, AdminStats, UserListFilters, DeviceListFilters,
-    BulkAction, BulkDeviceAction, RoleResponse, QuoteAdminResponse, QuoteAdminUpdate
+    UserSimpleAdmin, PlantSimpleAdmin, SensorSimpleAdmin, AdminStats,
+    UserDetailAdmin, PlantDetailAdmin, SensorDetailAdmin
 )
-from app.api.schemas.device import DeviceCodeResponse
+from app.api.schemas.plants import PlantModelResponse
 from app.db.queries import (
-    get_all_users_admin, get_user_by_id_admin, create_user_admin, 
-    update_user_admin, delete_user_admin, get_all_devices_admin,
-    get_admin_stats, bulk_update_users, bulk_update_devices,
-    create_device_code
+    get_users_admin_simple, get_plants_admin_simple, get_sensors_admin_simple,
+    get_admin_stats, get_user_detail_admin, get_plant_detail_admin, get_sensor_detail_admin,
+    activate_user, deactivate_user
 )
-from app.api.core.auth_user import AuthService
 from pgdbtoolkit import AsyncPgDbToolkit
-import pandas as pd
-from typing import List, Optional
-from datetime import datetime
+from typing import List
 import logging
+import json
+import pandas as pd
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -36,12 +33,26 @@ router = APIRouter(
 )
 
 def require_admin(current_user: dict = Depends(get_current_active_user)):
-    """Middleware para verificar que el usuario sea administrador"""
-    if current_user.get("role_id") != 2:
+    """Middleware para verificar que el usuario sea administrador (role_id = 2) o superadmin (role_id = 3)"""
+    role_id = current_user.get("role_id")
+    
+    # Intentar convertir a int si es string numérico
+    try:
+        role_id_int = int(role_id) if role_id is not None else None
+        if role_id_int not in [2, 3]:
+            logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} (esperado: 2 o 3)")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso denegado. Se requieren permisos de administrador o superadministrador."
+            )
+    except (ValueError, TypeError):
+        logger.warning(f"[DEBUG ADMIN] Acceso denegado: role_id={role_id} no es válido (esperado: 2 o 3)")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado. Se requieren permisos de administrador."
+            detail="Acceso denegado. Se requieren permisos de administrador o superadministrador."
         )
+    
+    logger.info(f"[DEBUG ADMIN] Acceso permitido para usuario {current_user.get('email')} (role_id={role_id_int})")
     return current_user
 
 # ===============================================
@@ -53,9 +64,7 @@ async def get_admin_statistics(
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
-    """
-    Obtiene estadísticas generales del sistema
-    """
+    """Obtiene estadísticas básicas del sistema"""
     try:
         stats = await get_admin_stats(db)
         return AdminStats(**stats)
@@ -67,95 +76,40 @@ async def get_admin_statistics(
         )
 
 # ===============================================
-# ENDPOINTS DE GESTIÓN DE USUARIOS
+# ENDPOINTS DE USUARIOS
 # ===============================================
 
-@router.get("/users")
+@router.get("/users", response_model=List[UserSimpleAdmin])
 async def get_all_users(
-    role_id: Optional[int] = Query(None, description="Filtrar por rol"),
-    active: Optional[bool] = Query(None, description="Filtrar por estado activo"),
-    region: Optional[str] = Query(None, description="Filtrar por región"),
-    search: Optional[str] = Query(None, description="Buscar en nombre, email, viñedo"),
-    page: int = Query(1, ge=1, description="Página"),
-    limit: int = Query(20, ge=1, le=100, description="Elementos por página"),
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
-    """
-    Obtiene lista de todos los usuarios con filtros
-    """
+    """Obtiene lista simplificada de todos los usuarios"""
     try:
-        filters = {
-            "role_id": role_id,
-            "active": active,
-            "region": region,
-            "search": search,
-            "page": page,
-            "limit": limit
-        }
-        
-        users = await get_all_users_admin(db, filters)
-        
-        logger.info(f"Total usuarios obtenidos: {len(users)}")
-        
-        user_responses = []
-        for user in users:
-            try:
-                cleaned_user = {
-                    "id": int(user["id"]) if user.get("id") is not None else 0,
-                    "first_name": user["first_name"],
-                    "last_name": user["last_name"],
-                    "email": user["email"],
-                    "phone": user.get("phone"),
-                    "region": user.get("region"),
-                    "vineyard_name": user.get("vineyard_name"),
-                    "hectares": float(user.get("hectares")) if user.get("hectares") is not None else None,
-                    "grape_type": user.get("grape_type"),
-                    "role_id": int(user.get("role_id", 1)),
-                    "role_name": user.get("role_name"),
-                    "created_at": user["created_at"],
-                    "last_login": user.get("last_login"),
-                    "active": bool(user.get("active", True)),
-                    "device_count": int(user.get("device_count", 0)) if user.get("device_count") is not None else 0
-                }
-                
-                user_response = UserAdminResponse(**cleaned_user)
-                user_responses.append(user_response.model_dump())
-            except Exception as convert_error:
-                logger.error(f"Error convirtiendo usuario {user.get('id', 'unknown')}: {str(convert_error)}")
-                continue
-        
-        logger.info(f"Usuarios procesados: {len(user_responses)}")
-        return user_responses
-        
+        users = await get_users_admin_simple(db)
+        return [UserSimpleAdmin(**user) for user in users]
     except Exception as e:
         logger.error(f"Error obteniendo usuarios: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
         )
 
-@router.get("/users/{user_id}")
-async def get_user_by_id(
+@router.get("/users/{user_id}", response_model=UserDetailAdmin)
+async def get_user_detail(
     user_id: int,
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
-    """
-    Obtiene un usuario específico por ID
-    """
+    """Obtiene detalle de un usuario específico"""
     try:
-        user = await get_user_by_id_admin(db, user_id)
+        user = await get_user_detail_admin(db, user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuario no encontrado"
             )
-        
-        return UserAdminResponse(**user).model_dump()
-        
+        return UserDetailAdmin(**user)
     except HTTPException:
         raise
     except Exception as e:
@@ -165,566 +119,549 @@ async def get_user_by_id(
             detail="Error interno del servidor"
         )
 
-@router.post("/users", response_model=UserAdminResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    user_data: UserAdminCreate,
-    current_user: dict = Depends(require_admin),
-    db: AsyncPgDbToolkit = Depends(get_db)
-):
-    """
-    Crea un nuevo usuario desde el panel de administración
-    """
-    try:
-        from app.db.queries import get_user_by_email
-        existing_user = await get_user_by_email(db, user_data.email)
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ya existe un usuario con este email"
-            )
-        
-        user_dict = user_data.model_dump()
-        password = user_dict.pop("password")
-        user_dict["password_hash"] = AuthService.get_password_hash(password)
-        
-        created_user = await create_user_admin(db, user_dict)
-        logger.info(f"Usuario creado por admin {current_user['email']}: {user_data.email}")
-        
-        return UserAdminResponse(**created_user)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creando usuario: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
-        )
-
-@router.put("/users/{user_id}", response_model=UserAdminResponse)
-async def update_user(
+@router.put("/users/{user_id}/toggle-status")
+async def toggle_user_status(
     user_id: int,
-    user_data: UserAdminUpdate,
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
-    """
-    Actualiza un usuario existente
-    """
+    """Activa o desactiva un usuario"""
     try:
-        existing_user = await get_user_by_id_admin(db, user_id)
-        if not existing_user:
+        # Primero obtener el usuario para ver su estado actual
+        user = await get_user_detail_admin(db, user_id)
+        if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuario no encontrado"
             )
         
-        update_data = user_data.model_dump(exclude_unset=True)
-        updated_user = await update_user_admin(db, user_id, update_data)
-        
-        if not updated_user:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="No se pudo actualizar el usuario"
-            )
-        
-        logger.info(f"Usuario {user_id} actualizado por admin {current_user['email']}")
-        return UserAdminResponse(**updated_user)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error actualizando usuario: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
-        )
-
-@router.delete("/users/{user_id}")
-async def delete_user(
-    user_id: int,
-    current_user: dict = Depends(require_admin),
-    db: AsyncPgDbToolkit = Depends(get_db)
-):
-    """
-    Elimina un usuario completamente
-    """
-    try:
-        existing_user = await get_user_by_id_admin(db, user_id)
-        if not existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuario no encontrado"
-            )
-        
-        if existing_user.get("role_id") == 2:
+        # No permitir desactivar a sí mismo
+        if user_id == current_user.get("id"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No se puede eliminar un usuario administrador"
+                detail="No puedes desactivar tu propia cuenta"
             )
         
-        success = await delete_user_admin(db, user_id)
+        # Toggle del estado
+        new_status = not user.get("is_active", True)
+        if new_status:
+            success = await activate_user(db, user_id)
+        else:
+            success = await deactivate_user(db, user_id)
         
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="No se pudo eliminar el usuario"
+                detail="No se pudo actualizar el estado del usuario"
             )
         
-        logger.info(f"Usuario {user_id} eliminado por admin {current_user['email']}")
-        return {"message": "Usuario eliminado exitosamente"}
-        
+        return {"message": "Estado del usuario actualizado", "is_active": new_status}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error eliminando usuario: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
-        )
-
-@router.post("/users/bulk-action")
-async def bulk_action_users(
-    bulk_action: BulkAction,
-    current_user: dict = Depends(require_admin),
-    db: AsyncPgDbToolkit = Depends(get_db)
-):
-    """
-    Realiza acciones en lote sobre usuarios
-    """
-    try:
-        success = await bulk_update_users(db, bulk_action.user_ids, bulk_action.action)
-        
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Acción no válida o no se pudo completar"
-            )
-        
-        logger.info(f"Acción en lote '{bulk_action.action}' realizada por admin {current_user['email']} en {len(bulk_action.user_ids)} usuarios")
-        
-        return {"message": f"Acción '{bulk_action.action}' completada en {len(bulk_action.user_ids)} usuarios"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error en acción en lote de usuarios: {str(e)}")
+        logger.error(f"Error actualizando estado de usuario: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
         )
 
 # ===============================================
-# ENDPOINTS DE GESTIÓN DE DISPOSITIVOS
+# ENDPOINTS DE PLANTAS
 # ===============================================
 
-@router.get("/devices")
-async def get_all_devices(
-    device_type: Optional[str] = Query(None, description="Filtrar por tipo"),
-    connected: Optional[bool] = Query(None, description="Filtrar por conexión"),
-    active: Optional[bool] = Query(None, description="Filtrar por estado activo"),
-    user_id: Optional[int] = Query(None, description="Filtrar por usuario"),
-    search: Optional[str] = Query(None, description="Buscar en código, nombre, usuario"),
-    page: int = Query(1, ge=1, description="Página"),
-    limit: int = Query(20, ge=1, le=100, description="Elementos por página"),
+@router.get("/plants", response_model=List[PlantSimpleAdmin])
+async def get_all_plants(
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
-    """
-    Obtiene lista de todos los dispositivos con filtros
-    """
+    """Obtiene lista simplificada de todas las plantas"""
     try:
-        filters = {
-            "device_type": device_type,
-            "connected": connected,
-            "active": active,
-            "user_id": user_id,
-            "search": search,
-            "page": page,
-            "limit": limit
+        plants = await get_plants_admin_simple(db)
+        return [PlantSimpleAdmin(**plant) for plant in plants]
+    except Exception as e:
+        logger.error(f"Error obteniendo plantas: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.get("/plants/{plant_id}", response_model=PlantDetailAdmin)
+async def get_plant_detail(
+    plant_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Obtiene detalle de una planta específica"""
+    try:
+        plant = await get_plant_detail_admin(db, plant_id)
+        if not plant:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planta no encontrada"
+            )
+        return PlantDetailAdmin(**plant)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obteniendo planta: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+@router.delete("/plants/{plant_id}")
+async def delete_plant(
+    plant_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Elimina una planta (solo admin/superadmin)"""
+    try:
+        # Verificar que la planta existe
+        plant_check = await db.execute_query("""
+            SELECT id, plant_name FROM plants WHERE id = %s
+        """, (plant_id,))
+        
+        if plant_check is None or plant_check.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planta no encontrada"
+            )
+        
+        plant_name = plant_check.iloc[0]["plant_name"]
+        
+        # Eliminar planta (ON DELETE CASCADE maneja plant_model_assignments, etc.)
+        await db.execute_query("""
+            DELETE FROM plants WHERE id = %s
+        """, (plant_id,))
+        
+        logger.info(f"✅ Planta {plant_id} ({plant_name}) eliminada por admin {current_user.get('email')}")
+        
+        return {
+            "message": f"Planta '{plant_name}' eliminada exitosamente",
+            "plant_id": plant_id
         }
         
-        devices = await get_all_devices_admin(db, filters)
-        
-        logger.info(f"Total dispositivos obtenidos: {len(devices)}")
-        
-        device_responses = []
-        for device in devices:
-            try:
-                user_id_val = device.get("user_id")
-                if user_id_val is None or (isinstance(user_id_val, float) and pd.isna(user_id_val)):
-                    user_id_clean = None
-                else:
-                    user_id_clean = int(user_id_val)
-                
-                device_id = int(device["id"]) if device.get("id") is not None else 0
-                
-                device_response = DeviceAdminResponse(
-                    id=device_id,
-                    device_code=device["device_code"],
-                    name=device.get("name"),
-                    device_type=device["device_type"],
-                    location=device.get("location"),
-                    plant_type=device.get("plant_type"),
-                    user_id=user_id_clean,
-                    user_name=device.get("user_name"),
-                    user_email=device.get("user_email"),
-                    created_at=device["created_at"],
-                    last_seen=device.get("last_seen"),
-                    connected_at=device.get("connected_at"),
-                    active=bool(device["active"]),
-                    connected=bool(device["connected"])
-                )
-                device_responses.append(device_response.model_dump())
-            except Exception as convert_error:
-                logger.error(f"Error convirtiendo dispositivo {device.get('id', 'unknown')}: {str(convert_error)}")
-                continue
-        
-        logger.info(f"Dispositivos procesados: {len(device_responses)}")
-        return device_responses
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error obteniendo dispositivos: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error eliminando planta: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor: {str(e)}"
+        )
+
+# ===============================================
+# ENDPOINTS DE SENSORES
+# ===============================================
+
+@router.get("/sensors", response_model=List[SensorSimpleAdmin])
+async def get_all_sensors(
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Obtiene lista simplificada de todos los sensores"""
+    try:
+        sensors = await get_sensors_admin_simple(db)
+        return [SensorSimpleAdmin(**sensor) for sensor in sensors]
+    except Exception as e:
+        logger.error(f"Error obteniendo sensores: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error interno del servidor"
         )
 
-@router.post("/devices/generate-codes", response_model=List[DeviceCodeResponse])
-async def generate_device_codes_admin(
-    batch_data: DeviceCodeBatch,
+@router.get("/sensors/{sensor_id}", response_model=SensorDetailAdmin)
+async def get_sensor_detail(
+    sensor_id: str,
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
-    """
-    Genera códigos de dispositivos en lote
-    """
+    """Obtiene detalle de un sensor específico"""
     try:
-        devices = await create_device_code(
-            db, 
-            batch_data.device_type, 
-            batch_data.quantity
-        )
-        
-        code_responses = []
-        for device in devices:
-            code_responses.append(DeviceCodeResponse(
-                device_code=device["device_code"],
-                device_type=device["device_type"],
-                created_at=device["created_at"]
-            ))
-        
-        logger.info(f"Admin {current_user['email']} generó {len(devices)} códigos de dispositivos tipo {batch_data.device_type}")
-        
-        return code_responses
-        
-    except Exception as e:
-        logger.error(f"Error generando códigos de dispositivos: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
-        )
-
-@router.post("/devices/bulk-action")
-async def bulk_action_devices(
-    bulk_action: BulkDeviceAction,
-    current_user: dict = Depends(require_admin),
-    db: AsyncPgDbToolkit = Depends(get_db)
-):
-    """
-    Realiza acciones en lote sobre dispositivos
-    """
-    try:
-        success = await bulk_update_devices(db, bulk_action.device_ids, bulk_action.action)
-        
-        if not success:
+        sensor = await get_sensor_detail_admin(db, sensor_id)
+        if not sensor:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Acción no válida o no se pudo completar"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Sensor no encontrado"
+            )
+        return SensorDetailAdmin(**sensor)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obteniendo sensor: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
+
+# ===============================================
+# ENDPOINT PARA CONFIGURAR MODELO PREDETERMINADO
+# ===============================================
+
+@router.post("/models/set-box-default")
+async def set_box_as_default(
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Configura box.glb como modelo predeterminado para todas las plantas"""
+    try:
+        # 1. Buscar el modelo box.glb
+        result = await db.execute_query("""
+            SELECT id, name, plant_type, model_3d_url, is_default
+            FROM plant_models
+            WHERE name ILIKE '%box%' OR model_3d_url ILIKE '%box%'
+            ORDER BY id DESC
+            LIMIT 1
+        """)
+        
+        if result is None or result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se encontró ningún modelo con 'box' en el nombre o URL"
             )
         
-        logger.info(f"Acción en lote '{bulk_action.action}' realizada por admin {current_user['email']} en {len(bulk_action.device_ids)} dispositivos")
+        model_id = result.iloc[0]["id"]
+        model_name = result.iloc[0]["name"]
+        model_url = result.iloc[0]["model_3d_url"]
         
-        return {"message": f"Acción '{bulk_action.action}' completada en {len(bulk_action.device_ids)} dispositivos"}
+        # 2. Desactivar otros modelos predeterminados
+        await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = FALSE
+            WHERE id != %s AND is_default = TRUE
+        """, (model_id,))
+        
+        # 3. Configurar box.glb como predeterminado con plant_type = 'Planta'
+        await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = TRUE, plant_type = 'Planta'
+            WHERE id = %s
+        """, (model_id,))
+        
+        logger.info(f"✅ Modelo box.glb (ID: {model_id}) configurado como predeterminado")
+        
+        return {
+            "message": "Modelo box.glb configurado como predeterminado exitosamente",
+            "model_id": int(model_id),
+            "model_name": str(model_name),
+            "model_url": str(model_url),
+            "plant_type": "Planta",
+            "is_default": True
+        }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error en acción en lote de dispositivos: {str(e)}")
+        logger.error(f"Error configurando box.glb como predeterminado: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
+            detail=f"Error interno del servidor: {str(e)}"
         )
 
+
 # ===============================================
-# ENDPOINTS DE ROLES
+# ENDPOINT PARA MARCAR MODELO COMO DEFAULT
 # ===============================================
 
-@router.get("/roles", response_model=List[RoleResponse])
-async def get_all_roles(
+@router.post("/models/{model_id}/set-default")
+async def set_model_as_default(
+    model_id: int,
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
     """
-    Obtiene todos los roles disponibles
+    Marca un modelo como default para su tipo de planta.
+    Desactiva otros modelos default del mismo tipo.
     """
     try:
-        result = await db.fetch_records("roles", order_by=[("id", "ASC")])
+        # 1. Verificar que el modelo existe
+        model_result = await db.execute_query("""
+            SELECT id, plant_type, name, model_3d_url
+            FROM plant_models
+            WHERE id = %s
+        """, (model_id,))
         
-        if result is not None and not result.empty:
-            roles = result.to_dict('records')
-            return [RoleResponse(**role) for role in roles]
+        if model_result is None or model_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Modelo con id {model_id} no encontrado"
+            )
         
-        return []
+        model_plant_type = model_result.iloc[0]["plant_type"]
         
+        # 2. Desactivar otros modelos default del mismo tipo
+        await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = FALSE
+            WHERE plant_type = %s AND id != %s AND is_default = TRUE
+        """, (model_plant_type, model_id))
+        
+        # 3. Activar este modelo como default
+        update_result = await db.execute_query("""
+            UPDATE plant_models
+            SET is_default = TRUE, updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, plant_type, name, model_3d_url, is_default
+        """, (model_id,))
+        
+        if update_result is None or update_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se pudo actualizar el modelo"
+            )
+        
+        updated_model = update_result.iloc[0]
+        
+        logger.info(f"✅ Modelo {model_id} marcado como default para tipo '{model_plant_type}'")
+        
+        return {
+            "message": f"Modelo marcado como default para tipo '{model_plant_type}'",
+            "model_id": int(updated_model["id"]),
+            "plant_type": str(updated_model["plant_type"]),
+            "name": str(updated_model["name"]),
+            "model_3d_url": str(updated_model["model_3d_url"]),
+            "is_default": bool(updated_model["is_default"])
+        }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error obteniendo roles: {str(e)}")
+        logger.error(f"Error marcando modelo como default: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
+            detail=f"Error interno del servidor: {str(e)}"
         )
 
+
 # ===============================================
-# ENDPOINTS DE COTIZACIONES
+# ENDPOINT PARA INICIALIZAR MODELOS DEFAULT
 # ===============================================
 
-@router.get("/quotes", response_model=List[QuoteAdminResponse])
-async def get_all_quotes(
-    status: Optional[str] = Query(None, description="Filtrar por estado"),
-    search: Optional[str] = Query(None, description="Buscar por nombre, email o referencia"),
+@router.post("/models/init-defaults")
+async def init_default_plant_models(
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
     """
-    Obtiene todas las cotizaciones (solo admin)
+    Inicializa 10 modelos 3D predeterminados para tipos de plantas comunes.
+    
+    NOTA: Este endpoint es temporal y crea placeholders. Para modelos 3D reales y únicos:
+    - Sube cada modelo 3D individualmente usando POST /api/plants/models/upload
+    - Especifica el plant_type correspondiente (ej: "Monstera", "Suculenta", etc.)
+    - Usa is_default=true para que reemplace automáticamente el placeholder
+    - Cada tipo de planta tendrá su propio modelo 3D único
     """
     try:
-        # Obtener todas las cotizaciones
-        conditions = {"deleted_at": None}
-        if status:
-            conditions["status"] = status
+        # Obtener la URL de box.glb existente
+        box_model_result = await db.execute_query("""
+            SELECT model_3d_url
+            FROM plant_models
+            WHERE name ILIKE '%box%' OR model_3d_url ILIKE '%box%'
+            ORDER BY id DESC
+            LIMIT 1
+        """)
         
-        quotes_df = await db.fetch_records("quotes", conditions=conditions)
+        if box_model_result is None or box_model_result.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No se encontró el modelo box.glb. Por favor, súbelo primero usando /api/plants/models/upload"
+            )
         
-        quotes = []
-        if quotes_df is not None and not quotes_df.empty:
-            all_quotes = quotes_df.to_dict('records')
-            # Filtrar deleted_at
-            for q in all_quotes:
-                if q.get('deleted_at') is None:
-                    quotes.append(q)
+        box_model_url = box_model_result.iloc[0]["model_3d_url"]
+        logger.info(f"📦 Usando box.glb como placeholder: {box_model_url}")
+        
+        # Definir los 10 tipos de plantas con sus modelos
+        default_models = [
+            {"plant_type": "Suculenta", "name": "Suculenta Default"},
+            {"plant_type": "Monstera", "name": "Monstera Default"},
+            {"plant_type": "Pothos", "name": "Pothos Default"},
+            {"plant_type": "Sansevieria", "name": "Sansevieria Default"},
+            {"plant_type": "Ficus", "name": "Ficus Default"},
+            {"plant_type": "Cactus", "name": "Cactus Default"},
+            {"plant_type": "Aloe", "name": "Aloe Default"},
+            {"plant_type": "Helecho", "name": "Helecho Default"},
+            {"plant_type": "Dólar", "name": "Dólar Default"},
+            {"plant_type": "Planta", "name": "Planta Genérica"},
+        ]
+        
+        created_count = 0
+        updated_count = 0
+        
+        for model_data in default_models:
+            plant_type = model_data["plant_type"]
+            name = model_data["name"]
             
-            # Aplicar búsqueda si se proporciona
-            if search:
-                search_lower = search.lower()
-                quotes = [q for q in quotes if (
-                    search_lower in q.get('name', '').lower() or
-                    search_lower in q.get('email', '').lower() or
-                    search_lower in q.get('reference_id', '').lower() or
-                    search_lower in q.get('company', '').lower()
-                )]
-        
-        # Ordenar por fecha de creación descendente
-        quotes.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-        
-        # Convertir a QuoteAdminResponse
-        result = []
-        for q in quotes:
-            try:
-                result.append(QuoteAdminResponse(
-                    id=int(q.get('id', 0)),
-                    user_id=int(q.get('user_id')) if q.get('user_id') else None,
-                    reference_id=str(q.get('reference_id', '')),
-                    name=str(q.get('name', '')),
-                    email=str(q.get('email', '')),
-                    phone=q.get('phone'),
-                    company=q.get('company'),
-                    vineyard_name=q.get('vineyard_name'),
-                    location=q.get('location'),
-                    project_type=q.get('project_type'),
-                    coverage_area=q.get('coverage_area'),
-                    desired_date=q.get('desired_date'),
-                    has_existing_infrastructure=q.get('has_existing_infrastructure'),
-                    requires_installation=q.get('requires_installation'),
-                    requires_training=q.get('requires_training'),
-                    num_devices=int(q.get('num_devices', 0)),
-                    budget_range=q.get('budget_range'),
-                    status=str(q.get('status', 'pending')),
-                    quoted_price=float(q.get('quoted_price')) if q.get('quoted_price') else None,
-                    quoted_at=q.get('quoted_at'),
-                    assigned_to=int(q.get('assigned_to')) if q.get('assigned_to') else None,
-                    ip_address=q.get('ip_address'),
-                    created_at=q.get('created_at'),
-                    updated_at=q.get('updated_at'),
-                    message=q.get('message')
+            # Verificar si ya existe un modelo para este tipo
+            existing = await db.execute_query("""
+                SELECT id FROM plant_models
+                WHERE plant_type = %s AND is_default = TRUE
+                LIMIT 1
+            """, (plant_type,))
+            
+            if existing is not None and not existing.empty:
+                # Actualizar modelo existente
+                await db.execute_query("""
+                    UPDATE plant_models
+                    SET model_3d_url = %s, name = %s, is_default = TRUE
+                    WHERE plant_type = %s AND is_default = TRUE
+                """, (box_model_url, name, plant_type))
+                updated_count += 1
+                logger.info(f"✅ Modelo actualizado: {plant_type}")
+            else:
+                # Crear nuevo modelo
+                await db.execute_query("""
+                    INSERT INTO plant_models (plant_type, name, model_3d_url, is_default, metadata)
+                    VALUES (%s, %s, %s, TRUE, %s::jsonb)
+                """, (
+                    plant_type,
+                    name,
+                    box_model_url,
+                    json.dumps({"category": plant_type.lower(), "scale": 1.0, "placeholder": True})
                 ))
-            except Exception as e:
-                logger.warning(f"Error procesando cotización {q.get('id')}: {str(e)}")
+                created_count += 1
+                logger.info(f"✅ Modelo creado: {plant_type}")
+        
+        # Asegurar que solo estos 10 modelos tengan is_default = TRUE
+        # Desactivar otros modelos que no sean de los tipos default
+        plant_types_list = [m["plant_type"] for m in default_models]
+        placeholders = ", ".join(["%s"] * len(plant_types_list))
+        await db.execute_query(f"""
+            UPDATE plant_models
+            SET is_default = FALSE
+            WHERE plant_type NOT IN ({placeholders})
+        """, tuple(plant_types_list))
+        
+        return {
+            "message": f"Modelos inicializados exitosamente",
+            "created": created_count,
+            "updated": updated_count,
+            "total": len(default_models),
+            "models": default_models,
+            "placeholder_url": box_model_url
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error inicializando modelos default: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor: {str(e)}"
+        )
+
+# ===============================================
+# ENDPOINTS DE MODELOS 3D
+# ===============================================
+
+@router.get("/models", response_model=List[PlantModelResponse])
+async def get_all_models(
+    current_user: dict = Depends(require_admin),
+    db: AsyncPgDbToolkit = Depends(get_db)
+):
+    """Obtiene todos los modelos 3D disponibles"""
+    try:
+        models_df = await db.execute_query("""
+            SELECT id, plant_type, name, model_3d_url, default_render_url, is_default, metadata
+            FROM plant_models
+            ORDER BY plant_type, name
+        """)
+        
+        if models_df is None or models_df.empty:
+            logger.info("✅ No hay modelos 3D registrados (lista vacía)")
+            return []
+        
+        models = []
+        for _, row in models_df.iterrows():
+            try:
+                model_data = {
+                    "id": int(row["id"]),
+                    "plant_type": str(row["plant_type"]),
+                    "name": str(row["name"]),
+                    "model_3d_url": str(row["model_3d_url"]),
+                    "default_render_url": row.get("default_render_url") if pd.notna(row.get("default_render_url")) else None,
+                    "is_default": bool(row["is_default"]),
+                    "metadata": row.get("metadata") if pd.notna(row.get("metadata")) else None,
+                }
+                models.append(PlantModelResponse(**model_data))
+            except Exception as model_error:
+                logger.warning(f"Error procesando modelo {row.get('id', 'unknown')}: {model_error}")
                 continue
         
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo cotizaciones: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
-        )
-
-@router.get("/quotes/{quote_id}", response_model=QuoteAdminResponse)
-async def get_quote_by_id(
-    quote_id: int,
-    current_user: dict = Depends(require_admin),
-    db: AsyncPgDbToolkit = Depends(get_db)
-):
-    """
-    Obtiene una cotización por ID (solo admin)
-    """
-    try:
-        quote_df = await db.fetch_records(
-            "quotes",
-            conditions={"id": quote_id, "deleted_at": None}
-        )
-        
-        if quote_df is None or quote_df.empty:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cotización no encontrada"
-            )
-        
-        quote = quote_df.iloc[0].to_dict()
-        
-        return QuoteAdminResponse(
-            id=int(quote.get('id', 0)),
-            user_id=int(quote.get('user_id')) if quote.get('user_id') else None,
-            reference_id=str(quote.get('reference_id', '')),
-            name=str(quote.get('name', '')),
-            email=str(quote.get('email', '')),
-            phone=quote.get('phone'),
-            company=quote.get('company'),
-            vineyard_name=quote.get('vineyard_name'),
-            location=quote.get('location'),
-            project_type=quote.get('project_type'),
-            coverage_area=quote.get('coverage_area'),
-            desired_date=quote.get('desired_date'),
-            has_existing_infrastructure=quote.get('has_existing_infrastructure'),
-            requires_installation=quote.get('requires_installation'),
-            requires_training=quote.get('requires_training'),
-            num_devices=int(quote.get('num_devices', 0)),
-            budget_range=quote.get('budget_range'),
-            status=str(quote.get('status', 'pending')),
-            quoted_price=float(quote.get('quoted_price')) if quote.get('quoted_price') else None,
-            quoted_at=quote.get('quoted_at'),
-            assigned_to=int(quote.get('assigned_to')) if quote.get('assigned_to') else None,
-            ip_address=quote.get('ip_address'),
-            created_at=quote.get('created_at'),
-            updated_at=quote.get('updated_at'),
-            message=quote.get('message')
-        )
+        logger.info(f"✅ {len(models)} modelos 3D obtenidos")
+        return models
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error obteniendo cotización {quote_id}: {str(e)}")
+        logger.error(f"Error obteniendo modelos 3D: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
+            detail=f"Error obteniendo modelos 3D: {str(e)}"
         )
 
-@router.put("/quotes/{quote_id}", response_model=QuoteAdminResponse)
-async def update_quote(
-    quote_id: int,
-    quote_update: QuoteAdminUpdate,
+
+@router.get("/models/in-use", response_model=List[PlantModelResponse])
+async def get_models_in_use(
     current_user: dict = Depends(require_admin),
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
-    """
-    Actualiza una cotización (solo admin)
-    """
+    """Obtiene solo los modelos 3D que ya están asignados a plantas (para evitar duplicados)"""
     try:
-        # Verificar que la cotización existe
-        quote_df = await db.fetch_records(
-            "quotes",
-            conditions={"id": quote_id, "deleted_at": None}
-        )
+        models_df = await db.execute_query("""
+            SELECT DISTINCT 
+                pm.id, 
+                pm.plant_type, 
+                pm.name, 
+                pm.model_3d_url, 
+                pm.default_render_url, 
+                pm.is_default,
+                pm.metadata
+            FROM plant_models pm
+            INNER JOIN plant_model_assignments pma ON pm.id = pma.model_id
+            ORDER BY pm.plant_type, pm.name
+        """)
         
-        if quote_df is None or quote_df.empty:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cotización no encontrada"
-            )
+        if models_df is None or models_df.empty:
+            return []
         
-        # Preparar datos de actualización
-        update_data = quote_update.model_dump(exclude_unset=True)
+        models = []
+        for _, row in models_df.iterrows():
+            model_data = {
+                "id": int(row["id"]),
+                "plant_type": str(row["plant_type"]),
+                "name": str(row["name"]),
+                "model_3d_url": str(row["model_3d_url"]),
+                "default_render_url": row.get("default_render_url"),
+                "is_default": bool(row["is_default"]),
+                "metadata": row.get("metadata"),
+            }
+            models.append(PlantModelResponse(**model_data))
         
-        # Si se actualiza el precio, también actualizar quoted_at
-        if 'quoted_price' in update_data and update_data['quoted_price'] is not None:
-            from datetime import datetime
-            update_data['quoted_at'] = datetime.utcnow()
+        logger.info(f"✅ {len(models)} modelos 3D en uso obtenidos")
+        return models
         
-        # Validar estado si se proporciona
-        if 'status' in update_data and update_data['status']:
-            valid_statuses = ['pending', 'contacted', 'quoted', 'accepted', 'rejected', 'cancelled']
-            if update_data['status'] not in valid_statuses:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Estado inválido. Debe ser uno de: {', '.join(valid_statuses)}"
-                )
-        
-        update_data['updated_at'] = datetime.utcnow()
-        
-        # Actualizar en la base de datos
-        await db.update_records(
-            "quotes",
-            conditions={"id": quote_id},
-            updates=update_data
-        )
-        
-        # Obtener la cotización actualizada
-        updated_quote_df = await db.fetch_records(
-            "quotes",
-            conditions={"id": quote_id}
-        )
-        
-        updated_quote = updated_quote_df.iloc[0].to_dict()
-        
-        logger.info(f"Admin {current_user['email']} actualizó cotización {quote_id}")
-        
-        return QuoteAdminResponse(
-            id=int(updated_quote.get('id', 0)),
-            user_id=int(updated_quote.get('user_id')) if updated_quote.get('user_id') else None,
-            reference_id=str(updated_quote.get('reference_id', '')),
-            name=str(updated_quote.get('name', '')),
-            email=str(updated_quote.get('email', '')),
-            phone=updated_quote.get('phone'),
-            company=updated_quote.get('company'),
-            vineyard_name=updated_quote.get('vineyard_name'),
-            location=updated_quote.get('location'),
-            project_type=updated_quote.get('project_type'),
-            coverage_area=updated_quote.get('coverage_area'),
-            desired_date=updated_quote.get('desired_date'),
-            has_existing_infrastructure=updated_quote.get('has_existing_infrastructure'),
-            requires_installation=updated_quote.get('requires_installation'),
-            requires_training=updated_quote.get('requires_training'),
-            num_devices=int(updated_quote.get('num_devices', 0)),
-            budget_range=updated_quote.get('budget_range'),
-            status=str(updated_quote.get('status', 'pending')),
-            quoted_price=float(updated_quote.get('quoted_price')) if updated_quote.get('quoted_price') else None,
-            quoted_at=updated_quote.get('quoted_at'),
-            assigned_to=int(updated_quote.get('assigned_to')) if updated_quote.get('assigned_to') else None,
-            ip_address=updated_quote.get('ip_address'),
-            created_at=updated_quote.get('created_at'),
-            updated_at=updated_quote.get('updated_at'),
-            message=updated_quote.get('message')
-        )
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error actualizando cotización {quote_id}: {str(e)}")
+        logger.error(f"Error obteniendo modelos 3D en uso: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
+            detail=f"Error obteniendo modelos 3D en uso: {str(e)}"
         )
+
+
+# ===============================================
+# ENDPOINT DE DEBUG TEMPORAL
+# ===============================================
+
+@router.get("/debug/me")
+async def debug_current_user(
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Endpoint temporal para debug - muestra info del usuario actual"""
+    return {
+        "user_data": current_user,
+        "role_id": current_user.get("role_id"),
+        "role_id_type": str(type(current_user.get("role_id"))),
+        "is_admin": current_user.get("role_id") == 2,
+        "all_keys": list(current_user.keys())
+    }

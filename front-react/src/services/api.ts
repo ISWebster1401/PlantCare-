@@ -8,7 +8,7 @@ import { UserRegistration, AuthResponse, LoginCredentials, UserResponse } from '
  */
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:5000/api',
+  baseURL: 'http://127.0.0.1:8000/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -32,11 +32,21 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expirado: limpia cookies y redirige
-      Cookies.remove('access_token');
-      Cookies.remove('refresh_token');
-      Cookies.remove('user_data');
-      window.location.href = '/login';
+      // No redirigir si el error viene de endpoints de autenticación (login, google)
+      // Estos errores deben manejarse en el componente de login
+      const isAuthEndpoint = error.config?.url?.includes('/auth/login') || 
+                             error.config?.url?.includes('/auth/google');
+      
+      if (!isAuthEndpoint) {
+        // Token expirado en otras peticiones: limpia cookies y redirige
+        Cookies.remove('access_token');
+        Cookies.remove('refresh_token');
+        Cookies.remove('user_data');
+        // Solo redirigir si no estamos ya en la landing page
+        if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
+          window.location.href = '/';
+        }
+      }
     }
     return Promise.reject(error);
   }
@@ -52,6 +62,12 @@ export const authAPI = {
   // Login de usuario
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     const response = await api.post('/auth/login', credentials);
+    return response.data;
+  },
+
+  // Login con Google
+  loginWithGoogle: async (credential: string): Promise<AuthResponse> => {
+    const response = await api.post('/auth/google', { credential });
     return response.data;
   },
 
@@ -107,7 +123,7 @@ export const deviceAPI = {
 
   // Desconectar dispositivo
   disconnectDevice: async (deviceId: number) => {
-    const response = await api.delete(`/devices/${deviceId}/disconnect`);
+    const response = await api.delete(`/devices/${deviceId}`);
     return response.data;
   },
 };
@@ -160,13 +176,13 @@ export const quotesAPI = {
 };
 
 export const aiAPI = {
-  // Hacer pregunta general sobre plantas
+  // Hacer pregunta general sobre plantas (legacy)
   askGeneral: async (question: string) => {
     const response = await api.post('/ai/ask', { question });
     return response.data;
   },
 
-  // Analizar dispositivo específico
+  // Analizar dispositivo específico (legacy)
   analyzeDevice: async (deviceId: number, question?: string) => {
     const payload: any = { device_id: deviceId };
     if (question) payload.question = question;
@@ -186,12 +202,356 @@ export const aiAPI = {
     const response = await api.get('/ai/health');
     return response.data;
   },
+
+  // ============================================
+  // NUEVOS ENDPOINTS CON MEMORIA
+  // ============================================
+
+  // Chat con memoria
+  chat: async (message: string, conversationId?: number, deviceId?: number) => {
+    const response = await api.post('/ai/chat', {
+      message,
+      conversation_id: conversationId,
+      device_id: deviceId
+    });
+    return response.data;
+  },
+
+  // Chat con streaming
+  chatStream: async (
+    message: string,
+    conversationId: number | undefined,
+    deviceId: number | undefined,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (error: string) => void
+  ) => {
+    try {
+      const response = await fetch(`${api.defaults.baseURL}/ai/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${document.cookie.split('access_token=')[1]?.split(';')[0] || ''}`
+        },
+        body: JSON.stringify({
+          message,
+          conversation_id: conversationId,
+          device_id: deviceId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                onError(data.error);
+                return;
+              }
+              if (data.done) {
+                onDone();
+                return;
+              }
+              if (data.content) {
+                onChunk(data.content);
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      onError(error.message || 'Error en streaming');
+    }
+  },
+
+  // Listar conversaciones
+  getConversations: async () => {
+    const response = await api.get('/ai/conversations');
+    return response.data;
+  },
+
+  // Obtener conversación específica
+  getConversation: async (conversationId: number) => {
+    const response = await api.get(`/ai/conversations/${conversationId}`);
+    return response.data;
+  },
+
+  // Eliminar conversación
+  deleteConversation: async (conversationId: number) => {
+    await api.delete(`/ai/conversations/${conversationId}`);
+  },
 };
 
 export const healthAPI = {
   // Health check
   healthCheck: async () => {
     const response = await api.get('/health');
+    return response.data;
+  },
+};
+
+export const plantsAPI = {
+  // Obtener lista de especies disponibles
+  getPlantSpecies: async (): Promise<string[]> => {
+    const response = await api.get('/plants/species');
+    return response.data;
+  },
+
+  // Identificar planta con imagen
+  identifyPlant: async (file: File, plantSpecies?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (plantSpecies) {
+      formData.append('plant_species', plantSpecies);
+    }
+    const response = await api.post('/plants/identify', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Generar personaje
+  generateCharacter: async (plantType: string, plantName: string, mood: string = 'happy') => {
+    const response = await api.post('/plants/generate-character', {
+      plant_type: plantType,
+      plant_name: plantName,
+      mood
+    });
+    return response.data;
+  },
+
+  // Crear planta completa
+  createPlant: async (file: File, plantName: string, plantSpecies?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('plant_name', plantName);
+    if (plantSpecies) {
+      formData.append('plant_species', plantSpecies);
+    }
+    const response = await api.post('/plants/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Listar plantas del usuario
+  getMyPlants: async () => {
+    const response = await api.get('/plants/');
+    return response.data;
+  },
+
+  // Obtener detalle de planta
+  getPlant: async (plantId: number) => {
+    const response = await api.get(`/plants/${plantId}`);
+    return response.data;
+  },
+
+  // Actualizar salud de planta
+  updatePlantHealth: async (plantId: number) => {
+    const response = await api.put(`/plants/${plantId}/health`);
+    return response.data;
+  },
+
+  // Actualizar planta
+  updatePlant: async (plantId: number, data: { plant_name?: string; last_watered?: string }) => {
+    const response = await api.put(`/plants/${plantId}`, data);
+    return response.data;
+  },
+
+  // Obtener modelos disponibles para asignar
+  getAvailableModels: async (): Promise<any[]> => {
+    const response = await api.get('/admin/models/in-use');
+    return response.data;
+  },
+
+  // Asignar modelo 3D a una planta
+  assignModelToPlant: async (plantId: number, modelId: number): Promise<any> => {
+    const response = await api.post(`/plants/${plantId}/assign-model`, {
+      model_id: modelId
+    });
+    return response.data;
+  },
+};
+
+// ============================================
+// ADMIN API
+// ============================================
+
+export const adminAPI = {
+  // Obtener estadísticas del sistema
+  getStats: async (): Promise<any> => {
+    const response = await api.get('/admin/stats');
+    return response.data;
+  },
+
+  // Obtener todos los usuarios
+  getUsers: async (): Promise<any[]> => {
+    const response = await api.get('/admin/users');
+    return response.data;
+  },
+
+  // Obtener usuario por ID
+  getUserById: async (userId: number): Promise<any> => {
+    const response = await api.get(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  // Activar/desactivar usuario
+  toggleUserStatus: async (userId: number): Promise<void> => {
+    await api.put(`/admin/users/${userId}/toggle-status`);
+  },
+
+  // Obtener todos los sensores
+  getSensors: async (): Promise<any[]> => {
+    const response = await api.get('/admin/sensors');
+    return response.data;
+  },
+
+  // Obtener sensor por ID
+  getSensorById: async (sensorId: string): Promise<any> => {
+    const response = await api.get(`/admin/sensors/${sensorId}`);
+    return response.data;
+  },
+
+  // Obtener todas las plantas
+  getPlants: async (): Promise<any[]> => {
+    const response = await api.get('/admin/plants');
+    return response.data;
+  },
+
+  // Obtener planta por ID
+  getPlantById: async (plantId: number): Promise<any> => {
+    const response = await api.get(`/admin/plants/${plantId}`);
+    return response.data;
+  },
+
+  // Eliminar planta
+  deletePlant: async (plantId: number): Promise<void> => {
+    await api.delete(`/admin/plants/${plantId}`);
+  },
+
+  // Obtener todos los modelos 3D
+  getModels: async (): Promise<any[]> => {
+    const response = await api.get('/admin/models');
+    return response.data;
+  },
+
+  // Obtener solo modelos en uso
+  getModelsInUse: async (): Promise<any[]> => {
+    const response = await api.get('/admin/models/in-use');
+    return response.data;
+  },
+
+  // Subir modelo 3D
+  uploadModel: async (file: File, plantType?: string, name?: string, isDefault: boolean = false): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (plantType) formData.append('plant_type', plantType);
+    if (name) formData.append('name', name);
+    formData.append('is_default', isDefault.toString());
+    const response = await api.post('/plants/models/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Actualizar modelo 3D existente
+  updateModel: async (
+    modelId: number, 
+    file?: File, 
+    plantType?: string, 
+    name?: string, 
+    isDefault?: boolean
+  ): Promise<any> => {
+    const formData = new FormData();
+    if (file) formData.append('file', file);
+    if (plantType) formData.append('plant_type', plantType);
+    if (name) formData.append('name', name);
+    if (isDefault !== undefined) formData.append('is_default', isDefault.toString());
+    const response = await api.put(`/plants/models/${modelId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+};
+
+export const sensorsAPI = {
+  // Registrar nuevo sensor
+  registerSensor: async (deviceKey: string, deviceType: string = 'esp8266') => {
+    const response = await api.post('/sensors/register', {
+      device_key: deviceKey,
+      device_type: deviceType
+    });
+    return response.data;
+  },
+
+  // Asignar sensor a planta
+  assignSensor: async (sensorId: number, plantId: number) => {
+    const response = await api.post(`/sensors/${sensorId}/assign`, {
+      plant_id: plantId
+    });
+    return response.data;
+  },
+
+  // Listar sensores del usuario
+  getMySensors: async () => {
+    const response = await api.get('/sensors/');
+    return response.data;
+  },
+
+  // Activar/Desactivar sensor
+  toggleSensor: async (sensorId: number, isActive: boolean) => {
+    const response = await api.put(`/sensors/${sensorId}/toggle?is_active=${isActive}`);
+    return response.data;
+  },
+
+  // Obtener lecturas de un sensor
+  getSensorReadings: async (sensorId: number, limit: number = 100) => {
+    const response = await api.get(`/sensors/${sensorId}/readings`, {
+      params: { limit }
+    });
+    return response.data;
+  },
+};
+
+export const notificationsAPI = {
+  // Listar notificaciones
+  getNotifications: async (unreadOnly: boolean = false) => {
+    const response = await api.get('/notifications/', {
+      params: { unread_only: unreadOnly }
+    });
+    return response.data;
+  },
+
+  // Marcar notificación como leída
+  markAsRead: async (notificationId: number) => {
+    const response = await api.put(`/notifications/${notificationId}/read`);
+    return response.data;
+  },
+
+  // Marcar todas como leídas
+  markAllAsRead: async () => {
+    const response = await api.put('/notifications/read-all');
     return response.data;
   },
 };

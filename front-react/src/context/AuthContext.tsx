@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import Cookies from 'js-cookie';
-import { UserResponse, LoginCredentials, UserRegistration } from '../types/User';
+import { UserResponse, LoginCredentials, UserRegistration, AuthResponse } from '../types/User';
 import { authAPI } from '../services/api';
 
 /**
@@ -13,6 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   register: (userData: UserRegistration) => Promise<UserResponse>;
   logout: () => void;
 }
@@ -59,27 +60,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(false);
   }, []);
 
+  const persistSession = (response: AuthResponse, rememberMe: boolean = false) => {
+    // Si remember_me está activado, cookies duran 30 días, sino 7 días
+    const cookieExpires = rememberMe ? 30 : 7;
+    
+    const cookieOptions = {
+      expires: cookieExpires,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict' as const,
+    };
+
+    Cookies.set('access_token', response.access_token, cookieOptions);
+    Cookies.set('refresh_token', response.refresh_token, cookieOptions);
+    Cookies.set('user_data', JSON.stringify(response.user), cookieOptions);
+
+    setUser(response.user);
+    setToken(response.access_token);
+  };
+
   const login = async (credentials: LoginCredentials) => {
     try {
       const response = await authAPI.login(credentials);
-      
-      // 🍪 CONFIGURACIÓN DE COOKIES SEGURAS - CLAVE DE LA PERSISTENCIA
-      const cookieOptions = {
-        expires: 7,                                    // Persisten 7 días
-        secure: process.env.NODE_ENV === 'production', // HTTPS en producción
-        sameSite: 'strict' as const,                   // Protección CSRF
-      };
-      
-      // 💾 GUARDAR EN COOKIES - PERSISTE ENTRE SESIONES DEL NAVEGADOR
-      Cookies.set('access_token', response.access_token, cookieOptions);
-      Cookies.set('refresh_token', response.refresh_token, cookieOptions);
-      Cookies.set('user_data', JSON.stringify(response.user), cookieOptions);
-      
-      setUser(response.user);
-      setToken(response.access_token);
-      
+      persistSession(response, credentials.remember_me || false);
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Error al iniciar sesión');
+    }
+  };
+
+  const loginWithGoogle = async (credential: string) => {
+    try {
+      const response = await authAPI.loginWithGoogle(credential);
+      persistSession(response);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Error al iniciar sesión con Google');
     }
   };
 
@@ -114,6 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     isAuthenticated: !!user,
     login,
+    loginWithGoogle,
     register,
     logout,
   };

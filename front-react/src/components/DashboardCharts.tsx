@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { plantsAPI, sensorsAPI } from '../services/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,8 +12,9 @@ import {
   Legend,
   Filler
 } from 'chart.js';
+import type { ChartOptions } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { DeviceCardIcon, ChartIcon, HumidityIcon, AlertIcon, BellIcon, RefreshIcon, LineChartIcon } from './Icons';
+// Icons removidos - no se usan actualmente
 import './DashboardCharts.css';
 
 // Registrar componentes de Chart.js
@@ -29,175 +30,193 @@ ChartJS.register(
   Filler
 );
 
-interface DashboardData {
-  devices: any[];
-  summary: {
-    total_devices: number;
-    active_devices: number;
-    total_readings_today: number;
-    avg_humidity_all: number;
-  };
-  chart_data: any[];
-  alerts: any[];
-  ai_insights: string;
-  generated_at: string;
+interface Plant {
+  id: number;
+  plant_name: string;
+  plant_type: string;
+  character_image_url: string;
+  character_mood: string;
+  health_status: string;
+  sensor_id: number | null;
+  optimal_humidity_min: number | null;
+  optimal_humidity_max: number | null;
+  optimal_temp_min: number | null;
+  optimal_temp_max: number | null;
 }
 
-interface DeviceReport {
-  device_info: {
-    id: number;
-    name: string;
-    plant_type?: string;
-    location?: string;
-  };
-  statistics: {
-    current_humidity: number;
-    avg_humidity_48h: number;
-    min_humidity: number;
-    max_humidity: number;
-    total_readings: number;
-  };
-  trend_analysis: {
-    trend: string;
-    trend_description: string;
-  };
-  ai_report: string;
-  generated_at: string;
+interface SensorReading {
+  id: number;
+  sensor_id: number;
+  humidity: number;
+  temperature: number | null;
+  reading_time: string;
 }
 
-type ViewMode = 'line' | 'gauge';
+interface ChartEntry {
+  bucket: string;
+  plant_id: number;
+  humidity: number | null;
+  temperature: number | null;
+}
+
+type Timeframe = 'hour' | 'day' | 'week';
+
+const TIMEFRAME_OPTIONS: { key: Timeframe; label: string }[] = [
+  { key: 'hour', label: 'Última Hora' },
+  { key: 'day', label: 'Último Día' },
+  { key: 'week', label: 'Última Semana' },
+];
 
 const DashboardCharts: React.FC = () => {
-  const { token } = useAuth();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [selectedDeviceReport, setSelectedDeviceReport] = useState<DeviceReport | null>(null);
+  const [plants, setPlants] = useState<Plant[]>([]);
+  const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
+  const [chartData, setChartData] = useState<ChartEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('line');
-
-  const loadDashboardData = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      // Datos falsos por defecto para mostrar gráficos inmediatamente
-      const fakeData: DashboardData = {
-        devices: [
-          { id: 1, name: 'Sensor Viña Norte', plant_type: 'Uva Carmenere', location: 'Campo A1' },
-          { id: 2, name: 'Sensor Viña Sur', plant_type: 'Uva Cabernet', location: 'Campo B2' },
-          { id: 3, name: 'Sensor Viña Central', plant_type: 'Uva Merlot', location: 'Campo C3' }
-        ],
-        summary: {
-          total_devices: 3,
-          active_devices: 3,
-          total_readings_today: 156,
-          avg_humidity_all: 68.5
-        },
-        chart_data: [
-          { day: '2024-03-15', avg_humidity: 65, device_id: 1 },
-          { day: '2024-03-16', avg_humidity: 67, device_id: 1 },
-          { day: '2024-03-17', avg_humidity: 69, device_id: 1 },
-          { day: '2024-03-18', avg_humidity: 71, device_id: 1 },
-          { day: '2024-03-19', avg_humidity: 70, device_id: 1 },
-          { day: '2024-03-20', avg_humidity: 68, device_id: 1 },
-          { day: '2024-03-15', avg_humidity: 62, device_id: 2 },
-          { day: '2024-03-16', avg_humidity: 64, device_id: 2 },
-          { day: '2024-03-17', avg_humidity: 66, device_id: 2 },
-          { day: '2024-03-18', avg_humidity: 67, device_id: 2 },
-          { day: '2024-03-19', avg_humidity: 65, device_id: 2 },
-          { day: '2024-03-20', avg_humidity: 63, device_id: 2 },
-          { day: '2024-03-15', avg_humidity: 70, device_id: 3 },
-          { day: '2024-03-16', avg_humidity: 71, device_id: 3 },
-          { day: '2024-03-17', avg_humidity: 69, device_id: 3 },
-          { day: '2024-03-18', avg_humidity: 68, device_id: 3 },
-          { day: '2024-03-19', avg_humidity: 67, device_id: 3 },
-          { day: '2024-03-20', avg_humidity: 66, device_id: 3 }
-        ],
-        alerts: [
-          { id: 1, type: 'warning', urgency: 'medium', device_name: 'Sensor Viña Norte', message: 'Humedad por encima del rango óptimo', action: 'Revisar riego en la zona A1' },
-          { id: 2, type: 'info', urgency: 'low', device_name: 'Sensor Viña Sur', message: 'Condiciones estables', action: 'Continuar monitoreo' }
-        ],
-        ai_insights: 'Los sensores muestran una tendencia estable de humedad. Recomendamos monitorear la temperatura durante las próximas 48 horas.',
-        generated_at: new Date().toISOString()
-      };
-      
-      setDashboardData(fakeData);
-      setError('');
-      
-      // Intentar cargar datos reales en segundo plano
-      try {
-        const realData = await apiCall('/api/reports/user/dashboard-data');
-        const hasDevices = Array.isArray((realData as any).devices) && (realData as any).devices.length > 0;
-        const hasChart = Array.isArray((realData as any).chart_data) && (realData as any).chart_data.length > 0;
-        if (hasDevices && hasChart) {
-          setDashboardData(realData);
-        }
-      } catch (err) {
-        // Si falla, mantener los datos falsos
-        console.log('Usando datos de demostración');
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const [timeframe, setTimeframe] = useState<Timeframe>('day');
+  const [selectedMetric, setSelectedMetric] = useState<'humidity' | 'temperature'>('humidity');
 
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    loadPlants();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const apiCall = async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Error desconocido' }));
-      throw new Error(errorData.detail || `Error ${response.status}`);
+  useEffect(() => {
+    if (selectedPlant) {
+      loadPlantData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlant, timeframe]);
 
-    return response.json();
-  };
-
-  // loadDashboardData definido arriba con useCallback
-
-  const loadDeviceReport = async (deviceId: number) => {
+  const loadPlants = async () => {
     try {
       setLoading(true);
-      const report = await apiCall(`/api/reports/device/${deviceId}/ai-report`);
-      setSelectedDeviceReport(report);
-      setSelectedDevice(deviceId);
+      setError('');
+      const data = await plantsAPI.getMyPlants();
+      setPlants(data);
+      
+      // Seleccionar primera planta por defecto si hay plantas
+      if (data.length > 0 && !selectedPlant) {
+        setSelectedPlant(data[0]);
+      }
     } catch (err: any) {
-      setError(err.message);
+      console.error('Error cargando plantas:', err);
+      setError('Error cargando tus plantas');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && !dashboardData) {
+  const loadPlantData = async () => {
+    if (!selectedPlant || !selectedPlant.sensor_id) {
+      setChartData([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Calcular límite según timeframe
+      let limit = 24; // 1 día por hora
+      if (timeframe === 'hour') limit = 60; // 1 hora por minuto
+      if (timeframe === 'week') limit = 168; // 1 semana por hora
+
+      // Obtener lecturas del sensor
+      const readingsResponse = await sensorsAPI.getSensorReadings(
+        selectedPlant.sensor_id,
+        limit
+      );
+      
+      // Asegurar que sea un array
+      const readings: SensorReading[] = Array.isArray(readingsResponse) 
+        ? readingsResponse 
+        : readingsResponse.readings || [];
+
+      // Agrupar por timeframe
+      const grouped: Record<string, { humidity: number[]; temperature: number[] }> = {};
+      
+      readings.forEach(reading => {
+        const date = new Date(reading.reading_time);
+        let bucket: string;
+        
+        if (timeframe === 'hour') {
+          bucket = date.toISOString().slice(0, 16); // Por minuto
+        } else if (timeframe === 'day') {
+          bucket = date.toISOString().slice(0, 13); // Por hora
+        } else {
+          bucket = date.toISOString().slice(0, 10); // Por día
+        }
+
+        if (!grouped[bucket]) {
+          grouped[bucket] = { humidity: [], temperature: [] };
+        }
+        
+        grouped[bucket].humidity.push(reading.humidity);
+        if (reading.temperature) {
+          grouped[bucket].temperature.push(reading.temperature);
+        }
+      });
+
+      // Convertir a formato de gráfico
+      const entries: ChartEntry[] = Object.entries(grouped).map(([bucket, values]) => ({
+        bucket,
+        plant_id: selectedPlant.id,
+        humidity: values.humidity.length > 0 
+          ? values.humidity.reduce((a, b) => a + b, 0) / values.humidity.length 
+          : null,
+        temperature: values.temperature.length > 0
+          ? values.temperature.reduce((a, b) => a + b, 0) / values.temperature.length
+          : null,
+      }));
+
+      entries.sort((a, b) => new Date(a.bucket).getTime() - new Date(b.bucket).getTime());
+      setChartData(entries);
+    } catch (err: any) {
+      console.error('Error cargando datos de planta:', err);
+      setError('Error cargando datos del sensor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getMoodEmoji = (mood: string) => {
+    const emojis: { [key: string]: string } = {
+      happy: '😊',
+      sad: '😢',
+      thirsty: '💧',
+      overwatered: '🌊',
+      sick: '🤒',
+    };
+    return emojis[mood.toLowerCase()] || '😐';
+  };
+
+  const getHealthColor = (status: string) => {
+    const colors: { [key: string]: string } = {
+      healthy: '#4ade80',
+      warning: '#fbbf24',
+      critical: '#ef4444'
+    };
+    return colors[status] || '#gray';
+  };
+
+  if (loading && plants.length === 0) {
     return (
       <div className="dashboard-charts">
         <div className="loading-container">
           <div className="spinner-large"></div>
-          <p>Cargando tu dashboard personalizado...</p>
+          <p>Cargando tus plantas...</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && plants.length === 0) {
     return (
       <div className="dashboard-charts">
         <div className="error-container">
-          <h3>❌ Error cargando datos</h3>
+          <h3>❌ Error</h3>
           <p>{error}</p>
-          <button onClick={loadDashboardData} className="btn-primary">
+          <button onClick={loadPlants} className="btn-primary">
             🔄 Reintentar
           </button>
         </div>
@@ -205,42 +224,45 @@ const DashboardCharts: React.FC = () => {
     );
   }
 
-  if (!dashboardData) {
+  if (plants.length === 0) {
     return (
       <div className="dashboard-charts">
-        <div className="loading-container">
-          <div className="spinner-large"></div>
-          <p>Preparando datos...</p>
+        <div className="empty-state">
+          <div className="empty-icon">🌱</div>
+          <h2>¡Aún no tienes plantas!</h2>
+          <p>Ve a "Tu Jardín" para añadir tu primera planta y comenzar a monitorearla.</p>
         </div>
       </div>
     );
   }
 
-  // Preparar datos para el gráfico de líneas (humedad por día)
-  const chartData = {
-    labels: Array.from(new Set((dashboardData.chart_data || []).map(d => new Date((d as any).day || (d as any).date).toLocaleDateString()))),
-    datasets: (dashboardData.devices || []).map((device, index) => {
-      const deviceData = (dashboardData.chart_data || []).filter(d => (d as any).device_id === device.id);
-      const colors = [
-        'rgba(74, 222, 128, 0.8)',
-        'rgba(59, 130, 246, 0.8)',
-        'rgba(245, 158, 11, 0.8)',
-        'rgba(239, 68, 68, 0.8)',
-        'rgba(139, 92, 246, 0.8)'
-      ];
-      
-      return {
-        label: device.name || `Dispositivo ${device.id}`,
-        data: deviceData.map(d => (d as any).avg_humidity ?? (d as any).humidity ?? 0),
-        borderColor: colors[index % colors.length],
-        backgroundColor: colors[index % colors.length].replace('0.8', '0.2'),
-        fill: false,
-        tension: 0.4
-      };
-    })
+  // Preparar datos del gráfico
+  const labels = chartData.map(entry => {
+    const date = new Date(entry.bucket);
+    if (timeframe === 'hour') {
+      return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    } else if (timeframe === 'day') {
+      return date.toLocaleTimeString('es-ES', { hour: '2-digit' });
+    } else {
+      return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+    }
+  });
+
+  const chartDataConfig = {
+    labels,
+    datasets: selectedPlant ? [{
+      label: selectedMetric === 'humidity' ? 'Humedad (%)' : 'Temperatura (°C)',
+      data: chartData.map(entry => entry[selectedMetric]),
+      borderColor: selectedMetric === 'humidity' ? 'rgba(74, 222, 128, 0.8)' : 'rgba(59, 130, 246, 0.8)',
+      backgroundColor: selectedMetric === 'humidity' 
+        ? 'rgba(74, 222, 128, 0.2)' 
+        : 'rgba(59, 130, 246, 0.2)',
+      fill: true,
+      tension: 0.4,
+    }] : [],
   };
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     plugins: {
       legend: {
@@ -248,337 +270,174 @@ const DashboardCharts: React.FC = () => {
       },
       title: {
         display: true,
-        text: 'Humedad del Suelo - Últimos 7 Días'
+        text: selectedPlant 
+          ? `${selectedMetric === 'humidity' ? 'Humedad' : 'Temperatura'} de ${selectedPlant.plant_name}`
+          : 'Selecciona una planta',
       },
     },
     scales: {
       y: {
-        beginAtZero: true,
-        max: 100,
+        min: selectedMetric === 'humidity' ? 0 : undefined,
+        max: selectedMetric === 'humidity' ? 100 : undefined,
         title: {
           display: true,
-          text: 'Humedad (%)'
-        }
-      }
+          text: selectedMetric === 'humidity' ? 'Humedad (%)' : 'Temperatura (°C)',
+        },
+      },
     },
   };
 
-  // Valor para gauge: promedio de la última fecha disponible
-  const lastDate = (dashboardData?.chart_data || []).reduce<string | null>((acc, d: any) => {
-    const day = d.day || d.date;
-    if (!day) return acc;
-    if (!acc) return day;
-    return new Date(day) > new Date(acc) ? day : acc;
-  }, null);
-  const gaugeValue = (() => {
-    if (!lastDate) return Math.round(dashboardData?.summary?.avg_humidity_all ?? 0);
-    const items = (dashboardData?.chart_data || []).filter((d: any) => (d.day || d.date) === lastDate);
-    if (items.length === 0) return Math.round(dashboardData?.summary?.avg_humidity_all ?? 0);
-    const avg = items.reduce((s: number, d: any) => s + (d.avg_humidity ?? d.humidity ?? 0), 0) / items.length;
-    return Math.round(avg);
-  })();
+  // Calcular estadísticas
+  const currentValue = chartData.length > 0 
+    ? chartData[chartData.length - 1][selectedMetric]
+    : null;
+  
+  const average = chartData.length > 0
+    ? chartData.reduce((sum, entry) => sum + (entry[selectedMetric] || 0), 0) / chartData.length
+    : null;
 
   return (
     <div className="dashboard-charts">
-      {/* Resumen de estadísticas */}
-      <div className="stats-overview">
-        <div className="stat-card">
-          <div className="stat-icon">
-            <DeviceCardIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{dashboardData.summary?.total_devices ?? 0}</h3>
-            <p>Dispositivos Conectados</p>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <ChartIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{dashboardData.summary?.total_readings_today ?? 0}</h3>
-            <p>Lecturas Hoy</p>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <HumidityIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{dashboardData.summary?.avg_humidity_all ?? 0}%</h3>
-            <p>Humedad Promedio</p>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <AlertIcon />
-          </div>
-          <div className="stat-content">
-            <h3>{(dashboardData.alerts || []).length}</h3>
-            <p>Alertas Activas</p>
-          </div>
-        </div>
+      <div className="plants-dashboard-header">
+        <h1>📊 Dashboard de Plantas</h1>
+        <p>Monitorea la salud de tus plantas en tiempo real</p>
       </div>
 
-      {/* Alertas importantes */}
-      {(dashboardData.alerts || []).length > 0 && (
-        <div className="alerts-section">
-          <h3>
-            <span style={{marginRight: 8, display: 'inline-flex', color: '#ef4444'}}>
-              <BellIcon className="nav-icon" />
-            </span>
-            Alertas Importantes
-          </h3>
-          <div className="alerts-grid">
-            {(dashboardData.alerts || []).map((alert, index) => (
-              <div key={index} className={`alert-card ${alert.urgency}`}>
-                <div className="alert-header">
-                  <span className="alert-type">
-                    {alert.type === 'critical' ? '🔴' : 
-                     alert.type === 'warning' ? '🟡' : '🔵'}
-                  </span>
-                  <span className="device-name">{alert.device_name}</span>
-                </div>
-                <p className="alert-message">{alert.message}</p>
-                <p className="alert-action"><strong>Acción:</strong> {alert.action}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Gráfico principal */}
-      <div className="chart-section">
-        <h3 className="chart-title">{viewMode === 'line' ? 'Gráfico 1' : 'Gráfico 2'}</h3>
-        {viewMode==='line' ? (
-          <div className="chart-container">
-            <Line data={chartData} options={chartOptions} />
-          </div>
-        ) : (
-          <div className="gauge-container">
-            <svg viewBox="0 0 220 140" width="100%" style={{maxWidth: 500}}>
-              <defs>
-                <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8"/>
-                  <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.8"/>
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity="0.8"/>
-                </linearGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              {/* Arco del medidor */}
-              <path 
-                d="M20,120 A90,90 0 0,1 200,120" 
-                fill="none" 
-                stroke="url(#gaugeGradient)" 
-                strokeWidth="16" 
-                strokeLinecap="round"
-                filter="url(#glow)"
-              />
-              {/* Marcas de escala */}
-              {[0, 25, 50, 75, 100].map((val, i) => {
-                const angle = (-180 + (val/100)*180) * Math.PI/180;
-                const cx = 110, cy = 120, r = 85;
-                const x1 = cx + (r-10)*Math.cos(angle);
-                const y1 = cy + (r-10)*Math.sin(angle);
-                const x2 = cx + r*Math.cos(angle);
-                const y2 = cy + r*Math.sin(angle);
-                return (
-                  <g key={i}>
-                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#94a3b8" strokeWidth="2"/>
-                    <text 
-                      x={x1 - 5} 
-                      y={y1 + 5} 
-                      textAnchor="middle" 
-                      fill="#cbd5e1" 
-                      fontSize="11"
-                      fontWeight="500"
-                    >
-                      {val}%
-                    </text>
-                  </g>
-                );
-              })}
-              {/* Aguja */}
-              {(() => {
-                const angle = (-180 + (gaugeValue/100)*180) * Math.PI/180;
-                const cx = 110, cy = 120, r = 80;
-                const x = cx + r*Math.cos(angle);
-                const y = cy + r*Math.sin(angle);
-                return (
-                  <g>
-                    <line 
-                      x1={cx} 
-                      y1={cy} 
-                      x2={x} 
-                      y2={y} 
-                      stroke="#ffffff" 
-                      strokeWidth="5" 
-                      strokeLinecap="round"
-                      filter="url(#glow)"
-                    />
-                    <circle cx={cx} cy={cy} r="8" fill="#ffffff" filter="url(#glow)"/>
-                    <circle cx={cx} cy={cy} r="4" fill="#0f172a"/>
-                  </g>
-                );
-              })()}
-              {/* Valor central */}
-              <text 
-                x="110" 
-                y="90" 
-                textAnchor="middle" 
-                fill="#ffffff" 
-                fontSize="36" 
-                fontWeight="700"
-                filter="url(#glow)"
-              >
-                {gaugeValue}%
-              </text>
-              <text 
-                x="110" 
-                y="110" 
-                textAnchor="middle" 
-                fill="#94a3b8" 
-                fontSize="14"
-                fontWeight="500"
-              >
-                Humedad Promedio
-              </text>
-            </svg>
-          </div>
-        )}
-      </div>
-      
-      {/* Botón de cambio de vista */}
-      <div className="charts-toolbar">
-        <button className="btn-secondary" onClick={() => setViewMode(viewMode==='line'?'gauge':'line')}>
-          {viewMode==='line' ? (
-            <>
-              <RefreshIcon className="nav-icon" />
-              Cambiar a Gráfico 2
-            </>
-          ) : (
-            <>
-              <LineChartIcon className="nav-icon" />
-              Cambiar a Gráfico 1
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Insights de IA */}
-      <div className="ai-insights-section">
-        <h3>Insights de IA</h3>
-        <div className="ai-insights-content">
-          <div className="ai-avatar">
-            <img src="/Plantcareblanco-removebg-preview.png" alt="PlantCare AI" style={{width: '40px', height: '40px'}} />
-          </div>
-          <div className="ai-text">
-            <p>{dashboardData.ai_insights || 'Conecta tu primer sensor para comenzar a recibir recomendaciones personalizadas de IA.'}</p>
-            <small>
-              Generado el {(dashboardData.generated_at && !isNaN(Date.parse(dashboardData.generated_at)))
-                ? new Date(dashboardData.generated_at).toLocaleString()
-                : new Date().toLocaleString()}
-            </small>
-          </div>
-        </div>
-      </div>
-
-      {/* Lista de dispositivos con reportes */}
-      <div className="devices-reports">
-        <h3>📱 Mis Dispositivos</h3>
-        <div className="devices-grid">
-          {dashboardData.devices.map(device => (
-            <div key={device.id} className="device-card">
-              <div className="device-header">
-                <h4>{device.name || `Dispositivo ${device.id}`}</h4>
-                <span className={`device-status ${device.connected ? 'connected' : 'disconnected'}`}>
-                  {device.connected ? '🟢 Conectado' : '🔴 Desconectado'}
-                </span>
-              </div>
-              <div className="device-info">
-                <p><strong>Tipo:</strong> {device.plant_type || 'No especificado'}</p>
-                <p><strong>Ubicación:</strong> {device.location || 'No especificada'}</p>
-                <p><strong>Código:</strong> <code>{device.device_code}</code></p>
-              </div>
-              <div className="device-actions">
-                <button 
-                  onClick={() => loadDeviceReport(device.id)}
-                  className="btn-primary"
-                  disabled={loading && selectedDevice === device.id}
+      {/* Selector de plantas */}
+      <div className="plants-selector">
+        <h3>Selecciona una planta:</h3>
+        <div className="plants-grid-mini">
+          {plants.map(plant => (
+            <div
+              key={plant.id}
+              className={`plant-mini-card ${selectedPlant?.id === plant.id ? 'active' : ''}`}
+              onClick={() => setSelectedPlant(plant)}
+            >
+              {plant.character_image_url ? (
+                <img src={plant.character_image_url} alt={plant.plant_name} />
+              ) : (
+                <div className="plant-placeholder">🌱</div>
+              )}
+              <div className="plant-mini-info">
+                <h4>{plant.plant_name}</h4>
+                <span className="mood-mini">{getMoodEmoji(plant.character_mood)}</span>
+                <span 
+                  className="health-badge"
+                  style={{ backgroundColor: getHealthColor(plant.health_status) }}
                 >
-                  {loading && selectedDevice === device.id ? (
-                    <>
-                      <span className="spinner"></span>
-                      Generando...
-                    </>
-                  ) : (
-                    '📊 Ver Reporte IA'
-                  )}
-                </button>
+                  {plant.health_status}
+                </span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Modal de reporte de dispositivo */}
-      {selectedDeviceReport && (
-        <div className="report-modal">
-          <div className="report-content">
-            <div className="report-header">
-              <h2>📊 Reporte de {selectedDeviceReport.device_info.name}</h2>
-              <button 
-                className="close-btn"
-                onClick={() => setSelectedDeviceReport(null)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="report-stats">
-              <div className="stat-item">
-                <span className="stat-label">Humedad Actual:</span>
-                <span className="stat-value">{selectedDeviceReport.statistics.current_humidity}%</span>
+      {selectedPlant && (
+        <>
+          {/* Información de la planta seleccionada */}
+          <div className="selected-plant-info">
+            <div className="plant-hero">
+              {selectedPlant.character_image_url ? (
+                <img src={selectedPlant.character_image_url} alt={selectedPlant.plant_name} />
+              ) : (
+                <div className="plant-hero-placeholder">🌱</div>
+              )}
+              <div className="plant-hero-details">
+                <h2>{selectedPlant.plant_name}</h2>
+                <p className="plant-type">{selectedPlant.plant_type}</p>
+                <div className="plant-status">
+                  <span className="mood-large">{getMoodEmoji(selectedPlant.character_mood)}</span>
+                  <span 
+                    className="health-status"
+                    style={{ color: getHealthColor(selectedPlant.health_status) }}
+                  >
+                    {selectedPlant.health_status}
+                  </span>
+                </div>
               </div>
-              <div className="stat-item">
-                <span className="stat-label">Promedio 48h:</span>
-                <span className="stat-value">{selectedDeviceReport.statistics.avg_humidity_48h.toFixed(1)}%</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-label">Tendencia:</span>
-                <span className={`trend-badge ${selectedDeviceReport.trend_analysis.trend}`}>
-                  {selectedDeviceReport.trend_analysis.trend === 'subiendo' ? '📈' :
-                   selectedDeviceReport.trend_analysis.trend === 'bajando' ? '📉' : '➡️'}
-                  {selectedDeviceReport.trend_analysis.trend_description}
-                </span>
-              </div>
-            </div>
-
-            <div className="ai-report">
-              <h3>🤖 Análisis de IA</h3>
-              <div className="ai-report-content">
-                {selectedDeviceReport.ai_report.split('\n').map((line, index) => (
-                  <p key={index}>{line}</p>
-                ))}
-              </div>
-            </div>
-
-            <div className="report-footer">
-              <small>
-                Reporte generado el {new Date(selectedDeviceReport.generated_at).toLocaleString()}
-              </small>
             </div>
           </div>
-        </div>
+
+          {selectedPlant.sensor_id ? (
+            <>
+              {/* Selector de métrica y timeframe */}
+              <div className="chart-controls">
+                <div className="metric-tabs">
+                  <button
+                    className={`metric-tab ${selectedMetric === 'humidity' ? 'active' : ''}`}
+                    onClick={() => setSelectedMetric('humidity')}
+                  >
+                    💧 Humedad
+                  </button>
+                  <button
+                    className={`metric-tab ${selectedMetric === 'temperature' ? 'active' : ''}`}
+                    onClick={() => setSelectedMetric('temperature')}
+                  >
+                    🌡️ Temperatura
+                  </button>
+                </div>
+
+                <div className="timeframe-tabs">
+                  {TIMEFRAME_OPTIONS.map(option => (
+                    <button
+                      key={option.key}
+                      className={`timeframe-tab ${timeframe === option.key ? 'active' : ''}`}
+                      onClick={() => setTimeframe(option.key)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Estadísticas rápidas */}
+              <div className="stats-overview">
+                <div className="stat-card">
+                  <div className="stat-icon">{selectedMetric === 'humidity' ? '💧' : '🌡️'}</div>
+                  <div className="stat-content">
+                    <h3>{currentValue !== null ? `${currentValue.toFixed(1)}${selectedMetric === 'humidity' ? '%' : '°C'}` : '--'}</h3>
+                    <p>Valor Actual</p>
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">📊</div>
+                  <div className="stat-content">
+                    <h3>{average !== null ? `${average.toFixed(1)}${selectedMetric === 'humidity' ? '%' : '°C'}` : '--'}</h3>
+                    <p>Promedio</p>
+                  </div>
+                </div>
+                {selectedPlant.optimal_humidity_min && selectedPlant.optimal_humidity_max && selectedMetric === 'humidity' && (
+                  <div className="stat-card">
+                    <div className="stat-icon">🎯</div>
+                    <div className="stat-content">
+                      <h3>{selectedPlant.optimal_humidity_min}% - {selectedPlant.optimal_humidity_max}%</h3>
+                      <p>Rango Óptimo</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Gráfico */}
+              {chartData.length > 0 ? (
+                <div className="chart-section">
+                  <div className="chart-container">
+                    <Line data={chartDataConfig} options={chartOptions} />
+                  </div>
+                </div>
+              ) : (
+                <div className="no-data-message">
+                  <p>📡 No hay datos del sensor aún. Espera a que el sensor envíe lecturas.</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="no-sensor-message">
+              <h3>📡 Sin Sensor Conectado</h3>
+              <p>Esta planta no tiene un sensor asignado. Ve a "Dispositivos" para asignar un sensor a {selectedPlant.plant_name}.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,0 +1,33 @@
+# ============================================
+# Docker Compose para DESARROLLO
+# ============================================
+# Usar con: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  app:
+    # Sobrescribir comando para desarrollo con hot reload
+    command: >
+      sh -c "
+        echo '⏳ Esperando a que PostgreSQL esté listo...' &&
+        until pg_isready -h postgres -p 5432 -U $${DB_USER:-postgres} 2>/dev/null; do
+          sleep 2
+        done &&
+        echo '✅ PostgreSQL listo' &&
+        echo '⏳ Esperando a que Redis esté listo...' &&
+        until nc -z redis 6379 > /dev/null 2>&1; do
+          sleep 2
+        done &&
+        echo '✅ Redis listo' &&
+        echo '🚀 Iniciando PlantCare Backend en modo desarrollo (hot reload)...' &&
+        export PATH=/root/.local/bin:$$PATH &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app
+      "
+    volumes:
+      # Montar código con write para hot reload
+      - ./app:/app/app:rw
+      - api_data:/app/data
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
+    environment:
+      - RELOAD=true
+      - DEBUG=true

@@ -1,16 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import './UserProfile.css';
 
 interface UserProfileData {
-  first_name: string;
-  last_name: string;
+  full_name: string;
   email: string;
-  phone?: string;
-  region?: string;
-  vineyard_name?: string;
-  hectares?: number;
-  grape_type?: string;
 }
 
 interface PasswordChangeData {
@@ -30,14 +24,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const [profileData, setProfileData] = useState<UserProfileData>({
-    first_name: user?.first_name || '',
-    last_name: user?.last_name || '',
+    full_name: user?.full_name || '',
     email: user?.email || '',
-    phone: user?.phone || '',
-    region: user?.region || '',
-    vineyard_name: user?.vineyard_name || '',
-    hectares: user?.hectares || undefined,
-    grape_type: user?.grape_type || ''
   });
 
   const [passwordData, setPasswordData] = useState<PasswordChangeData>({
@@ -47,9 +35,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
   });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, {
@@ -69,89 +54,23 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
     return response.json();
   };
 
-  const handleAvatarUpload = async () => {
-    if (!avatarFile) return;
-    
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', avatarFile);
-
-      const response = await fetch('/api/uploads/avatar', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Error desconocido' }));
-        throw new Error(errorData.detail || `Error ${response.status}`);
-      }
-
-      await response.json(); // Response
-      setMessage({ type: 'success', text: 'Avatar actualizado exitosamente' });
-      setAvatarFile(null);
-      setAvatarPreview(null);
-      
-      // Actualizar avatar en el contexto
-      window.location.reload();
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validar tipo de archivo
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-      if (!validTypes.includes(file.type)) {
-        setMessage({ type: 'error', text: 'Formato no válido. Use JPG, PNG, GIF o WEBP' });
-        return;
-      }
-      
-      // Validar tamaño (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setMessage({ type: 'error', text: 'El archivo es muy grande. Máximo 5MB' });
-        return;
-      }
-      
-      setAvatarFile(file);
-      
-      // Crear preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
 
     try {
-      // Filtrar campos vacíos
-      const updateData = Object.fromEntries(
-        Object.entries(profileData).filter(([_, value]) => value !== '' && value !== undefined)
-      );
-
-      await apiCall('/api/auth/me', {
+      await apiCall('http://127.0.0.1:8000/api/auth/me', {
         method: 'PUT',
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(profileData)
       });
 
       setMessage({ type: 'success', text: 'Perfil actualizado exitosamente' });
+      
+      // Recargar datos del usuario
+      window.location.reload();
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'error', text: error.message || 'Error al actualizar el perfil' });
     } finally {
       setLoading(false);
     }
@@ -162,14 +81,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
     setLoading(true);
     setMessage(null);
 
-    if (passwordData.new_password !== passwordData.confirm_new_password) {
-      setMessage({ type: 'error', text: 'Las contraseñas nuevas no coinciden' });
-      setLoading(false);
-      return;
-    }
-
     try {
-      await apiCall('/api/auth/change-password', {
+      await apiCall('http://127.0.0.1:8000/api/auth/change-password', {
         method: 'POST',
         body: JSON.stringify(passwordData)
       });
@@ -181,7 +94,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
         confirm_new_password: ''
       });
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'error', text: error.message || 'Error al cambiar la contraseña' });
     } finally {
       setLoading(false);
     }
@@ -192,7 +105,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
     setMessage(null);
 
     try {
-      await apiCall('/api/auth/me', {
+      await apiCall('http://127.0.0.1:8000/api/auth/me', {
         method: 'DELETE'
       });
 
@@ -201,7 +114,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
         logout();
       }, 2000);
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'error', text: error.message || 'Error al eliminar la cuenta' });
     } finally {
       setLoading(false);
       setShowDeleteConfirm(false);
@@ -209,43 +122,41 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="user-profile-container">
-      <div className="user-profile">
+    <div className="user-profile-modal">
+      <div className="user-profile-content">
         <div className="profile-header">
-          <h2>👤 Mi Perfil</h2>
-          <p>Gestiona tu información personal y configuración de cuenta</p>
+          <h2>Mi Perfil 🌱</h2>
           {onClose && (
             <button className="close-btn" onClick={onClose}>×</button>
           )}
         </div>
 
-        <div className="profile-tabs">
-          <button 
-            className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
-          >
-            📝 Información Personal
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'password' ? 'active' : ''}`}
-            onClick={() => setActiveTab('password')}
-          >
-            🔒 Cambiar Contraseña
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'account' ? 'active' : ''}`}
-            onClick={() => setActiveTab('account')}
-          >
-            ⚙️ Configuración de Cuenta
-          </button>
-        </div>
-
         {message && (
           <div className={`message ${message.type}`}>
-            {message.type === 'success' ? '✅' : '❌'} {message.text}
-            <button onClick={() => setMessage(null)}>×</button>
+            {message.text}
           </div>
         )}
+
+        <div className="profile-tabs">
+          <button
+            className={activeTab === 'profile' ? 'active' : ''}
+            onClick={() => setActiveTab('profile')}
+          >
+            👤 Perfil
+          </button>
+          <button
+            className={activeTab === 'password' ? 'active' : ''}
+            onClick={() => setActiveTab('password')}
+          >
+            🔒 Contraseña
+          </button>
+          <button
+            className={activeTab === 'account' ? 'active' : ''}
+            onClick={() => setActiveTab('account')}
+          >
+            ⚙️ Cuenta
+          </button>
+        </div>
 
         <div className="profile-content">
           {activeTab === 'profile' && (
@@ -253,71 +164,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
               <div className="form-section">
                 <h3>Información Básica</h3>
                 
-                {/* Avatar Upload */}
-                <div className="avatar-section">
-                  <div className="avatar-preview">
-                    {avatarPreview ? (
-                      <img src={avatarPreview} alt="Avatar preview" />
-                    ) : user?.avatar_url ? (
-                      <img src={`http://127.0.0.1:5000${user.avatar_url}`} alt="Avatar" onError={(e) => {
-                        console.error('Error loading avatar:', user.avatar_url);
-                        e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="50" cy="50" r="40" fill="%23e5e7eb"/><text x="50%" y="60%" font-size="50" text-anchor="middle" fill="%23cbd5e1">👤</text></svg>';
-                      }} />
-                    ) : (
-                      <div className="avatar-placeholder">
-                        <span>👤</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="avatar-actions">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                      onChange={handleFileChange}
-                      style={{ display: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      📷 Cambiar Avatar
-                    </button>
-                    {avatarFile && (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={handleAvatarUpload}
-                        disabled={loading}
-                      >
-                        {loading ? 'Subiendo...' : '💾 Subir Avatar'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="first_name">Nombre *</label>
-                    <input
-                      type="text"
-                      id="first_name"
-                      value={profileData.first_name}
-                      onChange={(e) => setProfileData({...profileData, first_name: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="last_name">Apellido *</label>
-                    <input
-                      type="text"
-                      id="last_name"
-                      value={profileData.last_name}
-                      onChange={(e) => setProfileData({...profileData, last_name: e.target.value})}
-                      required
-                    />
-                  </div>
+                <div className="form-group">
+                  <label htmlFor="full_name">Nombre Completo *</label>
+                  <input
+                    type="text"
+                    id="full_name"
+                    value={profileData.full_name}
+                    onChange={(e) => setProfileData({...profileData, full_name: e.target.value})}
+                    required
+                    placeholder="Tu nombre completo"
+                  />
                 </div>
 
                 <div className="form-group">
@@ -328,70 +184,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
                     value={profileData.email}
                     onChange={(e) => setProfileData({...profileData, email: e.target.value})}
                     required
+                    placeholder="tu@correo.com"
                   />
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="phone">Teléfono</label>
-                    <input
-                      type="tel"
-                      id="phone"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                      placeholder="+56 9 1234 5678"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="region">Región</label>
-                    <input
-                      type="text"
-                      id="region"
-                      value={profileData.region}
-                      onChange={(e) => setProfileData({...profileData, region: e.target.value})}
-                      placeholder="Ej: Región Metropolitana"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h3>Información del Viñedo</h3>
-                
-                <div className="form-group">
-                  <label htmlFor="vineyard_name">Nombre del Viñedo</label>
-                  <input
-                    type="text"
-                    id="vineyard_name"
-                    value={profileData.vineyard_name}
-                    onChange={(e) => setProfileData({...profileData, vineyard_name: e.target.value})}
-                    placeholder="Ej: Viña Santa Rita"
-                  />
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="hectares">Hectáreas</label>
-                    <input
-                      type="number"
-                      id="hectares"
-                      step="0.01"
-                      min="0"
-                      value={profileData.hectares || ''}
-                      onChange={(e) => setProfileData({...profileData, hectares: e.target.value ? parseFloat(e.target.value) : undefined})}
-                      placeholder="Ej: 15.5"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="grape_type">Tipo de Uva</label>
-                    <input
-                      type="text"
-                      id="grape_type"
-                      value={profileData.grape_type}
-                      onChange={(e) => setProfileData({...profileData, grape_type: e.target.value})}
-                      placeholder="Ej: Cabernet Sauvignon"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -487,17 +281,13 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
                 <div className="account-info">
                   <div className="info-item">
                     <span className="info-label">Rol:</span>
-                    <span className={`role-badge ${user?.role_id === 2 ? 'admin' : 'user'}`}>
-                      {user?.role_id === 2 ? 'Administrador' : 'Usuario'}
+                    <span className={`role-badge ${user?.role === 'admin' ? 'admin' : 'user'}`}>
+                      {user?.role === 'admin' ? 'Administrador' : 'Usuario'}
                     </span>
                   </div>
                   <div className="info-item">
                     <span className="info-label">Miembro desde:</span>
                     <span>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Último acceso:</span>
-                    <span>{user?.last_login ? new Date(user.last_login).toLocaleString() : 'Primer acceso'}</span>
                   </div>
                 </div>
               </div>
@@ -547,23 +337,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
               </div>
             </div>
           )}
-        </div>
-
-        <div className="profile-footer">
-          <div className="footer-actions">
-            <button 
-              className="btn-secondary"
-              onClick={onClose}
-            >
-              Cerrar
-            </button>
-            <button 
-              className="btn-danger"
-              onClick={logout}
-            >
-              🚪 Cerrar Sesión
-            </button>
-          </div>
         </div>
       </div>
     </div>
