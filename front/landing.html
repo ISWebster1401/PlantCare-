@@ -1,279 +1,686 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PlantCare - Automatización Inteligente para Viñas</title>
-    <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
-    <script src="https://unpkg.com/gsap@3.12.2/dist/ScrollTrigger.min.js"></script>
-    <script src="https://unpkg.com/lenis@1.0.35/dist/lenis.min.js"></script>
-    <link rel="stylesheet" href="./assets/css/landing.css">
+    <meta name="description" content="PlantCare — Cuida tus plantas inteligentemente con recordatorios, monitoreo IoT y consejos personalizados">
+    <title>PlantCare — Smart Plant Care</title>
+    <link rel="stylesheet" href="./assets/css/dashboard.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <style>
+        /* Asegurar visibilidad del countdown y coming soon - SIN ANIMACIONES */
+        .countdown-number,
+        .countdown-item,
+        .countdown-label,
+        .coming-badge,
+        .coming-title-line,
+        .coming-feature-card,
+        .notify-me-section,
+        .user-goal-section {
+            opacity: 1 !important;
+            visibility: visible !important;
+            transform: none !important;
+        }
+        
+        /* Lucide Icons en Features */
+        .feature-icon-svg {
+            width: 28px;
+            height: 28px;
+            stroke: var(--accent);
+            stroke-width: 2;
+        }
+        
+        /* Lucide Icons en Coming Features */
+        .coming-feature-icon i {
+            width: 52px;
+            height: 52px;
+            stroke: var(--accent);
+            stroke-width: 1.5;
+        }
+        
+        /* Goal Icon */
+        .goal-icon {
+            width: 22px;
+            height: 22px;
+            stroke: var(--accent);
+            stroke-width: 2;
+        }
+        
+        /* User Goal Section */
+        .user-goal-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-accent);
+            border-radius: 24px;
+            padding: 3rem 2.5rem;
+            margin: 0 auto 4rem;
+            max-width: 900px;
+        }
+        
+        .goal-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            color: var(--text-h);
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .goal-description {
+            font-size: 1rem;
+            color: var(--text-body);
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+        
+        .goal-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 2rem;
+        }
+        
+        .goal-current, .goal-target {
+            text-align: center;
+        }
+        
+        .goal-number {
+            display: block;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(2.5rem, 5vw, 3.5rem);
+            color: var(--accent);
+            line-height: 1;
+        }
+        
+        .goal-label {
+            font-size: 0.85rem;
+            color: var(--text-body);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+        }
+        
+        .goal-progress-bar {
+            position: relative;
+            width: 100%;
+            height: 24px;
+            background: var(--border);
+            border-radius: 100px;
+            overflow: visible;
+            margin-bottom: 2rem;
+        }
+        
+        .goal-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-glow));
+            border-radius: 100px;
+            transition: width 1s ease-out;
+            position: relative;
+        }
+        
+        .goal-percentage {
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            transform: translateY(-50%);
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-h);
+            z-index: 2;
+        }
+        
+        .goal-impact {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            font-size: 0.95rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        .goal-icon {
+            width: 20px;
+            height: 20px;
+            stroke: var(--accent);
+        }
+        
+        /* Notify Character */
+        .notify-character {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .notify-plant-img {
+            width: 120px;
+            height: auto;
+            filter: drop-shadow(0 4px 16px var(--accent-glow));
+        }
+        
+        .notify-speech-bubble {
+            position: relative;
+            background: var(--bg);
+            border: 1px solid var(--border-accent);
+            border-radius: 16px;
+            padding: 1.5rem;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .notify-speech-bubble::before {
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-bottom: 15px solid var(--border-accent);
+        }
+        
+        .notify-speech-bubble::after {
+            content: '';
+            position: absolute;
+            top: -13px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 14px solid transparent;
+            border-right: 14px solid transparent;
+            border-bottom: 14px solid var(--bg);
+        }
+        
+        .notify-speech-text {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--text-body);
+            text-align: center;
+            margin: 0;
+        }
+        
+        .notify-speech-text strong {
+            color: var(--accent);
+            font-weight: 700;
+        }
+        
+        .highlight-discount {
+            font-size: 1.15em;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Early Bird Counter */
+        .early-bird-counter {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--accent-dim);
+            border: 1px solid var(--border-accent);
+            border-radius: 100px;
+        }
+        
+        .counter-label {
+            font-size: 0.9rem;
+            color: var(--text-body);
+            font-weight: 600;
+        }
+        
+        .counter-number {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.8rem;
+            color: var(--accent);
+            font-weight: 400;
+            line-height: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .user-goal-section {
+                padding: 2rem 1.5rem;
+            }
+            
+            .goal-stats {
+                flex-direction: column;
+                gap: 1.5rem;
+            }
+            
+            .notify-plant-img {
+                width: 100px;
+            }
+            
+            .notify-speech-bubble {
+                padding: 1.2rem;
+            }
+            
+            .early-bird-counter {
+                flex-direction: column;
+                gap: 0.5rem;
+                padding: 1rem;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <div class="logo">PlantCare</div>
-            <nav>
-                <ul>
-                    <li><a href="#inicio">Inicio</a></li>
-                    <li><a href="#sobre">Acerca de</a></li>
-                    <li><a href="#caracteristicas">Características</a></li>
-                    <li><a href="#registro">Registro</a></li>
-                    <li><a href="#equipo">Equipo</a></li>
-                </ul>
-            </nav>
-        </header>
 
-        <!-- Hero Section -->
-        <section id="inicio" class="hero">
-            <div class="floating-elements">
-                <div class="floating-element" style="top: 20%; left: 10%;"></div>
-                <div class="floating-element" style="top: 60%; left: 80%;"></div>
-                <div class="floating-element" style="top: 40%; left: 70%;"></div>
-                <div class="floating-element" style="top: 80%; left: 20%;"></div>
-                <div class="floating-element" style="top: 30%; left: 90%;"></div>
+    <!-- Preloader -->
+    <div class="preloader" id="preloader">
+        <div class="preloader-content">
+            <img src="./assets/img/logo_plantcare_blanco.png" alt="PlantCare" class="preloader-logo theme-logo-dark">
+            <img src="./assets/img/logo_plantcare_verde-removebg-preview.png" alt="PlantCare" class="preloader-logo theme-logo-light">
+            <div class="preloader-bar"><div class="preloader-bar-fill"></div></div>
+        </div>
+    </div>
+
+    <!-- Welcome Modal -->
+    <div class="welcome-modal" id="welcomeModal">
+        <div class="welcome-overlay"></div>
+        <div class="welcome-content">
+            <button class="welcome-close" id="welcomeClose" aria-label="Cerrar">×</button>
+            <div class="welcome-character">
+                <img src="./assets/img/planta_presentación.png" alt="PlantCare Mascota" class="character-img">
+                <div class="character-speech-bubble">
+                    <p class="speech-text">
+                        ¡Hola! 👋 Soy la planta <strong>Espuela de Galán</strong>, y te doy la bienvenida a PlantCare, ¿listo para llevar el cuidado de tus plantas al siguiente nivel?.
+                    </p>
+                    <div class="speech-arrow"></div>
+                </div>
             </div>
+            <button class="welcome-button" id="welcomeButton">
+                <span>¡Comenzar!</span>
+                <svg class="button-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Scroll progress -->
+    <div class="scroll-progress" id="scrollProgress"></div>
+
+    <!-- Cursor -->
+    <div id="cursor"></div>
+    <div id="cursorFollower"></div>
+
+    <!-- Theme toggle -->
+    <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema">
+        <span class="icon-moon">🌙</span>
+        <span class="icon-sun">☀️</span>
+    </button>
+
+    <!-- Header -->
+    <header id="header">
+        <div class="header-container">
+            <img src="./assets/img/logo_plantcare_blanco.png" alt="PlantCare" class="logo-header-img theme-logo-dark">
+            <img src="./assets/img/logo_plantcare_verde-removebg-preview.png" alt="PlantCare" class="logo-header-img theme-logo-light">
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero" id="hero">
+        <div class="particles-container">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+
+        <div class="hero-wrapper">
             <div class="hero-content">
-                <h1>PlantCare</h1>
-                <p>Automatización inteligente para viñas chilenas. Protege tu cosecha con tecnología de sensores avanzados.</p>
-                <a href="#sobre" class="cta-button">Descubre Más</a>
-            </div>
-        </section>
-
-        <!-- About Section -->
-        <section id="sobre" class="about">
-            <div class="about-content">
-                <div class="about-text">
-                    <h2>Revolucionando la Viticultura</h2>
-                    <p>PlantCare es una solución tecnológica innovadora diseñada específicamente para las viñas chilenas. Nuestro sistema de sensores inteligentes monitorea constantemente las condiciones ambientales críticas.</p>
-                    <p>Detectamos cambios en la humedad del suelo, temperatura y niveles de luz solar en tiempo real, permitiendo a los agricultores tomar decisiones informadas y prevenir la pérdida de cultivos antes de que ocurra.</p>
-                    <p>Con PlantCare, optimizas el rendimiento de tu viña mientras reduces costos operativos y aumentas la calidad de tu producción.</p>
+                <div class="hero-eyebrow">
+                    <span class="eyebrow-dot"></span>
+                    App disponible pronto
                 </div>
-                <div class="about-visual">
-                    <div class="sensor-grid">
-                        <div class="sensor-item">
-                            <span class="sensor-icon">💧</span>
-                            <div>Humedad del Suelo</div>
-                        </div>
-                        <div class="sensor-item">
-                            <span class="sensor-icon">🌡️</span>
-                            <div>Temperatura</div>
-                        </div>
-                        <div class="sensor-item">
-                            <span class="sensor-icon">☀️</span>
-                            <div>Luz Solar</div>
-                        </div>
-                        <div class="sensor-item">
-                            <span class="sensor-icon">📊</span>
-                            <div>Análisis de Datos</div>
-                        </div>
-                        <div class="sensor-item">
-                            <span class="sensor-icon">📱</span>
-                            <div>Monitoreo Remoto</div>
-                        </div>
-                        <div class="sensor-item">
-                            <span class="sensor-icon">🔔</span>
-                            <div>Alertas Tempranas</div>
-                        </div>
-                    </div>
-                </div>  
-            </div>
-        </section>
 
-        <!-- Features Section -->
-        <section id="caracteristicas" class="features">
-            <div class="features-container">
-                <h2>Características Principales</h2>
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">🎯</div>
-                        <h3>Monitoreo Preciso</h3>
-                        <p>Sensores de alta precisión que miden humedad del suelo, temperatura ambiente y niveles de radiación solar con exactitud profesional.</p>
+                <h1 class="hero-title">
+                    <span class="title-line">Nunca más</span>
+                    <span class="title-line green">Plantas muertas</span>
+                    <span class="title-line">En tu hogar</span>
+                </h1>
+
+                <p class="hero-description">
+                    PlantCare es tu asistente personal de jardinería. Recibe recordatorios inteligentes 
+                    de riego, conecta sensores IoT para monitorear humedad y luz en tiempo real, 
+                    y obtén consejos expertos adaptados a cada una de tus plantas.
+                </p>
+
+                <div class="download-buttons">
+                    <button onclick="openPlayStore()" class="store-button">
+                        <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                        </svg>
+                        <div class="button-text">
+                            <div class="button-subtitle">Descárgala en</div>
+                            <div class="button-title">Google Play</div>
+                        </div>
+                    </button>
+
+                    <button onclick="openAppStore()" class="store-button outline">
+                        <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18.71,19.5C17.88,20.74 17,21.95 15.66,21.97C14.32,22 13.89,21.18 12.37,21.18C10.84,21.18 10.37,21.95 9.1,22C7.79,22.05 6.8,20.68 5.96,19.47C4.25,17 2.94,12.45 4.7,9.39C5.57,7.87 7.13,6.91 8.82,6.88C10.1,6.86 11.32,7.75 12.11,7.75C12.89,7.75 14.37,6.68 15.92,6.84C16.57,6.87 18.39,7.1 19.56,8.82C19.47,8.88 17.39,10.1 17.41,12.63C17.44,15.65 20.06,16.66 20.09,16.67C20.06,16.74 19.67,18.11 18.71,19.5M13,3.5C13.73,2.67 14.94,2.04 15.94,2C16.07,3.17 15.6,4.35 14.9,5.19C14.21,6.04 13.07,6.7 11.95,6.61C11.8,5.46 12.36,4.26 13,3.5Z"/>
+                        </svg>
+                        <div class="button-text">
+                            <div class="button-subtitle">Descárgala en</div>
+                            <div class="button-title">App Store</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="hero-visual">
+                <div class="logo-container">
+                    <div class="logo-glow"></div>
+                    <div class="main-logo" id="mainLogo">
+                        <img src="./assets/img/logo_plantcare_blanco.png" alt="PlantCare Logo" class="logo-image theme-logo-dark">
+                        <img src="./assets/img/logo_plantcare_verde-removebg-preview.png" alt="PlantCare Logo" class="logo-image theme-logo-light">
                     </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">⚡</div>
-                        <h3>Alertas Inmediatas</h3>
-                        <p>Sistema de notificaciones en tiempo real que te alerta sobre condiciones críticas antes de que afecten tu cosecha.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">📈</div>
-                        <h3>Análisis Inteligente</h3>
-                        <p>Algoritmos avanzados que analizan patrones históricos y predicen condiciones futuras para optimizar el cuidado de tus cultivos.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🌐</div>
-                        <h3>Acceso Remoto</h3>
-                        <p>Monitorea tu viña desde cualquier lugar mediante nuestra plataforma web y aplicación móvil intuitiva.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">💰</div>
-                        <h3>Reducción de Costos</h3>
-                        <p>Optimiza el uso de recursos como agua y energía, reduciendo costos operativos hasta en un 30%.</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🏆</div>
-                        <h3>Calidad Premium</h3>
-                        <p>Mejora la calidad de tus uvas manteniendo condiciones óptimas de crecimiento durante todo el ciclo productivo.</p>
+                    <div class="logo-rings">
+                        <div class="ring ring-1"></div>
+                        <div class="ring ring-2"></div>
+                        <div class="ring ring-3"></div>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Register Section -->
-        <section id="registro" class="register">
-            <div class="register-container">
-                <div class="register-content">
-                    <h2>Únete a PlantCare</h2>
-                    <p>Forma parte de la revolución tecnológica en la viticultura chilena. Registra tu viña y comienza a proteger tu cosecha con inteligencia artificial.</p>
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="statsBar">
+        <div class="stats-inner">
+            <div class="stat-item">
+                <div class="stat-number" data-count="50000">0</div>
+                <div class="stat-label">Plantas cuidadas</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" data-count="12000">0</div>
+                <div class="stat-label">Usuarios felices</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" data-count="98">0</div>
+                <div class="stat-label">% tasa de supervivencia</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features -->
+    <section class="features" id="features">
+        <div class="features-container">
+            <div class="section-header">
+                <span class="section-tag">Tecnología para tus plantas</span>
+                <h2 class="section-title">Todo en una<br>sola app</h2>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="droplets" class="feature-icon-svg"></i>
+                    </div>
+                    <h3 class="feature-title">Recordatorios Inteligentes</h3>
+                    <p class="feature-description">Olvídate de regar de más o de menos. PlantCare aprende las necesidades de cada planta y te avisa en el momento exacto para regarlas, fertilizarlas o podarlas.</p>
+                    <div class="feature-shine"></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="radio" class="feature-icon-svg"></i>
+                    </div>
+                    <h3 class="feature-title">Sensores IoT Integrados</h3>
+                    <p class="feature-description">Conecta sensores de humedad, luz y temperatura. Monitorea en tiempo real las condiciones de tus plantas desde cualquier lugar y recibe alertas instantáneas.</p>
+                    <div class="feature-shine"></div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="brain-circuit" class="feature-icon-svg"></i>
+                    </div>
+                    <h3 class="feature-title">IA que Aprende</h3>
+                    <p class="feature-description">Nuestra inteligencia artificial analiza el comportamiento de tus plantas y te da recomendaciones personalizadas basadas en su ubicación, clima local y estado de salud.</p>
+                    <div class="feature-shine"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Coming Soon Section -->
+    <section class="coming-soon" id="comingSoon">
+        <div class="coming-soon-bg">
+            <div class="coming-particle"></div>
+            <div class="coming-particle"></div>
+            <div class="coming-particle"></div>
+        </div>
+
+        <div class="coming-soon-container">
+            <div class="coming-badge">
+                <span class="pulse-dot"></span>
+                <span class="coming-badge-text">LANZAMIENTO 1 MAYO 2026</span>
+            </div>
+
+            <h2 class="coming-title">
+                <span class="coming-title-line">El futuro del</span>
+                <span class="coming-title-line highlight">cuidado de plantas</span>
+                <span class="coming-title-line">está por llegar</span>
+            </h2>
+
+            <p class="coming-description">
+                Estamos desarrollando funciones revolucionarias que transformarán 
+                la forma en que cuidas tus plantas. Sé el primero en descubrirlas.
+            </p>
+
+            <!-- Countdown Timer -->
+            <div class="countdown" id="countdown">
+                <div class="countdown-item">
+                    <div class="countdown-number" id="days">--</div>
+                    <div class="countdown-label">Días</div>
+                </div>
+                <div class="countdown-separator">:</div>
+                <div class="countdown-item">
+                    <div class="countdown-number" id="hours">--</div>
+                    <div class="countdown-label">Horas</div>
+                </div>
+                <div class="countdown-separator">:</div>
+                <div class="countdown-item">
+                    <div class="countdown-number" id="minutes">--</div>
+                    <div class="countdown-label">Minutos</div>
+                </div>
+                <div class="countdown-separator">:</div>
+                <div class="countdown-item">
+                    <div class="countdown-number" id="seconds">--</div>
+                    <div class="countdown-label">Segundos</div>
+                </div>
+            </div>
+
+            <!-- User Goal Section -->
+            <div class="user-goal-section">
+                <h3 class="goal-title">🎯 Meta de Pre-lanzamiento</h3>
+                <p class="goal-description">Ayúdanos a alcanzar 2,000,000 de usuarios registrados y ¡adelantaremos el lanzamiento!</p>
+                
+                <div class="goal-progress-container">
+                    <div class="goal-stats">
+                        <div class="goal-current">
+                            <span class="goal-number" id="currentUsers">0</span>
+                            <span class="goal-label">Registrados</span>
+                        </div>
+                        <div class="goal-target">
+                            <span class="goal-number">2,000,000</span>
+                            <span class="goal-label">Meta</span>
+                        </div>
+                    </div>
                     
-                    <ul class="register-benefits">
-                        <li>Monitoreo 24/7 de tus cultivos</li>
-                        <li>Alertas tempranas ante condiciones críticas</li>
-                        <li>Análisis predictivo de rendimiento</li>
-                        <li>Soporte técnico especializado</li>
-                        <li>Acceso desde cualquier dispositivo</li>
-                        <li>Optimización automática de recursos</li>
-                    </ul>
+                    <div class="goal-progress-bar">
+                        <div class="goal-progress-fill" id="goalProgressFill" style="width: 0%"></div>
+                        <span class="goal-percentage" id="goalPercentage">0%</span>
+                    </div>
                     
-                    <p>Más de <strong>500 viñas</strong> ya confían en PlantCare para maximizar su producción y calidad.</p>
+                    <p class="goal-impact">
+                        <i data-lucide="clock" class="goal-icon"></i>
+                        <span>Cada 500,000 usuarios = 1 mes menos de espera</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Coming Features Grid (CON LUCIDE ICONS) -->
+            <div class="coming-features-grid">
+                <div class="coming-feature-card">
+                    <div class="coming-feature-icon">
+                        <i data-lucide="scan-search"></i>
+                    </div>
+                    <h4 class="coming-feature-title">Diagnóstico con IA</h4>
+                    <p class="coming-feature-desc">Sube una foto y detecta enfermedades al instante</p>
+                    <div class="coming-feature-progress">
+                        <div class="progress-bar" style="width:85%"></div>
+                    </div>
+                    <span class="progress-label">85% completado</span>
+                </div>
+
+                <div class="coming-feature-card">
+                    <div class="coming-feature-icon">
+                        <i data-lucide="globe"></i>
+                    </div>
+                    <h4 class="coming-feature-title">Comunidad Global</h4>
+                    <p class="coming-feature-desc">Conecta con otros amantes de las plantas</p>
+                    <div class="coming-feature-progress">
+                        <div class="progress-bar" style="width:70%"></div>
+                    </div>
+                    <span class="progress-label">70% completado</span>
+                </div>
+
+                <div class="coming-feature-card">
+                    <div class="coming-feature-icon">
+                        <i data-lucide="library"></i>
+                    </div>
+                    <h4 class="coming-feature-title">Biblioteca 10,000+ especies</h4>
+                    <p class="coming-feature-desc">Información detallada de cada planta</p>
+                    <div class="coming-feature-progress">
+                        <div class="progress-bar" style="width:92%"></div>
+                    </div>
+                    <span class="progress-label">92% completado</span>
+                </div>
+
+                <div class="coming-feature-card">
+                    <div class="coming-feature-icon">
+                        <i data-lucide="trophy"></i>
+                    </div>
+                    <h4 class="coming-feature-title">Sistema de Recompensas</h4>
+                    <p class="coming-feature-desc">Gana badges mientras cuidas tus plantas</p>
+                    <div class="coming-feature-progress">
+                        <div class="progress-bar" style="width:60%"></div>
+                    </div>
+                    <span class="progress-label">60% completado</span>
+                </div>
+            </div>
+
+            <!-- Notify Me Form con Planta y Oferta -->
+            <div class="notify-me-section">
+                <div class="notify-character">
+                    <img src="./assets/img/planta_presentación.png" alt="Espuela de Galán" class="notify-plant-img">
+                    <div class="notify-speech-bubble">
+                        <p class="notify-speech-text">
+                            ¡Hola de nuevo! 🌱 Los <strong>primeros 13 registros</strong> obtendrán un <strong class="highlight-discount">50% de descuento</strong> en su primera compra. ¡No te lo pierdas!
+                        </p>
+                    </div>
                 </div>
                 
-                <div class="register-form-container">
-                    <form class="register-form" id="registerForm">
-                        <h3>Registra tu Viña</h3>
-                        <p class="form-subtitle">Completa la información para comenzar</p>
-                        
-                        <div class="success-message" id="successMessage">
-                            ¡Registro exitoso! Te contactaremos pronto para la instalación.
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="firstName">Nombre</label>
-                                <input type="text" id="firstName" name="firstName" placeholder="Tu nombre" autocomplete="given-name" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="lastName">Apellido</label>
-                                <input type="text" id="lastName" name="lastName" placeholder="Tu apellido" autocomplete="family-name" required>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="email">Correo Electrónico</label>
-                            <input type="email" id="email" name="email" placeholder="tu@correo.com" autocomplete="email" required>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="phone">Teléfono</label>
-                                <input type="tel" id="phone" name="phone" placeholder="+56 9 1234 5678" autocomplete="tel" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="region">Región</label>
-                                <select id="region" name="region" autocomplete="country" required>
-                                    <option value="">Selecciona tu región</option>
-                                    <option value="metropolitana">Región Metropolitana</option>
-                                    <option value="valparaiso">Valparaíso</option>
-                                    <option value="ohiggins">O'Higgins</option>
-                                    <option value="maule">Maule</option>
-                                    <option value="biobio">Biobío</option>
-                                    <option value="araucania">Araucanía</option>
-                                    <option value="coquimbo">Coquimbo</option>
-                                    <option value="atacama">Atacama</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="vineyardName">Nombre de la Viña</label>
-                            <input type="text" id="vineyardName" name="vineyardName" placeholder="Viña Los Robles" autocomplete="organization" required>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="hectares">Hectáreas</label>
-                                <input type="number" id="hectares" name="hectares" placeholder="50" min="1" autocomplete="off" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="grapeType">Tipo de Uva</label>
-                                <select id="grapeType" name="grapeType" required>
-                                    <option value="">Selecciona el tipo</option>
-                                    <option value="Cabernet Sauvignon">Cabernet Sauvignon</option>
-                                    <option value="Merlot">Merlot</option>
-                                    <option value="Carmenère">Carmenère</option>
-                                    <option value="Chardonnay">Chardonnay</option>
-                                    <option value="Sauvignon Blanc">Sauvignon Blanc</option>
-                                    <option value="Pinot Noir">Pinot Noir</option>
-                                    <option value="Syrah">Syrah</option>
-                                    <option value="Cultivo Mixto">Cultivo Mixto</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="password">Contraseña</label>
-                                <input type="password" id="password" name="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required>
-                                <small class="password-help">Debe contener mayúscula, minúscula, número y carácter especial</small>
-                            </div>
-                            <div class="form-group">
-                                <label for="confirmPassword">Confirmar Contraseña</label>
-                                <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Repite tu contraseña" autocomplete="new-password" required>
-                            </div>
-                        </div>
-                        
-                        <button type="submit" class="register-button">
-                            Registrar Viña
-                        </button>
-                        
-                        <div class="form-footer">
-                            ¿Ya tienes cuenta? <a href="#login">Iniciar sesión</a>
-                        </div>
-                    </form>
+                <h3 class="notify-title">¡Sé el primero en saberlo!</h3>
+                <p class="notify-subtitle">Regístrate y recibe acceso exclusivo al lanzamiento del 1 de mayo 2026</p>
+                
+                <div class="early-bird-counter">
+                    <span class="counter-label">Registros restantes con descuento:</span>
+                    <span class="counter-number" id="earlyBirdCount">13</span>
                 </div>
+                
+                <form class="notify-form" id="notifyForm">
+                    <input type="email" placeholder="tu@email.com" class="notify-input" required>
+                    <button type="submit" class="notify-button">
+                        <span>Notificarme</span>
+                        <svg class="notify-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                </form>
+                <p class="notify-disclaimer">🔒 Tu email está seguro. Sin spam, lo prometemos.</p>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Team Section -->
-        <section id="equipo" class="team">
-            <div class="team-container">
-                <h2>Nuestro Equipo</h2>
-                <div class="team-grid">
-                    <div class="team-member">
-                        <div class="member-avatar">BE</div>
-                        <div class="member-name">Bastián Echeverría</div>
-                        <div class="member-role">Desarrollo y Arquitectura</div>
+    <!-- CTA Final -->
+    <section class="cta" id="cta">
+        <div class="cta-content">
+            <h2 class="cta-title">Tu jardín.<br>Bajo control.</h2>
+            <p class="cta-description">
+                Descarga PlantCare hoy y transforma la forma en que cuidas tus plantas. 
+                Gratis para siempre, con funciones premium opcionales.
+            </p>
+
+            <div class="download-buttons" style="justify-content:center;">
+                <button onclick="openPlayStore()" class="store-button">
+                    <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                    </svg>
+                    <div class="button-text">
+                        <div class="button-subtitle">Descárgala en</div>
+                        <div class="button-title">Google Play</div>
                     </div>
-                    <div class="team-member">
-                        <div class="member-avatar">SV</div>
-                        <div class="member-name">Sebastián Vargas</div>
-                        <div class="member-role">Sistemas y Hardware</div>
+                </button>
+
+                <button onclick="openAppStore()" class="store-button outline">
+                    <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.71,19.5C17.88,20.74 17,21.95 15.66,21.97C14.32,22 13.89,21.18 12.37,21.18C10.84,21.18 10.37,21.95 9.1,22C7.79,22.05 6.8,20.68 5.96,19.47C4.25,17 2.94,12.45 4.7,9.39C5.57,7.87 7.13,6.91 8.82,6.88C10.1,6.86 11.32,7.75 12.11,7.75C12.89,7.75 14.37,6.68 15.92,6.84C16.57,6.87 18.39,7.1 19.56,8.82C19.47,8.88 17.39,10.1 17.41,12.63C17.44,15.65 20.06,16.66 20.09,16.67C20.06,16.74 19.67,18.11 18.71,19.5M13,3.5C13.73,2.67 14.94,2.04 15.94,2C16.07,3.17 15.6,4.35 14.9,5.19C14.21,6.04 13.07,6.7 11.95,6.61C11.8,5.46 12.36,4.26 13,3.5Z"/>
+                    </svg>
+                    <div class="button-text">
+                        <div class="button-subtitle">Descárgala en</div>
+                        <div class="button-title">App Store</div>
                     </div>
-                    <div class="team-member">
-                        <div class="member-avatar">IG</div>
-                        <div class="member-name">Ignacio Gatica</div>
-                        <div class="member-role">Análisis de Datos</div>
-                    </div>
-                </div>
+                </button>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Footer -->
-        <footer>
-            <div class="footer-content">
-                <div class="footer-logo">PlantCare</div>
-                <p class="footer-text">Transformando la agricultura chilena a través de la innovación tecnológica. Protegemos tu inversión, optimizamos tu producción.</p>
+    <!-- Footer Minimalista -->
+    <footer>
+        <div class="footer-inner">
+            <img src="./assets/img/logo_plantcare_blanco.png" alt="PlantCare" class="footer-logo theme-logo-dark">
+            <img src="./assets/img/logo_plantcare_verde-removebg-preview.png" alt="PlantCare" class="footer-logo theme-logo-light">
+
+            <p class="footer-tagline">
+                Transformando el cuidado de plantas<br>una conversación a la vez 🌱
+            </p>
+
+            <div class="footer-links">
+                <a href="#hero" class="footer-link">Inicio</a>
+                <a href="#features" class="footer-link">Funcionalidades</a>
+                <a href="#comingSoon" class="footer-link">Próximamente</a>
+                <a href="mailto:becheverria@plantcare.cl" class="footer-link">Contacto</a>
             </div>
-        </footer>
 
-        <!-- Theme Toggle Button -->
-        <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema">
-            <span id="themeIcon">☀️</span>
-        </button>
-    </div>
-    
-    <!-- JavaScript -->
-    <script src="./assets/css/scripts/script_landing.js"></script>
+            <div class="footer-divider"></div>
+            
+            <div class="footer-bottom">
+                <p class="footer-copyright">
+                    &copy; <span id="year"></span> PlantCare. Hecho con 💚 para tus plantas.
+                </p>
+                <p class="footer-version">v1.0.0 Beta</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Back to top -->
+    <button class="back-to-top" id="backToTop" aria-label="Volver arriba">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+    </button>
+
+    <script src="./jsdash.js"></script>
 </body>
 </html>
