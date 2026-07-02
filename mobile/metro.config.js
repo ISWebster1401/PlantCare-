@@ -19,12 +19,20 @@ config.resolver = {
 // Deshabilitar validación estricta de package exports para evitar warnings de Three.js
 config.resolver.unstable_enablePackageExports = false;
 
+// Excluir rutas pesadas que Metro no necesita (no bloquear three/examples — usa GLTFLoader)
+config.resolver.blockList = [
+  ...(Array.isArray(config.resolver.blockList) ? config.resolver.blockList : []),
+  /node_modules\/three\/src\/renderers\/webgpu\/.*/,
+  /node_modules\/@types\/three\/.*/,
+];
+
 // Forzar axios a usar la versión browser (no Node) porque React Native no tiene crypto
 const axiosBrowserPath = path.resolve(__dirname, 'node_modules/axios/dist/browser/axios.cjs');
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'axios') {
     return { filePath: axiosBrowserPath, type: 'sourceFile' };
   }
+  // Delegar al resolver de Expo/Metro (context.resolveRequest), no a metro-resolver directo
   return context.resolveRequest(context, moduleName, platform);
 };
 

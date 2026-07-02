@@ -1,8 +1,7 @@
 /**
- * Pantalla de Detalles de Planta - Rediseño profesional
- * Usa DesignSystem para colores, tipografía y espaciado.
+ * Pantalla de Detalles de Planta - Con modo oscuro (useThemeColors)
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -26,48 +25,28 @@ import { plantsAPI } from '../services/api';
 import { PlantResponse } from '../types';
 import { Model3DViewer } from '../components/Model3DViewer';
 import { Button } from '../components/ui';
-import {
-  Colors,
-  Gradients,
-  Typography,
-  Spacing,
-  BorderRadius,
-  Shadows,
-} from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
 
-/* -------------------------------------------------- */
-/*  Pequeños componentes auxiliares                    */
-/* -------------------------------------------------- */
+export default function PlantDetailScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id: string }>();
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [plant, setPlant] = useState<PlantResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [show3D, setShow3D] = useState(false);
+  const [isModel3DLoading, setIsModel3DLoading] = useState(true);
 
-function DetailStatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
-  return (
+  const DetailStatCard = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
     <View style={styles.statCard}>
       <Text style={styles.statIcon}>{icon}</Text>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
     </View>
   );
-}
-
-/* -------------------------------------------------- */
-/*  Pantalla principal                                */
-/* -------------------------------------------------- */
-
-export default function PlantDetailScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
-  const [plant, setPlant] = useState<PlantResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [show3D, setShow3D] = useState(false);
 
   // Menú de 3 puntos
   const [menuVisible, setMenuVisible] = useState(false);
@@ -181,11 +160,11 @@ export default function PlantDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <LinearGradient colors={Gradients.primary} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
+        <LinearGradient colors={gradients.primary as [string, string]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
           <SafeAreaView edges={['top']}>
             <View style={styles.headerBar}>
               <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-                <Ionicons name="arrow-back" size={24} color={Colors.white} />
+                <Ionicons name="arrow-back" size={24} color={colors.white} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Cargando...</Text>
               <View style={styles.headerBtn} />
@@ -193,7 +172,7 @@ export default function PlantDetailScreen() {
           </SafeAreaView>
         </LinearGradient>
         <View style={styles.centeredState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.stateText}>Cargando planta...</Text>
         </View>
       </View>
@@ -203,11 +182,11 @@ export default function PlantDetailScreen() {
   if (error || !plant) {
     return (
       <View style={styles.container}>
-        <LinearGradient colors={Gradients.primary} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
+        <LinearGradient colors={gradients.primary as [string, string]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
           <SafeAreaView edges={['top']}>
             <View style={styles.headerBar}>
               <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-                <Ionicons name="arrow-back" size={24} color={Colors.white} />
+                <Ionicons name="arrow-back" size={24} color={colors.white} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Error</Text>
               <View style={styles.headerBtn} />
@@ -215,8 +194,8 @@ export default function PlantDetailScreen() {
           </SafeAreaView>
         </LinearGradient>
         <View style={styles.centeredState}>
-          <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
-          <Text style={[styles.stateText, { color: Colors.error, marginBottom: Spacing.lg }]}>
+          <Ionicons name="alert-circle-outline" size={64} color={colors.error} />
+          <Text style={[styles.stateText, { color: colors.error, marginBottom: Spacing.lg }]}>
             {error || 'Planta no encontrada'}
           </Text>
           <Button title="Reintentar" onPress={loadPlant} variant="primary" size="md" />
@@ -240,7 +219,7 @@ export default function PlantDetailScreen() {
     <View style={styles.container}>
       {/* Header con gradiente */}
       <LinearGradient
-        colors={Gradients.primary}
+        colors={gradients.primary as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
@@ -252,7 +231,7 @@ export default function PlantDetailScreen() {
               style={styles.headerBtn}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="arrow-back" size={24} color={Colors.white} />
+              <Ionicons name="arrow-back" size={24} color={colors.white} />
             </TouchableOpacity>
 
             <Text style={styles.headerTitle} numberOfLines={1}>
@@ -264,7 +243,7 @@ export default function PlantDetailScreen() {
               style={styles.headerBtn}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="ellipsis-vertical" size={24} color={Colors.white} />
+              <Ionicons name="ellipsis-vertical" size={24} color={colors.white} />
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -282,7 +261,7 @@ export default function PlantDetailScreen() {
               <Image source={{ uri: imageUri }} style={styles.plantImage} resizeMode="cover" />
             ) : (
               <View style={styles.photoPlaceholder}>
-                <Ionicons name="leaf" size={80} color={Colors.primaryLight} />
+                <Ionicons name="leaf" size={80} color={colors.primaryLight} />
               </View>
             )}
           </View>
@@ -309,19 +288,41 @@ export default function PlantDetailScreen() {
           </View>
         </View>
 
+        {/* Consejos de cuidado */}
+        {plant.care_tips ? (
+          <View style={styles.tipsCard}>
+            <View style={styles.tipsHeader}>
+              <Ionicons name="bulb-outline" size={20} color={colors.accent} />
+              <Text style={styles.tipsTitle}>Consejos de cuidado</Text>
+            </View>
+            {(plant.care_tips)
+              .split(/[;\n]/)
+              .map((t: string) => t.trim())
+              .filter((t: string) => t.length > 0)
+              .map((tip: string, index: number) => (
+                <View key={index} style={styles.tipRow}>
+                  <View style={styles.tipBullet} />
+                  <Text style={styles.tipText}>
+                    {tip.replace(/^[-*•]\s*/, '')}
+                  </Text>
+                </View>
+              ))}
+          </View>
+        ) : null}
+
         {/* Toggle Foto / 3D */}
         <View style={styles.toggleRow}>
           <TouchableOpacity
             style={[
               styles.toggleButton,
-              { backgroundColor: !show3D ? Colors.primary : Colors.backgroundLighter },
+              { backgroundColor: !show3D ? colors.primary : colors.backgroundLighter },
             ]}
             onPress={() => setShow3D(false)}
           >
             <Text
               style={[
                 styles.toggleButtonText,
-                { color: !show3D ? Colors.white : Colors.textMuted },
+                { color: !show3D ? colors.white : colors.textMuted },
               ]}
             >
               📷 Foto Real
@@ -330,14 +331,14 @@ export default function PlantDetailScreen() {
           <TouchableOpacity
             style={[
               styles.toggleButton,
-              { backgroundColor: show3D ? Colors.primary : Colors.backgroundLighter },
+              { backgroundColor: show3D ? colors.primary : colors.backgroundLighter },
             ]}
             onPress={() => setShow3D(true)}
           >
             <Text
               style={[
                 styles.toggleButtonText,
-                { color: show3D ? Colors.white : Colors.textMuted },
+                { color: show3D ? colors.white : colors.textMuted },
               ]}
             >
               🎮 Modelo 3D
@@ -350,15 +351,25 @@ export default function PlantDetailScreen() {
           <View style={styles.model3dWrapper}>
             <Text style={styles.model3dLabel}>Vista 3D Interactiva</Text>
             {plant.model_3d_url ? (
-              <Model3DViewer
-                modelUrl={plant.model_3d_url}
-                style={styles.model3dViewer}
-                autoRotate={false}
-                characterMood={mood}
-              />
+              <>
+                {isModel3DLoading && (
+                  <View style={styles.model3dLoading}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={styles.model3dLoadingText}>Cargando modelo 3D...</Text>
+                  </View>
+                )}
+                <Model3DViewer
+                  modelUrl={plant.model_3d_url}
+                  style={isModel3DLoading ? { ...styles.model3dViewer, opacity: 0 } : styles.model3dViewer}
+                  autoRotate={false}
+                  characterMood={mood}
+                  onLoad={() => setIsModel3DLoading(false)}
+                  onError={() => setIsModel3DLoading(false)}
+                />
+              </>
             ) : (
               <View style={styles.model3dPlaceholder}>
-                <Ionicons name="cube-outline" size={48} color={Colors.textMuted} />
+                <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
                 <Text style={styles.model3dPlaceholderText}>Modelo 3D no disponible</Text>
               </View>
             )}
@@ -410,15 +421,15 @@ export default function PlantDetailScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
           <View style={styles.menuContainer}>
             <TouchableOpacity style={styles.menuItem} onPress={handleOpenRename}>
-              <Ionicons name="pencil-outline" size={20} color={Colors.text} />
+              <Ionicons name="pencil-outline" size={20} color={colors.text} />
               <Text style={styles.menuItemText}>Cambiar nombre</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />
 
             <TouchableOpacity style={styles.menuItem} onPress={handleDeletePlant}>
-              <Ionicons name="trash-outline" size={20} color={Colors.error} />
-              <Text style={[styles.menuItemText, { color: Colors.error }]}>
+              <Ionicons name="trash-outline" size={20} color={colors.error} />
+              <Text style={[styles.menuItemText, { color: colors.error }]}>
                 Eliminar planta
               </Text>
             </TouchableOpacity>
@@ -449,7 +460,7 @@ export default function PlantDetailScreen() {
               value={newName}
               onChangeText={setNewName}
               placeholder="Nombre de la planta"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               autoFocus
               maxLength={50}
               selectTextOnFocus
@@ -483,16 +494,10 @@ export default function PlantDetailScreen() {
 /*  Estilos                                           */
 /* -------------------------------------------------- */
 
-const styles = StyleSheet.create({
-  /* --- layout --- */
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollView: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollView: { flex: 1, backgroundColor: colors.background },
   scrollContent: {
     paddingBottom: Spacing.lg,
   },
@@ -518,7 +523,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.semibold,
-    color: Colors.white,
+    color: colors.white,
     textAlign: 'center',
   },
 
@@ -532,7 +537,7 @@ const styles = StyleSheet.create({
   stateText: {
     marginTop: Spacing.md,
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 
@@ -547,8 +552,8 @@ const styles = StyleSheet.create({
     borderRadius: 120,
     overflow: 'hidden',
     borderWidth: 6,
-    borderColor: Colors.primaryLight,
-    backgroundColor: Colors.white,
+    borderColor: colors.primaryLight,
+    backgroundColor: colors.white,
     ...Shadows.lg,
   },
   plantImage: {
@@ -560,12 +565,12 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
   },
 
   /* --- info card --- */
   infoCard: {
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     marginHorizontal: Spacing.lg,
@@ -575,17 +580,17 @@ const styles = StyleSheet.create({
   plantName: {
     fontSize: Typography.sizes.xxl - 2,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: Spacing.xs,
   },
   scientificName: {
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontStyle: 'italic',
     marginBottom: Spacing.md,
   },
   levelBadge: {
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 2,
     borderRadius: BorderRadius.full,
@@ -595,7 +600,7 @@ const styles = StyleSheet.create({
   levelBadgeText: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.semibold,
-    color: Colors.white,
+    color: colors.white,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -605,7 +610,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     alignItems: 'center',
@@ -616,13 +621,55 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: Typography.sizes.xs,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 2,
   },
   statValue: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.semibold,
-    color: Colors.text,
+    color: colors.text,
+  },
+
+  /* --- tips de cuidado --- */
+  tipsCard: {
+    backgroundColor: colors.backgroundLight,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    ...Shadows.md,
+  },
+  tipsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  tipsTitle: {
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: colors.text,
+  },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.sm,
+    paddingRight: Spacing.sm,
+  },
+  tipBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginTop: 7,
+    marginRight: 12,
+    flexShrink: 0,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: Typography.sizes.base,
+    lineHeight: 22,
+    color: colors.textSecondary,
   },
 
   /* --- toggle foto / 3D --- */
@@ -648,10 +695,10 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
     height: 200,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     borderRadius: BorderRadius.lg,
     borderWidth: 3,
-    borderColor: Colors.primaryLight,
+    borderColor: colors.primaryLight,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -662,7 +709,7 @@ const styles = StyleSheet.create({
     right: 12,
     textAlign: 'center',
     fontSize: Typography.sizes.xs,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     backgroundColor: 'rgba(26,38,52,0.85)',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -675,6 +722,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  model3dLoading: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundLighter,
+    borderRadius: BorderRadius.lg,
+    zIndex: 10,
+  },
+  model3dLoadingText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.sizes.sm,
+    color: colors.textSecondary,
+  },
   model3dPlaceholder: {
     flex: 1,
     alignItems: 'center',
@@ -683,7 +743,7 @@ const styles = StyleSheet.create({
   model3dPlaceholderText: {
     marginTop: Spacing.sm,
     fontSize: Typography.sizes.sm,
-    color: Colors.textMuted,
+    color: colors.textMuted,
   },
 
   /* --- botones de acción --- */
@@ -694,14 +754,14 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
   },
   primaryButton: {
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     ...Shadows.md,
   },
   secondaryButton: {
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
@@ -710,7 +770,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.semibold,
-    color: Colors.white,
+    color: colors.white,
   },
 
   /* --- modal overlay (compartido) --- */
@@ -726,7 +786,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 100,
     right: Spacing.lg,
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     minWidth: 200,
@@ -741,18 +801,18 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: Typography.sizes.base,
-    color: Colors.text,
+    color: colors.text,
     fontWeight: Typography.weights.medium,
   },
   menuDivider: {
     height: 1,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     marginHorizontal: Spacing.md,
   },
 
   /* --- modal renombrar --- */
   renameContainer: {
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     width: '85%',
@@ -762,23 +822,23 @@ const styles = StyleSheet.create({
   renameTitle: {
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: Spacing.xs,
   },
   renameSubtitle: {
     fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.lg,
   },
   renameInput: {
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     fontSize: Typography.sizes.base,
-    color: Colors.text,
+    color: colors.text,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     marginBottom: Spacing.lg,
   },
   renameButtons: {
@@ -793,18 +853,19 @@ const styles = StyleSheet.create({
   },
   renameBtnCancelText: {
     fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: Typography.weights.semibold,
   },
   renameBtnConfirm: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: Spacing.sm + 2,
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.md,
   },
   renameBtnConfirmText: {
     fontSize: Typography.sizes.sm,
-    color: Colors.white,
+    color: colors.white,
     fontWeight: Typography.weights.semibold,
   },
-});
+  });
+}

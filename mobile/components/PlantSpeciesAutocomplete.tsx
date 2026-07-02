@@ -1,9 +1,7 @@
 /**
- * PlantSpeciesAutocomplete Component - Rediseñado con DesignSystem
- * 
- * Autocomplete para seleccionar especies de plantas
+ * PlantSpeciesAutocomplete - Con modo oscuro (useThemeColors)
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   TextInput,
@@ -17,7 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI } from '../services/api';
 import { Card, Button } from './ui';
-import { Colors, Typography, BorderRadius, Spacing } from '../constants/DesignSystem';
+import { Typography, BorderRadius, Spacing } from '../constants/DesignSystem';
+import { useThemeColors } from '../context/ThemeContext';
 
 interface PlantSpeciesAutocompleteProps {
   value: string;
@@ -32,6 +31,8 @@ export const PlantSpeciesAutocomplete: React.FC<PlantSpeciesAutocompleteProps> =
   placeholder = 'Especie (opcional, ej: Monstera deliciosa...)',
   style,
 }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [speciesList, setSpeciesList] = useState<string[]>([]);
   const [filteredSpecies, setFilteredSpecies] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -105,7 +106,7 @@ export const PlantSpeciesAutocomplete: React.FC<PlantSpeciesAutocompleteProps> =
       onPress={() => handleSelectSpecies(item)}
       activeOpacity={0.7}
     >
-      <Ionicons name="leaf-outline" size={18} color={Colors.primary} style={styles.optionIcon} />
+      <Ionicons name="leaf-outline" size={18} color={colors.primary} style={styles.optionIcon} />
       <Text style={styles.speciesOptionText}>{item}</Text>
     </TouchableOpacity>
   );
@@ -113,7 +114,7 @@ export const PlantSpeciesAutocomplete: React.FC<PlantSpeciesAutocompleteProps> =
   return (
     <View style={[styles.container, style]}>
       <View style={styles.inputContainer}>
-        <Ionicons name="search-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+        <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
         <TextInput
           ref={inputRef}
           style={styles.input}
@@ -121,7 +122,7 @@ export const PlantSpeciesAutocomplete: React.FC<PlantSpeciesAutocompleteProps> =
           onChangeText={handleInputChange}
           onFocus={handleInputFocus}
           placeholder={placeholder}
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={colors.textMuted}
           autoComplete="off"
         />
       </View>
@@ -171,85 +172,68 @@ export const PlantSpeciesAutocomplete: React.FC<PlantSpeciesAutocompleteProps> =
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLighter,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.md,
-  },
-  inputIcon: {
-    marginRight: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    height: 48,
-    fontSize: Typography.sizes.base,
-    color: Colors.text,
-    paddingVertical: 0,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  dropdownContainer: {
-    width: '100%',
-    maxHeight: '70%',
-    overflow: 'hidden',
-  },
-  dropdownHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.backgroundLighter,
-  },
-  dropdownTitle: {
-    fontSize: Typography.sizes.lg,
-    fontWeight: Typography.weights.bold,
-    color: Colors.text,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    padding: 0,
-  },
-  dropdownList: {
-    maxHeight: 400,
-  },
-  speciesOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.backgroundLighter,
-  },
-  optionIcon: {
-    marginRight: Spacing.md,
-  },
-  speciesOptionText: {
-    fontSize: Typography.sizes.base,
-    color: Colors.text,
-    flex: 1,
-  },
-  emptyContainer: {
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontSize: Typography.sizes.sm,
-    textAlign: 'center',
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { width: '100%' },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.backgroundLighter,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.backgroundLighter,
+      marginBottom: Spacing.md,
+      paddingHorizontal: Spacing.md,
+    },
+    inputIcon: { marginRight: Spacing.sm },
+    input: {
+      flex: 1,
+      height: 48,
+      fontSize: Typography.sizes.base,
+      color: colors.text,
+      paddingVertical: 0,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: Spacing.lg,
+    },
+    dropdownContainer: { width: '100%', maxHeight: '70%', overflow: 'hidden' },
+    dropdownHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: Spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.backgroundLighter,
+    },
+    dropdownTitle: {
+      fontSize: Typography.sizes.lg,
+      fontWeight: Typography.weights.bold,
+      color: colors.text,
+    },
+    closeButton: { width: 32, height: 32, padding: 0 },
+    dropdownList: { maxHeight: 400 },
+    speciesOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: Spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.backgroundLighter,
+    },
+    optionIcon: { marginRight: Spacing.md },
+    speciesOptionText: {
+      fontSize: Typography.sizes.base,
+      color: colors.text,
+      flex: 1,
+    },
+    emptyContainer: { padding: Spacing.lg, alignItems: 'center' },
+    emptyText: {
+      color: colors.textSecondary,
+      fontSize: Typography.sizes.sm,
+      textAlign: 'center',
+    },
+  });
+}

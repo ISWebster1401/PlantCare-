@@ -1,8 +1,7 @@
 /**
- * Pantalla de Scanner de Plantas - Rediseñada con DesignSystem
- * Multi-step flow: nombre -> foto -> identificación -> creación
+ * Scanner de Plantas - Con modo oscuro (useThemeColors)
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +11,9 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  TouchableOpacity,
+  Modal,
+  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,16 +21,22 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI } from '../services/api';
 import { PlantIdentify, PlantResponse } from '../types';
-import { PlantSpeciesAutocomplete } from '../components/PlantSpeciesAutocomplete';
+import { SpeciesSelector } from '../components/SpeciesSelector';
 import { Model3DViewer } from '../components/Model3DViewer';
 import { Button, Card, Badge } from '../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
+import { ScannerSelection } from '../components/scanner/ScannerSelection';
+import { LiveScanner } from '../components/scanner/LiveScanner';
+import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
 
-type Step = 'name' | 'photo' | 'identifying' | 'results' | 'creating' | 'created';
+type Step = 'selection' | 'name' | 'photo' | 'live' | 'identifying' | 'results' | 'creating' | 'created';
 
 export default function ScanPlantScreen() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>('name');
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [step, setStep] = useState<Step>('selection');
   const [plantName, setPlantName] = useState('');
   const [plantSpecies, setPlantSpecies] = useState('');
   const [photo, setPhoto] = useState<{ uri: string; type: string; name: string } | null>(null);
@@ -104,7 +112,7 @@ export default function ScanPlantScreen() {
           imageType = 'image/jpeg';
           extension = 'jpg';
         }
-        
+
         setPhoto({
           uri: asset.uri,
           type: imageType,
@@ -112,6 +120,40 @@ export default function ScanPlantScreen() {
         });
         setStep('identifying');
         identifyPlant(asset.uri);
+      }
+    } catch (error) {
+      console.error('Error seleccionando imagen:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+    }
+  };
+
+  /** Desde ScannerSelection (galería): solo elegir foto y pasar al paso nombre */
+  const pickFromGalleryForSelection = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        let imageType = 'image/jpeg';
+        let extension = 'jpg';
+        const uriLower = asset.uri.toLowerCase();
+        if (uriLower.includes('.png')) {
+          imageType = 'image/png';
+          extension = 'png';
+        } else if (uriLower.includes('.heic') || uriLower.includes('.heif')) {
+          imageType = 'image/jpeg';
+          extension = 'jpg';
+        }
+        setPhoto({
+          uri: asset.uri,
+          type: imageType,
+          name: asset.uri.split('/').pop() || `plant_${Date.now()}.${extension}`,
+        });
+        setStep('name');
       }
     } catch (error) {
       console.error('Error seleccionando imagen:', error);
@@ -167,6 +209,37 @@ export default function ScanPlantScreen() {
 
   const renderStep = () => {
     switch (step) {
+      case 'selection':
+        return (
+          <ScannerSelection
+            onBack={() => router.back()}
+            onSelect={(mode) => {
+              if (mode === 'live') {
+                setStep('live');
+              } else {
+                requestMediaLibraryPermission().then((ok) => {
+                  if (ok) pickFromGalleryForSelection();
+                });
+              }
+            }}
+          />
+        );
+
+      case 'live':
+        return (
+          <LiveScanner
+            onCancel={() => setStep('selection')}
+            onComplete={(uri) => {
+              setPhoto({
+                uri,
+                type: 'image/jpeg',
+                name: `plant_${Date.now()}.jpg`,
+              });
+              setStep('name');
+            }}
+          />
+        );
+
       case 'name':
         return (
           <ScrollView style={styles.stepContainer} contentContainerStyle={styles.stepContent}>
@@ -181,30 +254,37 @@ export default function ScanPlantScreen() {
             </Text>
             
             <View style={styles.inputContainer}>
-              <Ionicons name="leaf-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <Ionicons name="leaf-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Nombre de la planta (ej: Pepito, Rosita...)"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={plantName}
                 onChangeText={setPlantName}
                 autoFocus
               />
             </View>
 
-            <PlantSpeciesAutocomplete
-              value={plantSpecies}
-              onChange={setPlantSpecies}
-              placeholder="Especie (opcional, ej: Monstera deliciosa...)"
+            <Text style={styles.inputLabel}>Especie (opcional)</Text>
+            <SpeciesSelector
+              selectedSpecies={plantSpecies || null}
+              onSelect={(species) => setPlantSpecies(species || '')}
             />
 
             <Text style={styles.hintText}>
-              💡 Si conoces la especie, ingrésala para una identificación más precisa
+              Si conoces la especie, selecciónala para una identificación más precisa
             </Text>
 
             <Button
               title="Continuar"
-              onPress={() => setStep('photo')}
+              onPress={() => {
+                if (photo) {
+                  setStep('identifying');
+                  identifyPlant(photo.uri);
+                } else {
+                  setStep('photo');
+                }
+              }}
               variant="primary"
               size="lg"
               disabled={!plantName.trim()}
@@ -237,7 +317,7 @@ export default function ScanPlantScreen() {
               >
                 <View style={styles.photoCardContent}>
                   <View style={styles.photoIconContainer}>
-                    <Ionicons name="camera" size={40} color={Colors.primary} />
+                    <Ionicons name="camera" size={40} color={colors.primary} />
                   </View>
                   <Text style={styles.photoCardText}>Tomar Foto</Text>
                 </View>
@@ -250,7 +330,7 @@ export default function ScanPlantScreen() {
               >
                 <View style={styles.photoCardContent}>
                   <View style={styles.photoIconContainer}>
-                    <Ionicons name="images" size={40} color={Colors.primary} />
+                    <Ionicons name="images" size={40} color={colors.primary} />
                   </View>
                   <Text style={styles.photoCardText}>Desde Galería</Text>
                 </View>
@@ -276,7 +356,7 @@ export default function ScanPlantScreen() {
               <View style={styles.loadingIconContainer}>
                 <Text style={styles.loadingEmoji}>🔍</Text>
               </View>
-              <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
+              <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
               <Text style={styles.loadingText}>Identificando tu planta...</Text>
               <Text style={styles.loadingSubtext}>Esto puede tomar unos segundos</Text>
             </View>
@@ -296,7 +376,7 @@ export default function ScanPlantScreen() {
 
             <Card variant="elevated" style={styles.resultCard}>
               <View style={styles.resultHeader}>
-                <Ionicons name="checkmark-circle" size={32} color={Colors.primary} />
+                <Ionicons name="checkmark-circle" size={32} color={colors.primary} />
                 <View style={styles.resultTitleContainer}>
                   <Text style={styles.resultTitle}>{identification.plant_type}</Text>
                   {identification.scientific_name && (
@@ -313,26 +393,38 @@ export default function ScanPlantScreen() {
 
             <Card variant="elevated" style={styles.resultCard}>
               <View style={styles.resultCardHeader}>
-                <Ionicons name="bulb" size={24} color={Colors.accent} />
+                <Ionicons name="bulb-outline" size={24} color={colors.accent} />
                 <Text style={styles.resultCardTitle}>Consejos de cuidado</Text>
               </View>
-              <Text style={styles.resultText}>{identification.care_tips}</Text>
+              <View style={styles.tipsContainer}>
+                {(Array.isArray(identification.care_tips)
+                  ? identification.care_tips
+                  : (identification.care_tips || '').split(/[;\n]/).filter((t: string) => t.trim())
+                ).map((tip: string, idx: number) => (
+                  <View key={idx} style={styles.tipRow}>
+                    <View style={styles.tipBullet} />
+                    <Text style={styles.tipText}>
+                      {tip.replace(/^[-*•]\s*/, '').trim()}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </Card>
 
             <Card variant="elevated" style={styles.resultCard}>
               <View style={styles.resultCardHeader}>
-                <Ionicons name="stats-chart" size={24} color={Colors.secondary} />
+                <Ionicons name="stats-chart" size={24} color={colors.secondary} />
                 <Text style={styles.resultCardTitle}>Condiciones óptimas</Text>
               </View>
               <View style={styles.conditionsRow}>
                 <View style={styles.conditionItem}>
-                  <Ionicons name="water" size={20} color={Colors.secondary} />
+                  <Ionicons name="water" size={20} color={colors.secondary} />
                   <Text style={styles.conditionText}>
                     {identification.optimal_humidity_min}% - {identification.optimal_humidity_max}%
                   </Text>
                 </View>
                 <View style={styles.conditionItem}>
-                  <Ionicons name="thermometer" size={20} color={Colors.error} />
+                  <Ionicons name="thermometer" size={20} color={colors.error} />
                   <Text style={styles.conditionText}>
                     {identification.optimal_temp_min}°C - {identification.optimal_temp_max}°C
                   </Text>
@@ -374,7 +466,7 @@ export default function ScanPlantScreen() {
               <View style={styles.loadingIconContainer}>
                 <Text style={styles.loadingEmoji}>✨</Text>
               </View>
-              <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
+              <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
               <Text style={styles.loadingText}>Creando tu planta...</Text>
               <Text style={styles.loadingSubtext}>
                 Generando el personaje único de <Text style={{ fontWeight: Typography.weights.bold }}>{plantName}</Text>
@@ -395,14 +487,14 @@ export default function ScanPlantScreen() {
         return (
           <ScrollView style={styles.stepContainer} contentContainerStyle={styles.createdContent}>
             <View style={styles.iconContainer}>
-              <View style={[styles.iconCircle, { borderColor: Colors.success, backgroundColor: `${Colors.success}20` }]}>
+              <View style={[styles.iconCircle, { borderColor: colors.success, backgroundColor: `${colors.success}20` }]}>
                 <Text style={styles.iconEmoji}>✅</Text>
               </View>
             </View>
 
             <Text style={styles.stepTitle}>¡Planta agregada al jardín!</Text>
             <Text style={styles.stepDescription}>
-              Así se ve el personaje de <Text style={{ fontWeight: Typography.weights.bold, color: Colors.text }}>{createdPlant.plant_name || plantName}</Text>
+              Así se ve el personaje de <Text style={{ fontWeight: Typography.weights.bold, color: colors.text }}>{createdPlant.plant_name || plantName}</Text>
             </Text>
 
             {/* Imagen del personaje */}
@@ -432,7 +524,7 @@ export default function ScanPlantScreen() {
             {/* Info rápida */}
             {createdPlant.plant_type && (
               <View style={styles.createdInfoRow}>
-                <Ionicons name="leaf" size={16} color={Colors.primaryLight} />
+                <Ionicons name="leaf" size={16} color={colors.primaryLight} />
                 <Text style={styles.createdInfoText}>
                   {createdPlant.plant_type}
                   {createdPlant.scientific_name ? ` — ${createdPlant.scientific_name}` : ''}
@@ -454,7 +546,7 @@ export default function ScanPlantScreen() {
             <Button
               title="Escanear otra planta"
               onPress={() => {
-                setStep('name');
+                setStep('selection');
                 setPhoto(null);
                 setPlantName('');
                 setPlantSpecies('');
@@ -478,19 +570,18 @@ export default function ScanPlantScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={Gradients.primary}
+        colors={gradients.primary as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <Button
-          title=""
+        <TouchableOpacity
           onPress={() => router.back()}
-          variant="ghost"
-          size="sm"
-          icon="close"
           style={styles.closeButton}
-        />
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="close" size={24} color={colors.white} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Escanear Planta</Text>
         <View style={styles.closeButtonPlaceholder} />
       </LinearGradient>
@@ -500,11 +591,9 @@ export default function ScanPlantScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -517,12 +606,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
-    color: Colors.white,
+    color: colors.white,
   },
   closeButton: {
     width: 40,
     height: 40,
-    padding: 0,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
   closeButtonPlaceholder: {
     width: 40,
@@ -543,11 +635,11 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: `${Colors.primary}20`,
+    backgroundColor: `${colors.primary}20`,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   iconEmoji: {
     fontSize: 64,
@@ -555,13 +647,13 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: Typography.sizes.xxl,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: Spacing.md,
     textAlign: 'center',
   },
   stepDescription: {
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.xl,
     lineHeight: 22,
@@ -569,10 +661,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
+    borderColor: colors.backgroundLighter,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.md,
   },
@@ -583,12 +675,12 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     fontSize: Typography.sizes.base,
-    color: Colors.text,
+    color: colors.text,
     paddingVertical: 0,
   },
   hintText: {
     fontSize: Typography.sizes.sm,
-    color: Colors.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
     marginBottom: Spacing.lg,
     paddingHorizontal: Spacing.md,
@@ -613,13 +705,13 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: `${Colors.primary}15`,
+    backgroundColor: `${colors.primary}15`,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
   photoCardText: {
-    color: Colors.text,
+    color: colors.text,
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.semibold,
   },
@@ -639,14 +731,14 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.lg,
   },
   loadingText: {
-    color: Colors.text,
+    color: colors.text,
     fontSize: Typography.sizes.xl,
     textAlign: 'center',
     marginTop: Spacing.md,
     fontWeight: Typography.weights.semibold,
   },
   loadingSubtext: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: Typography.sizes.base,
     textAlign: 'center',
     marginTop: Spacing.sm,
@@ -664,7 +756,7 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: 320,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
   },
   resultCard: {
     marginBottom: Spacing.md,
@@ -681,12 +773,12 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: Spacing.xs,
   },
   resultSubtitle: {
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
   resultCardHeader: {
@@ -697,13 +789,40 @@ const styles = StyleSheet.create({
   resultCardTitle: {
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
     marginLeft: Spacing.sm,
   },
   resultText: {
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     lineHeight: 24,
+  },
+  tipsContainer: {
+    gap: Spacing.sm,
+  },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  tipBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+    marginTop: 7,
+    marginRight: 12,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: Typography.sizes.base,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  inputLabel: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    color: colors.textSecondary,
+    marginBottom: Spacing.sm,
   },
   conditionsRow: {
     flexDirection: 'row',
@@ -714,13 +833,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
   },
   conditionText: {
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.semibold,
     marginLeft: Spacing.sm,
@@ -743,8 +862,8 @@ const styles = StyleSheet.create({
     borderRadius: 110,
     overflow: 'hidden',
     borderWidth: 4,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.backgroundLighter,
+    borderColor: colors.primary,
+    backgroundColor: colors.backgroundLighter,
     marginBottom: Spacing.lg,
   },
   createdImage: {
@@ -757,10 +876,10 @@ const styles = StyleSheet.create({
     height: 240,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     marginBottom: Spacing.lg,
     borderWidth: 2,
-    borderColor: Colors.primaryLight,
+    borderColor: colors.primaryLight,
   },
   created3dLabel: {
     position: 'absolute',
@@ -768,8 +887,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     zIndex: 10,
     fontSize: Typography.sizes.xs,
-    color: Colors.textSecondary,
-    backgroundColor: `${Colors.background}CC`,
+    color: colors.textSecondary,
+    backgroundColor: `${colors.background}CC`,
     paddingHorizontal: Spacing.md,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
@@ -787,7 +906,8 @@ const styles = StyleSheet.create({
   },
   createdInfoText: {
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
-});
+  });
+}

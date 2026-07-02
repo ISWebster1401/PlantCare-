@@ -1,10 +1,10 @@
 #!/bin/bash
 
 echo "🧹 Limpiando procesos anteriores..."
-pkill -9 node 2>/dev/null
 lsof -ti:8081 | xargs kill -9 2>/dev/null
 lsof -ti:19000 | xargs kill -9 2>/dev/null
 lsof -ti:19001 | xargs kill -9 2>/dev/null
+pkill -f "expo start" 2>/dev/null
 
 echo "🧹 Limpiando caché..."
 rm -rf .expo node_modules/.cache .metro 2>/dev/null

@@ -1,16 +1,14 @@
 /**
- * PokedexCard Component
- * 
- * Todas las tarjetas tienen el MISMO layout.
- * La única diferencia es que si hay imagen, se muestra en lugar del placeholder.
+ * PokedexCard - Con modo oscuro (useThemeColors)
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Badge } from './ui';
-import { Colors, Typography, Spacing, BorderRadius } from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius } from '../constants/DesignSystem';
 import { PokedexEntryResponse } from '../types';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '../context/ThemeContext';
 
 export interface PokedexCardProps {
   entry: PokedexEntryResponse;
@@ -26,6 +24,8 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
   style,
 }) => {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { catalog_entry, is_unlocked } = entry;
 
   const isGrid = viewMode === 'grid';
@@ -67,7 +67,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
       {/* Check de desbloqueado - esquina superior izquierda */}
       {is_unlocked && (
         <View style={styles.checkBadge}>
-          <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
         </View>
       )}
 
@@ -86,13 +86,13 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
             <Ionicons
               name="leaf-outline"
               size={isGrid ? 40 : 48}
-              color={is_unlocked ? Colors.textSecondary : Colors.textMuted}
+              color={is_unlocked ? colors.textSecondary : colors.textMuted}
             />
             {!is_unlocked && (
               <Ionicons
                 name="lock-closed"
                 size={18}
-                color={Colors.textMuted}
+                color={colors.textMuted}
                 style={styles.lockIcon}
               />
             )}
@@ -132,116 +132,78 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  // ========== TARJETA BASE ==========
-  card: {
-    backgroundColor: Colors.backgroundLighter,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  cardList: {
-    width: '100%',
-  },
-  cardGrid: {
-    width: '48%',
-  },
-  cardLocked: {
-    opacity: 0.6,
-    borderColor: Colors.textMuted,
-  },
-
-  // ========== BADGES (número y check) ==========
-  numberBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 20,
-    backgroundColor: Colors.background,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  numberText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  checkBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 20,
-    backgroundColor: Colors.background,
-    borderRadius: 999,
-    padding: 4,
-  },
-
-  // ========== ÁREA VISUAL (imagen o placeholder) ==========
-  visualArea: {
-    width: '100%',
-    height: 120,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  visualAreaGrid: {
-    height: 100,
-  },
-  plantImage: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    position: 'relative',
-  },
-  lockIcon: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-  },
-
-  // ========== ÁREA DE INFO ==========
-  infoArea: {
-    padding: Spacing.md,
-    alignItems: 'center',
-  },
-  infoAreaGrid: {
-    padding: Spacing.sm,
-    minHeight: 70,
-    justifyContent: 'center',
-  },
-  plantName: {
-    fontSize: Typography.sizes.base,
-    fontWeight: '700',
-    color: Colors.text,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  plantNameGrid: {
-    fontSize: Typography.sizes.sm,
-  },
-  plantNameLocked: {
-    color: Colors.textMuted,
-  },
-  scientificName: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  badgeContainer: {
-    marginTop: 4,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: colors.backgroundLighter,
+      borderRadius: BorderRadius.lg,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      marginBottom: Spacing.md,
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    cardList: { width: '100%' },
+    cardGrid: { width: '48%' },
+    cardLocked: { opacity: 0.6, borderColor: colors.textMuted },
+    numberBadge: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      zIndex: 20,
+      backgroundColor: colors.background,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    numberText: { fontSize: 11, fontWeight: '700', color: colors.primary },
+    checkBadge: {
+      position: 'absolute',
+      top: 8,
+      left: 8,
+      zIndex: 20,
+      backgroundColor: colors.background,
+      borderRadius: 999,
+      padding: 4,
+    },
+    visualArea: {
+      width: '100%',
+      height: 120,
+      backgroundColor: colors.background,
+      justifyContent: 'center',
+      alignItems: 'center',
+      overflow: 'hidden',
+    },
+    visualAreaGrid: { height: 100 },
+    plantImage: { width: '100%', height: '100%' },
+    placeholderContent: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: '100%',
+      position: 'relative',
+    },
+    lockIcon: { position: 'absolute', bottom: 8, right: 8 },
+    infoArea: { padding: Spacing.md, alignItems: 'center' },
+    infoAreaGrid: { padding: Spacing.sm, minHeight: 70, justifyContent: 'center' },
+    plantName: {
+      fontSize: Typography.sizes.base,
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'center',
+      marginBottom: 4,
+    },
+    plantNameGrid: { fontSize: Typography.sizes.sm },
+    plantNameLocked: { color: colors.textMuted },
+    scientificName: {
+      fontSize: Typography.sizes.sm,
+      color: colors.textSecondary,
+      fontStyle: 'italic',
+      marginBottom: 4,
+      textAlign: 'center',
+    },
+    badgeContainer: { marginTop: 4 },
+  });
+}

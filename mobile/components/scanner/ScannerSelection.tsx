@@ -28,8 +28,8 @@ import {
   BorderRadius,
   Shadows,
 } from '../../constants/DesignSystem';
-import { useThemeColors, useThemeGradients } from '../../context/ThemeContext';
-import { Emoji } from '../ui';
+import { useThemeColors, useThemeGradients, useTheme } from '../../context/ThemeContext';
+import { Emoji, LottieIcon } from '../ui';
 import { CloudsBackground, GrassFooter } from '../decorative';
 import { LottieHero } from './LottieHero';
 
@@ -46,8 +46,13 @@ export interface ScannerSelectionProps {
 export function ScannerSelection({ onSelect, onBack }: ScannerSelectionProps) {
   const colors = useThemeColors();
   const gradients = useThemeGradients();
+  const { isDark } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [page, setPage] = useState(0);
+
+  const backgroundGradient = isDark
+    ? (['#0D1F0D', '#1A2E1A', '#243524'] as const)
+    : (['#E3F2FD', '#E8F5E9', '#C8E6C9'] as const);
   const pagerRef = useRef<PagerView>(null);
   const buttonScale = useSharedValue(1);
 
@@ -72,8 +77,7 @@ export function ScannerSelection({ onSelect, onBack }: ScannerSelectionProps) {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#E3F2FD', '#BBDEFB', '#E8F5E9', '#C8E6C9']}
-        locations={[0, 0.35, 0.6, 1]}
+        colors={backgroundGradient}
         style={StyleSheet.absoluteFill}
       />
       <CloudsBackground />
@@ -92,6 +96,9 @@ export function ScannerSelection({ onSelect, onBack }: ScannerSelectionProps) {
         <LottieHero size={180} />
 
         <Text style={styles.title}>¿Cómo quieres conocer tu planta?</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Desliza para ver las opciones
+        </Text>
 
         <View style={styles.pagerWrap}>
           <PagerView
@@ -105,8 +112,11 @@ export function ScannerSelection({ onSelect, onBack }: ScannerSelectionProps) {
                 style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
                 onPress={() => handleSelect('live')}
               >
+                <View style={styles.recommendedBadge}>
+                  <Text style={styles.recommendedText}>⭐ Recomendado</Text>
+                </View>
                 <View style={styles.cardIconWrap}>
-                  <Emoji name="camera" size={48} />
+                  <LottieIcon name="camera" size={48} />
                 </View>
                 <Text style={styles.cardTitle}>Escanear en vivo</Text>
                 <Text style={styles.cardSubtitle}>
@@ -120,7 +130,7 @@ export function ScannerSelection({ onSelect, onBack }: ScannerSelectionProps) {
                 onPress={() => handleSelect('gallery')}
               >
                 <View style={[styles.cardIconWrap, styles.cardIconBlue]}>
-                  <Emoji name="sparkles" size={48} />
+                  <LottieIcon name="gallery" size={48} />
                 </View>
                 <Text style={styles.cardTitle}>Subir foto</Text>
                 <Text style={styles.cardSubtitle}>
@@ -131,12 +141,10 @@ export function ScannerSelection({ onSelect, onBack }: ScannerSelectionProps) {
           </PagerView>
         </View>
 
-        <View style={styles.dots}>
+        <View style={styles.pageIndicator}>
           <View style={[styles.dot, page === 0 && styles.dotActive]} />
           <View style={[styles.dot, page === 1 && styles.dotActive]} />
         </View>
-
-        <Text style={styles.hint}>Desliza para ver más</Text>
 
         <Animated.View style={buttonStyle}>
           <TouchableOpacity
@@ -211,9 +219,13 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       borderRadius: 24,
       padding: Spacing.xl,
       alignItems: 'center',
-      ...Shadows.medium,
-      borderWidth: 2,
-      borderColor: colors.primaryPastel,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 24,
+      elevation: 8,
+      borderWidth: 1,
+      borderColor: colors.primary + '26',
     },
     cardPressed: { opacity: 0.9 },
     cardBlue: { borderColor: colors.secondaryLight },
@@ -238,7 +250,25 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       color: colors.textSecondary,
       textAlign: 'center',
     },
-    dots: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+    subtitle: {
+      fontSize: Typography.sizes.base,
+      marginTop: Spacing.xs,
+      textAlign: 'center',
+    },
+    recommendedBadge: {
+      position: 'absolute',
+      top: -12,
+      backgroundColor: colors.yellow,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.full,
+    },
+    recommendedText: {
+      fontSize: Typography.sizes.xs,
+      fontWeight: Typography.weights.bold,
+      color: colors.textDark,
+    },
+    pageIndicator: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
     dot: {
       width: 8,
       height: 8,
@@ -246,7 +276,6 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
       backgroundColor: colors.textMuted,
     },
     dotActive: { backgroundColor: colors.primary, width: 24 },
-    hint: { fontSize: Typography.sizes.xs, color: colors.textMuted, marginTop: Spacing.sm },
     ctaTouch: {
       marginTop: Spacing.lg,
       borderRadius: BorderRadius.full,

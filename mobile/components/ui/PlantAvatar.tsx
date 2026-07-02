@@ -1,9 +1,7 @@
 /**
- * PlantAvatar Component - Estilo Duolingo/Pokémon
- * 
- * Avatar circular de planta con animaciones según mood y glow effect
+ * PlantAvatar - Con modo oscuro (useThemeColors)
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, StyleSheet, ViewStyle, Image, ImageSourcePropType } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -12,9 +10,9 @@ import Animated, {
   withSequence,
   withTiming,
   withSpring,
-  interpolate,
 } from 'react-native-reanimated';
-import { Colors, BorderRadius, Shadows, PlantMoods, PlantMoodType, HealthStatuses, HealthStatus } from '../../constants/DesignSystem';
+import { BorderRadius, Shadows, PlantMoods, PlantMoodType, HealthStatuses, HealthStatus } from '../../constants/DesignSystem';
+import { useThemeColors } from '../../context/ThemeContext';
 import { Emoji } from './Emoji';
 
 export interface PlantAvatarProps {
@@ -43,6 +41,8 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
   style,
   accessibilityLabel,
 }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const scale = useSharedValue(1);
   const rotation = useSharedValue(0);
   const translateX = useSharedValue(0);
@@ -225,7 +225,7 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
                 width: size - borderWidth * 2,
                 height: size - borderWidth * 2,
                 borderRadius: (size - borderWidth * 2) / 2,
-                backgroundColor: Colors.backgroundLighter,
+                backgroundColor: colors.backgroundLighter,
               },
             ]}
           >
@@ -242,7 +242,7 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
                 width: emojiSize,
                 height: emojiSize,
                 borderRadius: emojiSize / 2,
-                backgroundColor: Colors.background,
+                backgroundColor: colors.background,
                 borderWidth: 2,
                 borderColor: moodConfig.color,
                 bottom: size * -0.08, // Posicionado más adentro para que no se corte
@@ -258,33 +258,18 @@ export const PlantAvatar: React.FC<PlantAvatarProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glow: {
-    position: 'absolute',
-    zIndex: 0,
-  },
-  avatarContainer: {
-    position: 'relative',
-    zIndex: 1,
-    overflow: 'hidden',
-    backgroundColor: Colors.backgroundLight,
-  },
-  image: {
-    backgroundColor: Colors.backgroundLighter,
-  },
-  placeholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  moodBadge: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.md,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+    glow: { position: 'absolute', zIndex: 0 },
+    avatarContainer: {
+      position: 'relative',
+      zIndex: 1,
+      overflow: 'hidden',
+      backgroundColor: colors.backgroundLight,
+    },
+    image: { backgroundColor: colors.backgroundLighter },
+    placeholder: { alignItems: 'center', justifyContent: 'center' },
+    moodBadge: { position: 'absolute', alignItems: 'center', justifyContent: 'center', ...Shadows.md },
+  });
+}

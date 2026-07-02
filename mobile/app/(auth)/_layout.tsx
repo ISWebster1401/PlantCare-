@@ -4,12 +4,13 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Colors } from '../../constants/DesignSystem';
+import { useThemeColors } from '../../context/ThemeContext';
 
 export default function AuthLayout() {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const colors = useThemeColors();
 
   useEffect(() => {
     if (isLoading) return;
@@ -17,10 +18,8 @@ export default function AuthLayout() {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (isAuthenticated && inAuthGroup) {
-      // Usuario autenticado, redirigir a tabs
       router.replace('/(tabs)');
     } else if (!isAuthenticated && !inAuthGroup) {
-      // Usuario no autenticado, redirigir a login
       router.replace('/(auth)/login');
     }
   }, [isAuthenticated, isLoading, segments]);
@@ -29,7 +28,9 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: Colors.background },
+        contentStyle: { backgroundColor: colors.background },
+        animation: 'fade',
+        animationDuration: 250,
       }}
     >
       <Stack.Screen name="login" />

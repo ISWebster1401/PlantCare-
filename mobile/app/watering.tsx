@@ -1,12 +1,7 @@
 /**
- * Pantalla de Riego en Tiempo Real
- *
- * - Hace polling cada 1s al sensor real para obtener soil_moisture
- * - Si no hay sensor asignado, muestra mensaje para conectar uno
- * - Guarda las sesiones de riego en AsyncStorage para el historial
- * - NO simula datos: todo viene del sensor real
+ * Pantalla de Riego - Con modo oscuro (useThemeColors)
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,14 +19,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI, sensorsAPI } from '../services/api';
 import { PlantResponse } from '../types';
-import {
-  Colors,
-  Gradients,
-  Typography,
-  Spacing,
-  BorderRadius,
-  Shadows,
-} from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
 
 /* -------------------------------------------------- */
 /*  Constantes                                        */
@@ -77,7 +66,7 @@ async function saveWateringSession(session: StoredWateringSession) {
 /*  Componente de gota animada                        */
 /* -------------------------------------------------- */
 
-function WaterDrop({ delay, left }: { delay: number; left: number }) {
+function WaterDrop({ delay, left, waterDropStyle }: { delay: number; left: number; waterDropStyle?: any }) {
   const translateY = useRef(new Animated.Value(-30)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -120,7 +109,7 @@ function WaterDrop({ delay, left }: { delay: number; left: number }) {
   return (
     <Animated.Text
       style={[
-        styles.waterDrop,
+        waterDropStyle,
         { left: `${left}%`, transform: [{ translateY }], opacity },
       ]}
     >
@@ -136,6 +125,9 @@ function WaterDrop({ delay, left }: { delay: number; left: number }) {
 export default function WateringScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ plantId: string; plantName: string }>();
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [plant, setPlant] = useState<PlantResponse | null>(null);
   const [isWatering, setIsWatering] = useState(false);
@@ -297,7 +289,7 @@ export default function WateringScreen() {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient
-        colors={Gradients.primary}
+        colors={gradients.primary as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
@@ -311,7 +303,7 @@ export default function WateringScreen() {
               }}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="arrow-back" size={24} color={Colors.white} />
+              <Ionicons name="arrow-back" size={24} color={colors.white} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Riego en Tiempo Real</Text>
             <View style={{ width: 24 }} />
@@ -324,14 +316,14 @@ export default function WateringScreen() {
         <View style={styles.plantArea}>
           {isWatering &&
             Array.from({ length: DROP_COUNT }).map((_, i) => (
-              <WaterDrop key={i} delay={i * 220} left={20 + i * 14} />
+              <WaterDrop key={i} delay={i * 220} left={20 + i * 14} waterDropStyle={styles.waterDrop} />
             ))}
 
           <View style={styles.plantCircle}>
             {imageUri ? (
               <Image source={{ uri: imageUri }} style={styles.plantImg} resizeMode="cover" />
             ) : (
-              <Ionicons name="leaf" size={60} color={Colors.primaryLight} />
+              <Ionicons name="leaf" size={60} color={colors.primaryLight} />
             )}
           </View>
 
@@ -348,7 +340,7 @@ export default function WateringScreen() {
         {/* Aviso sin sensor */}
         {noSensor && (
           <View style={styles.noSensorBox}>
-            <Ionicons name="hardware-chip-outline" size={24} color={Colors.accent} />
+            <Ionicons name="hardware-chip-outline" size={24} color={colors.accent} />
             <Text style={styles.noSensorText}>
               Esta planta no tiene un sensor asignado. Asigna un sensor desde la pantalla de dispositivos para ver datos de humedad en tiempo real.
             </Text>
@@ -375,7 +367,7 @@ export default function WateringScreen() {
             </View>
             {sensorError && (
               <View style={styles.sensorErrorRow}>
-                <Ionicons name="warning-outline" size={14} color={Colors.warning} />
+                <Ionicons name="warning-outline" size={14} color={colors.warning} />
                 <Text style={styles.sensorErrorText}>
                   Error leyendo sensor. Reintentando...
                 </Text>
@@ -388,11 +380,11 @@ export default function WateringScreen() {
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
           {noSensor ? (
             <TouchableOpacity
-              style={[styles.waterButton, { backgroundColor: Colors.accent }]}
+              style={[styles.waterButton, { backgroundColor: colors.accent }]}
               onPress={() => router.back()}
               activeOpacity={0.8}
             >
-              <Ionicons name="arrow-back-circle" size={28} color={Colors.white} />
+              <Ionicons name="arrow-back-circle" size={28} color={colors.white} />
               <Text style={styles.waterButtonText}>Volver y asignar sensor</Text>
             </TouchableOpacity>
           ) : (
@@ -418,7 +410,7 @@ export default function WateringScreen() {
               <Ionicons
                 name={reachedLimit ? 'checkmark-circle' : isWatering ? 'pause-circle' : 'water'}
                 size={28}
-                color={Colors.white}
+                color={colors.white}
               />
               <Text style={styles.waterButtonText}>
                 {reachedLimit
@@ -457,11 +449,9 @@ function formatDuration(seconds: number): string {
 /*  Estilos                                           */
 /* -------------------------------------------------- */
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   headerGradient: {
     borderBottomLeftRadius: BorderRadius.xl,
     borderBottomRightRadius: BorderRadius.xl,
@@ -476,7 +466,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.semibold,
-    color: Colors.white,
+    color: colors.white,
   },
   body: {
     flex: 1,
@@ -496,12 +486,12 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 4,
-    borderColor: Colors.primaryLight,
+    borderColor: colors.primaryLight,
     ...Shadows.md,
   },
   plantImg: {
@@ -512,7 +502,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.semibold,
-    color: Colors.text,
+    color: colors.text,
   },
 
   /* --- gotas --- */
@@ -526,7 +516,7 @@ const styles = StyleSheet.create({
   /* --- speech bubble --- */
   speechBubble: {
     marginTop: Spacing.lg,
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
@@ -535,11 +525,11 @@ const styles = StyleSheet.create({
   },
   speechBubbleWarning: {
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: colors.accent,
   },
   speechText: {
     fontSize: Typography.sizes.base,
-    color: Colors.text,
+    color: colors.text,
     textAlign: 'center',
     fontWeight: Typography.weights.medium,
   },
@@ -549,7 +539,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginTop: Spacing.lg,
@@ -558,7 +548,7 @@ const styles = StyleSheet.create({
   noSensorText: {
     flex: 1,
     fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     lineHeight: 20,
   },
 
@@ -569,13 +559,13 @@ const styles = StyleSheet.create({
   },
   gaugeLabel: {
     fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.sm,
   },
   gaugeTrack: {
     width: '100%',
     height: 16,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
@@ -591,11 +581,11 @@ const styles = StyleSheet.create({
   gaugeValueText: {
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
   },
   gaugeTargetText: {
     fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     alignSelf: 'flex-end',
   },
   sensorErrorRow: {
@@ -606,7 +596,7 @@ const styles = StyleSheet.create({
   },
   sensorErrorText: {
     fontSize: Typography.sizes.xs,
-    color: Colors.warning,
+    color: colors.warning,
   },
 
   /* --- botón de riego --- */
@@ -615,7 +605,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.full,
@@ -623,10 +613,10 @@ const styles = StyleSheet.create({
     ...Shadows.lg,
   },
   waterButtonActive: {
-    backgroundColor: Colors.warning,
+    backgroundColor: colors.warning,
   },
   waterButtonDone: {
-    backgroundColor: Colors.success,
+    backgroundColor: colors.success,
   },
   waterButtonDisabled: {
     opacity: 0.5,
@@ -634,13 +624,14 @@ const styles = StyleSheet.create({
   waterButtonText: {
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.bold,
-    color: Colors.white,
+    color: colors.white,
   },
 
   /* --- info sesión --- */
   sessionInfo: {
     marginTop: Spacing.md,
     fontSize: Typography.sizes.sm,
-    color: Colors.textMuted,
+    color: colors.textMuted,
   },
-});
+  });
+}

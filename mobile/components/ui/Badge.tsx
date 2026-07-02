@@ -12,7 +12,7 @@ import Animated, {
   withTiming,
   withSequence,
 } from 'react-native-reanimated';
-import { Colors, Typography, BorderRadius, Spacing, HealthStatuses, HealthStatus } from '../../constants/DesignSystem';
+import { Typography, BorderRadius, Spacing, HealthStatuses, HealthStatus } from '../../constants/DesignSystem';
 import { Emoji } from './Emoji';
 
 export interface BadgeProps {

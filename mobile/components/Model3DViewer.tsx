@@ -21,6 +21,10 @@ interface Model3DViewerProps {
   characterMood?: string;
   /** Show the 3D garden environment. Default: true */
   gardenBackground?: boolean;
+  /** Called when the 3D model has loaded successfully */
+  onLoad?: () => void;
+  /** Called when the 3D model fails to load */
+  onError?: () => void;
 }
 
 interface GLTFResult {
@@ -133,8 +137,15 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   autoRotate = true,
   characterMood,
   gardenBackground = true,
+  onLoad,
+  onError,
 }) => {
   const [loadError, setLoadError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const onLoadRef = useRef(onLoad);
+  const onErrorRef = useRef(onError);
+  onLoadRef.current = onLoad;
+  onErrorRef.current = onError;
   const errorLoggedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -306,6 +317,8 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
 
           scene.add(model);
           modelRef.current = model;
+          setIsLoaded(true);
+          onLoadRef.current?.();
 
           // Configure animations
           if (gltf.animations && gltf.animations.length > 0) {
@@ -349,6 +362,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
         () => {
           setLoadError(true);
           errorLoggedRef.current = true;
+          onErrorRef.current?.();
         },
       );
 

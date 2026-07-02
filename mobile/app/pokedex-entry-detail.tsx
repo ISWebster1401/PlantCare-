@@ -1,7 +1,7 @@
 /**
- * Pantalla de Detalles de Entrada de Pokedex
+ * Pantalla de Detalles de Entrada de Plantadex - Con modo oscuro
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,11 +18,14 @@ import { PokedexEntryResponse } from '../types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Badge } from '../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
+import { useThemeColors } from '../context/ThemeContext';
 
 export default function PokedexEntryDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [entry, setEntry] = useState<PokedexEntryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,11 +124,11 @@ export default function PokedexEntryDetailScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+            <Ionicons name="arrow-back" size={24} color={colors.white} />
           </TouchableOpacity>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Cargando entrada...</Text>
         </View>
       </View>
@@ -137,11 +140,11 @@ export default function PokedexEntryDetailScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+            <Ionicons name="arrow-back" size={24} color={colors.white} />
           </TouchableOpacity>
         </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color={Colors.error} />
+          <Ionicons name="alert-circle-outline" size={64} color={colors.error} />
           <Text style={styles.errorText}>{error || 'Entrada no encontrada'}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadEntry}>
             <Text style={styles.retryButtonText}>Reintentar</Text>
@@ -158,7 +161,7 @@ export default function PokedexEntryDetailScreen() {
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerBgColor, borderBottomColor: headerBorderColor }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={28} color={Colors.white} />
+            <Ionicons name="arrow-back" size={28} color={colors.white} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={[styles.entryNumberBadge, { backgroundColor: headerBorderColor }]}>
@@ -264,14 +267,14 @@ export default function PokedexEntryDetailScreen() {
           </View>
         ) : (
           <View style={styles.botanicalSection}>
-            <View style={[styles.botanicalCard, { borderLeftColor: Colors.primary }]}>
+            <View style={[styles.botanicalCard, { borderLeftColor: colors.primary }]}>
               <View style={styles.botanicalHeader}>
-                <Ionicons name="lock-closed" size={28} color={Colors.primary} />
+                <Ionicons name="lock-closed" size={28} color={colors.primary} />
                 <Text style={styles.botanicalCardTitle}>🔒 Información Bloqueada</Text>
               </View>
               <View style={styles.botanicalRow}>
-                <View style={[styles.botanicalIconCircle, { backgroundColor: Colors.primary + '30' }]}>
-                  <Ionicons name="eye-off" size={24} color={Colors.primary} />
+                <View style={[styles.botanicalIconCircle, { backgroundColor: colors.primary + '30' }]}>
+                  <Ionicons name="eye-off" size={24} color={colors.primary} />
                 </View>
                 <View style={styles.botanicalContent}>
                   <Text style={styles.botanicalLabel}>🔒 Esta información está bloqueada</Text>
@@ -288,8 +291,8 @@ export default function PokedexEntryDetailScreen() {
         {entry.is_unlocked ? (
           <View style={styles.statsSection}>
             <View style={styles.sectionTitleContainer}>
-              <View style={[styles.sectionIconContainer, { backgroundColor: Colors.primary + '20' }]}>
-                <Ionicons name="stats-chart" size={28} color={Colors.primary} />
+              <View style={[styles.sectionIconContainer, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name="stats-chart" size={28} color={colors.primary} />
               </View>
               <Text style={styles.sectionTitle}>⚡ Estadísticas</Text>
             </View>
@@ -357,7 +360,7 @@ export default function PokedexEntryDetailScreen() {
         {entry.is_unlocked && entry.discovered_at && (
           <View style={styles.dateSection}>
             <View style={styles.dateCard}>
-              <Ionicons name="calendar" size={20} color={Colors.textSecondary} />
+              <Ionicons name="calendar" size={20} color={colors.textSecondary} />
               <View style={styles.dateContent}>
                 <Text style={styles.dateLabel}>Descubierta el</Text>
                 <Text style={styles.dateValue}>{formatDate(entry.discovered_at)}</Text>
@@ -380,7 +383,18 @@ export default function PokedexEntryDetailScreen() {
                 <Ionicons name="sparkles" size={24} color="#ffb74d" />
                 <Text style={styles.tipsTitle}>¡Aprende a cuidarla!</Text>
               </View>
-              <Text style={styles.tipsText}>{entry.catalog_entry.care_tips}</Text>
+              {(entry.catalog_entry.care_tips || '')
+                .split(/[;\n]/)
+                .map((t: string) => t.trim())
+                .filter((t: string) => t.length > 0)
+                .map((tip: string, index: number) => (
+                  <View key={index} style={styles.tipBulletRow}>
+                    <View style={styles.tipBulletDot} />
+                    <Text style={styles.tipsText}>
+                      {tip.replace(/^[-*•]\s*/, '')}
+                    </Text>
+                  </View>
+                ))}
             </View>
           </View>
         )}
@@ -450,477 +464,247 @@ export default function PokedexEntryDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 3,
-    backgroundColor: Colors.backgroundLight,
-  },
-  backButton: {
-    padding: 10,
-    marginRight: 8,
-    borderRadius: 12,
-    backgroundColor: Colors.background + '80',
-  },
-  headerContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  entryNumberBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  entryNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 1.5,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.text,
-    letterSpacing: 0.5,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  errorText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: Colors.error,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-  },
-  imageSection: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    backgroundColor: Colors.background,
-  },
-  imageContainer: {
-    width: '100%',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderRadius: 24,
-    padding: 8,
-    backgroundColor: Colors.backgroundLight,
-  },
-  imageWrapper: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-    borderWidth: 2,
-    borderColor: Colors.primary + '40',
-    position: 'relative',
-  },
-  plantImage: {
-    width: 320,
-    height: 320,
-    backgroundColor: Colors.backgroundLight,
-  },
-  unlockedBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  unlockedText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  imagePlaceholder: {
-    width: 320,
-    height: 320,
-    borderRadius: 20,
-    backgroundColor: Colors.backgroundLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderStyle: 'dashed',
-    padding: 20,
-  },
-  placeholderIconContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderStyle: 'dashed',
-  },
-  placeholderText: {
-    marginTop: 20,
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  placeholderHint: {
-    marginTop: 12,
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  botanicalSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  botanicalCard: {
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: Colors.backgroundLighter,
-    borderLeftWidth: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  botanicalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 10,
-  },
-  botanicalCardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    letterSpacing: 0.3,
-  },
-  botanicalRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 14,
-  },
-  botanicalRowSeparator: {
-    borderTopWidth: 2,
-    borderTopColor: Colors.backgroundLighter,
-    marginTop: 8,
-    paddingTop: 18,
-  },
-  botanicalIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  botanicalContent: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  botanicalLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  botanicalValue: {
-    fontSize: 17,
-    color: Colors.text,
-    fontWeight: '600',
-    lineHeight: 24,
-  },
-  statsSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  sectionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: '47%',
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 2,
-    borderColor: Colors.backgroundLighter,
-    borderLeftWidth: 5,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  statCardVibrant: {
-    borderWidth: 2,
-  },
-  statIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  dateSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  dateCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
-  },
-  dateContent: {
-    marginLeft: 12,
-  },
-  dateLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  dateValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  tipsSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
-    letterSpacing: 0.5,
-  },
-  tipsCard: {
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: 20,
-    padding: 22,
-    borderWidth: 2,
-    borderColor: Colors.backgroundLighter,
-    borderLeftWidth: 6,
-    shadowColor: '#ffb74d',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  tipsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 10,
-  },
-  tipsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    letterSpacing: 0.3,
-  },
-  tipsText: {
-    fontSize: 16,
-    lineHeight: 26,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  conditionsSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  conditionsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  conditionCard: {
-    flex: 1,
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 3,
-  },
-  conditionCardEnhanced: {
-    paddingVertical: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  conditionIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: Colors.backgroundLight,
-  },
-  conditionLabel: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  conditionValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.text,
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  conditionSubtext: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    fontWeight: '600',
-  },
-  actionSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  addButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
-    borderWidth: 2,
-    borderColor: Colors.primaryDark,
-  },
-  addButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  addButtonIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#ffffff30',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  addButtonSubtext: {
-    color: '#ffffff90',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  bottomSpacer: {
-    height: 40,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingTop: 48,
+      paddingBottom: 16,
+      paddingHorizontal: 16,
+      borderBottomWidth: 3,
+      backgroundColor: colors.backgroundLight,
+    },
+    backButton: {
+      padding: 10,
+      marginRight: 8,
+      borderRadius: 12,
+      backgroundColor: colors.background + '80',
+    },
+    headerContent: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    entryNumberBadge: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 5,
+    },
+    entryNumber: { fontSize: 20, fontWeight: '800', color: '#fff', letterSpacing: 1.5 },
+    headerTitleContainer: { flex: 1 },
+    headerTitle: { fontSize: 22, fontWeight: '700', color: colors.text, letterSpacing: 0.5 },
+    headerSubtitle: { fontSize: 14, color: colors.textSecondary, fontStyle: 'italic', marginTop: 2 },
+    headerSpacer: { width: 40 },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    loadingText: { marginTop: 16, fontSize: 16, color: colors.textSecondary },
+    errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+    errorText: { marginTop: 16, fontSize: 16, color: colors.error, textAlign: 'center', marginBottom: 24 },
+    retryButton: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+    retryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+    content: { flex: 1 },
+    imageSection: {
+      alignItems: 'center',
+      paddingVertical: 24,
+      paddingHorizontal: 16,
+      backgroundColor: colors.background,
+    },
+    imageContainer: {
+      width: '100%',
+      alignItems: 'center',
+      borderWidth: 4,
+      borderRadius: 24,
+      padding: 8,
+      backgroundColor: colors.backgroundLight,
+    },
+    imageWrapper: {
+      borderRadius: 20,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.3,
+      shadowRadius: 20,
+      elevation: 10,
+      borderWidth: 2,
+      borderColor: colors.primary + '40',
+      position: 'relative',
+    },
+    plantImage: { width: 320, height: 320, backgroundColor: colors.backgroundLight },
+    unlockedBadge: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      gap: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    unlockedText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    imagePlaceholder: {
+      width: 320,
+      height: 320,
+      borderRadius: 20,
+      backgroundColor: colors.backgroundLight,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 4,
+      borderStyle: 'dashed',
+      padding: 20,
+    },
+    placeholderIconContainer: {
+      width: 140,
+      height: 140,
+      borderRadius: 70,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 3,
+      borderStyle: 'dashed',
+    },
+    placeholderText: { marginTop: 20, fontSize: 22, fontWeight: '800', textAlign: 'center' },
+    placeholderHint: { marginTop: 12, fontSize: 14, color: colors.textSecondary, textAlign: 'center', fontStyle: 'italic' },
+    botanicalSection: { paddingHorizontal: 16, paddingBottom: 20 },
+    botanicalCard: {
+      backgroundColor: colors.backgroundLight,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 2,
+      borderColor: colors.backgroundLighter,
+      borderLeftWidth: 5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 5,
+    },
+    botanicalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
+    botanicalCardTitle: { fontSize: 18, fontWeight: '700', color: colors.text, letterSpacing: 0.3 },
+    botanicalRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 14 },
+    botanicalRowSeparator: { borderTopWidth: 2, borderTopColor: colors.backgroundLighter, marginTop: 8, paddingTop: 18 },
+    botanicalIconCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+    botanicalContent: { flex: 1, marginLeft: 14 },
+    botanicalLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 6, fontWeight: '700', letterSpacing: 0.3 },
+    botanicalValue: { fontSize: 17, color: colors.text, fontWeight: '600', lineHeight: 24 },
+    statsSection: { paddingHorizontal: 16, paddingBottom: 20 },
+    sectionIconContainer: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    statCard: {
+      flex: 1,
+      minWidth: '47%',
+      backgroundColor: colors.backgroundLight,
+      borderRadius: 18,
+      padding: 18,
+      borderWidth: 2,
+      borderColor: colors.backgroundLighter,
+      borderLeftWidth: 5,
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    statCardVibrant: { borderWidth: 2 },
+    statIconContainer: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+    statLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 6, fontWeight: '700', letterSpacing: 0.5 },
+    statValue: { fontSize: 18, fontWeight: '800', textAlign: 'center', letterSpacing: 0.3 },
+    dateSection: { paddingHorizontal: 24, marginBottom: 24 },
+    dateCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.backgroundLight,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.backgroundLighter,
+    },
+    dateContent: { marginLeft: 12 },
+    dateLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 4 },
+    dateValue: { fontSize: 16, fontWeight: '600', color: colors.text },
+    tipsSection: { paddingHorizontal: 16, paddingBottom: 20 },
+    sectionTitleContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 18, gap: 12 },
+    sectionTitle: { fontSize: 24, fontWeight: '800', color: colors.text, letterSpacing: 0.5 },
+    tipsCard: {
+      backgroundColor: colors.backgroundLight,
+      borderRadius: 20,
+      padding: 22,
+      borderWidth: 2,
+      borderColor: colors.backgroundLighter,
+      borderLeftWidth: 6,
+      shadowColor: '#ffb74d',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 5,
+    },
+    tipsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
+    tipsTitle: { fontSize: 18, fontWeight: '700', color: colors.text, letterSpacing: 0.3 },
+    tipsText: { flex: 1, fontSize: 15, lineHeight: 24, color: colors.text, fontWeight: '500' },
+    tipBulletRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
+    tipBulletDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#ffb74d', marginTop: 8, marginRight: 12, flexShrink: 0 },
+    conditionsSection: { paddingHorizontal: 16, paddingBottom: 20 },
+    conditionsGrid: { flexDirection: 'row', gap: 12 },
+    conditionCard: {
+      flex: 1,
+      backgroundColor: colors.backgroundLight,
+      borderRadius: 20,
+      padding: 20,
+      alignItems: 'center',
+      borderWidth: 3,
+    },
+    conditionCardEnhanced: {
+      paddingVertical: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    conditionIconContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+      borderWidth: 3,
+      borderColor: colors.backgroundLight,
+    },
+    conditionLabel: { fontSize: 14, color: colors.textSecondary, marginBottom: 10, fontWeight: '700', letterSpacing: 0.5 },
+    conditionValue: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 6, letterSpacing: 0.5 },
+    conditionSubtext: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', fontWeight: '600' },
+    actionSection: { paddingHorizontal: 16, paddingBottom: 20 },
+    addButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 20,
+      padding: 20,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.4,
+      shadowRadius: 16,
+      elevation: 8,
+      borderWidth: 2,
+      borderColor: colors.primaryDark,
+    },
+    addButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    addButtonIconContainer: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: '#ffffff30',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    addButtonText: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+    addButtonSubtext: { color: '#ffffff90', fontSize: 13, fontWeight: '500' },
+    bottomSpacer: { height: 40 },
+  });
+}

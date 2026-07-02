@@ -1,12 +1,7 @@
 /**
- * Pantalla de Historial de Riego
- *
- * - Lee sesiones de riego guardadas en AsyncStorage
- * - Filtra por plantId para mostrar solo los riegos de esa planta
- * - Muestra fecha, duración, humedad inicio/fin y si alcanzó la meta
- * - Empty state si no hay riegos registrados
+ * Historial de Riego - Con modo oscuro (useThemeColors)
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,14 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  Colors,
-  Gradients,
-  Typography,
-  Spacing,
-  BorderRadius,
-  Shadows,
-} from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
 
 /* -------------------------------------------------- */
 /*  Constantes y tipo (igual que en watering.tsx)     */
@@ -55,6 +44,9 @@ interface StoredWateringSession {
 
 export default function WateringHistoryScreen() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{
     plantId: string;
     plantName: string;
@@ -158,14 +150,14 @@ export default function WateringHistoryScreen() {
         {/* Encabezado: fecha y hora */}
         <View style={styles.sessionHeader}>
           <View style={styles.sessionDateRow}>
-            <Ionicons name="calendar-outline" size={14} color={Colors.textMuted} />
+            <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
             <Text style={styles.sessionDate}>{formatDate(item.startTime)}</Text>
           </View>
           <TouchableOpacity
             onPress={() => handleDeleteSession(item.id)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+            <Ionicons name="trash-outline" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -177,13 +169,13 @@ export default function WateringHistoryScreen() {
         {/* Stats */}
         <View style={styles.sessionStats}>
           <View style={styles.sessionStat}>
-            <Ionicons name="time-outline" size={18} color={Colors.secondary} />
+            <Ionicons name="time-outline" size={18} color={colors.secondary} />
             <Text style={styles.sessionStatValue}>{formatDuration(item.durationSeconds)}</Text>
             <Text style={styles.sessionStatLabel}>Duración</Text>
           </View>
 
           <View style={styles.sessionStat}>
-            <Ionicons name="water-outline" size={18} color={Colors.primary} />
+            <Ionicons name="water-outline" size={18} color={colors.primary} />
             <Text style={styles.sessionStatValue}>
               {item.humidityStart}% → {item.humidityEnd}%
             </Text>
@@ -194,12 +186,12 @@ export default function WateringHistoryScreen() {
             <Ionicons
               name={reachedGoal ? 'checkmark-circle' : 'close-circle'}
               size={18}
-              color={reachedGoal ? Colors.success : Colors.warning}
+              color={reachedGoal ? colors.success : colors.warning}
             />
             <Text
               style={[
                 styles.sessionStatValue,
-                { color: reachedGoal ? Colors.success : Colors.warning },
+                { color: reachedGoal ? colors.success : colors.warning },
               ]}
             >
               {reachedGoal ? 'Sí' : 'No'}
@@ -240,7 +232,7 @@ export default function WateringHistoryScreen() {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient
-        colors={Gradients.primary}
+        colors={gradients.primary as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
@@ -251,7 +243,7 @@ export default function WateringHistoryScreen() {
               onPress={() => router.back()}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="arrow-back" size={24} color={Colors.white} />
+              <Ionicons name="arrow-back" size={24} color={colors.white} />
             </TouchableOpacity>
             <Text style={styles.headerTitle} numberOfLines={1}>
               Historial de Riego
@@ -263,7 +255,7 @@ export default function WateringHistoryScreen() {
 
       {/* Nombre de planta */}
       <View style={styles.plantHeader}>
-        <Ionicons name="leaf" size={20} color={Colors.primaryLight} />
+        <Ionicons name="leaf" size={20} color={colors.primaryLight} />
         <Text style={styles.plantHeaderText}>
           {params.plantName || 'Mi planta'}
         </Text>
@@ -277,7 +269,7 @@ export default function WateringHistoryScreen() {
       {/* Contenido */}
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.centeredText}>Cargando historial...</Text>
         </View>
       ) : sessions.length === 0 ? (
@@ -312,11 +304,9 @@ export default function WateringHistoryScreen() {
 /*  Estilos                                           */
 /* -------------------------------------------------- */
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   headerGradient: {
     borderBottomLeftRadius: BorderRadius.xl,
     borderBottomRightRadius: BorderRadius.xl,
@@ -332,7 +322,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.semibold,
-    color: Colors.white,
+    color: colors.white,
     textAlign: 'center',
   },
   plantHeader: {
@@ -346,10 +336,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.semibold,
-    color: Colors.text,
+    color: colors.text,
   },
   countBadge: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     minWidth: 24,
     height: 24,
     borderRadius: 12,
@@ -360,7 +350,7 @@ const styles = StyleSheet.create({
   countBadgeText: {
     fontSize: Typography.sizes.xs,
     fontWeight: Typography.weights.bold,
-    color: Colors.white,
+    color: colors.white,
   },
 
   /* --- estados --- */
@@ -373,7 +363,7 @@ const styles = StyleSheet.create({
   centeredText: {
     marginTop: Spacing.md,
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   /* --- empty state --- */
@@ -384,26 +374,26 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: 280,
   },
   goBackBtn: {
     marginTop: Spacing.xl,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.full,
   },
   goBackBtnText: {
-    color: Colors.white,
+    color: colors.white,
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.semibold,
   },
@@ -416,7 +406,7 @@ const styles = StyleSheet.create({
 
   /* --- card de sesión --- */
   sessionCard: {
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.md,
@@ -435,11 +425,11 @@ const styles = StyleSheet.create({
   sessionDate: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.semibold,
-    color: Colors.text,
+    color: colors.text,
   },
   sessionTime: {
     fontSize: Typography.sizes.xs,
-    color: Colors.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
     marginBottom: Spacing.md,
   },
@@ -457,18 +447,18 @@ const styles = StyleSheet.create({
   sessionStatValue: {
     fontSize: Typography.sizes.sm,
     fontWeight: Typography.weights.bold,
-    color: Colors.text,
+    color: colors.text,
   },
   sessionStatLabel: {
     fontSize: Typography.sizes.xs - 1,
-    color: Colors.textMuted,
+    color: colors.textMuted,
   },
 
   /* --- mini gauge --- */
   miniGaugeTrack: {
     width: '100%',
     height: 6,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     position: 'relative',
@@ -485,8 +475,9 @@ const styles = StyleSheet.create({
   },
   deltaText: {
     fontSize: Typography.sizes.xs,
-    color: Colors.success,
+    color: colors.success,
     marginTop: Spacing.xs,
     textAlign: 'right',
   },
-});
+  });
+}

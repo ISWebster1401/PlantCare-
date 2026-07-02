@@ -1,13 +1,12 @@
 /**
- * PlantCard Component - Estilo Duolingo/Pokémon
- * 
- * Tarjeta de planta con diseño moderno usando DesignSystem
+ * PlantCard - Con modo oscuro (useThemeColors)
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, PlantAvatar, Badge, ProgressBar, Emoji } from './ui';
-import { Colors, Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType, BorderRadius } from '../constants/DesignSystem';
+import { Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType } from '../constants/DesignSystem';
+import { useThemeColors } from '../context/ThemeContext';
 import { PlantResponse } from '../types';
 
 export interface PlantCardProps {
@@ -18,6 +17,8 @@ export interface PlantCardProps {
 
 export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) => {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handlePress = () => {
     if (onPress) {
@@ -172,78 +173,62 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
   );
 };
 
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
-  },
-  container: {
-    width: '100%',
-  },
-  imageContainer: {
-    width: '100%',
-    height: 200,
-    backgroundColor: Colors.backgroundLighter,
-    overflow: 'hidden',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: Colors.backgroundLighter,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    padding: Spacing.md,
-  },
-  nameContainer: {
-    marginBottom: Spacing.md,
-  },
-  plantName: {
-    fontSize: Typography.sizes.xl,
-    fontWeight: Typography.weights.bold,
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  plantType: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.regular,
-    color: Colors.textSecondary,
-  },
-  badgeContainer: {
-    marginBottom: Spacing.md,
-  },
-  progressContainer: {
-    marginBottom: Spacing.md,
-  },
-  progressItem: {
-    marginBottom: Spacing.sm,
-  },
-  progressLabel: {
-    fontSize: Typography.sizes.xs,
-    fontWeight: Typography.weights.medium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
-  },
-  moodContainer: {
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.backgroundLighter,
-  },
-  moodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    justifyContent: 'center',
-  },
-  moodText: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.medium,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    card: { marginBottom: Spacing.md, overflow: 'hidden' },
+    container: { width: '100%' },
+    imageContainer: {
+      width: '100%',
+      height: 200,
+      backgroundColor: colors.backgroundLighter,
+      overflow: 'hidden',
+    },
+    image: { width: '100%', height: '100%' },
+    imagePlaceholder: {
+      width: '100%',
+      height: 200,
+      backgroundColor: colors.backgroundLighter,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    content: { padding: Spacing.md },
+    nameContainer: { marginBottom: Spacing.md },
+    plantName: {
+      fontSize: Typography.sizes.xl,
+      fontWeight: Typography.weights.bold,
+      color: colors.text,
+      marginBottom: Spacing.xs,
+    },
+    plantType: {
+      fontSize: Typography.sizes.sm,
+      fontWeight: Typography.weights.regular,
+      color: colors.textSecondary,
+    },
+    badgeContainer: { marginBottom: Spacing.md },
+    progressContainer: { marginBottom: Spacing.md },
+    progressItem: { marginBottom: Spacing.sm },
+    progressLabel: {
+      fontSize: Typography.sizes.xs,
+      fontWeight: Typography.weights.medium,
+      color: colors.textSecondary,
+      marginBottom: Spacing.xs,
+    },
+    moodContainer: {
+      paddingTop: Spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.backgroundLighter,
+    },
+    moodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      justifyContent: 'center',
+    },
+    moodText: {
+      fontSize: Typography.sizes.sm,
+      fontWeight: Typography.weights.medium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+  });
+}

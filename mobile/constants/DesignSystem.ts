@@ -421,13 +421,13 @@ export const HealthStatuses: Record<HealthStatus, HealthStatusConfig> = {
   },
   warning: {
     label: 'Atención',
-    color: Colors.warning,
+    color: LightColors.warning,
     emoji: 'warning',
     emojiUnicode: '⚠️',
   },
   critical: {
     label: 'Crítico',
-    color: Colors.critical,
+    color: LightColors.critical,
     emoji: 'alert',
     emojiUnicode: '🚨',
   },

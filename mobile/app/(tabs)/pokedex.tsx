@@ -1,7 +1,7 @@
 /**
- * Pantalla Pokedex - Rediseñada con DesignSystem
+ * Pantalla Plantadex - Con modo oscuro (useThemeColors)
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pokedexAPI } from '../../services/api';
 import { PokedexEntryResponse } from '../../types';
 import { PokedexCard } from '../../components/PokedexCard';
-import { Button, Badge } from '../../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../../constants/DesignSystem';
+import { Button } from '../../components/ui';
+import { Typography, Spacing, BorderRadius, Shadows } from '../../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../../context/ThemeContext';
 
 type ViewMode = 'list' | 'grid';
 
@@ -30,6 +31,9 @@ export default function PokedexScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const loadEntries = async () => {
     try {
@@ -74,7 +78,7 @@ export default function PokedexScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={Gradients.primary}
+          colors={gradients.primary as [string, string]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.header}
@@ -82,7 +86,7 @@ export default function PokedexScreen() {
           <Text style={styles.title}>📚 Plantadex</Text>
         </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Cargando pokedex...</Text>
         </View>
       </View>
@@ -91,9 +95,8 @@ export default function PokedexScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header con gradiente */}
       <LinearGradient
-        colors={Gradients.primary}
+        colors={gradients.primary as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -110,22 +113,34 @@ export default function PokedexScreen() {
             </View>
           </View>
           <View style={styles.viewModeContainer}>
-            <Button
-              title=""
+            <TouchableOpacity
+              style={[
+                styles.viewModeToggle,
+                viewMode === 'list' ? styles.viewModeToggleActive : styles.viewModeToggleInactive,
+              ]}
               onPress={() => setViewMode('list')}
-              variant={viewMode === 'list' ? 'primary' : 'ghost'}
-              size="sm"
-              icon="list"
-              style={styles.viewModeButton}
-            />
-            <Button
-              title=""
+              accessibilityLabel="Ver como lista"
+            >
+              <Ionicons
+                name="list"
+                size={20}
+                color={viewMode === 'list' ? colors.primaryDark : colors.white}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.viewModeToggle,
+                viewMode === 'grid' ? styles.viewModeToggleActive : styles.viewModeToggleInactive,
+              ]}
               onPress={() => setViewMode('grid')}
-              variant={viewMode === 'grid' ? 'primary' : 'ghost'}
-              size="sm"
-              icon="grid"
-              style={styles.viewModeButton}
-            />
+              accessibilityLabel="Ver como cuadrícula"
+            >
+              <Ionicons
+                name="grid"
+                size={18}
+                color={viewMode === 'grid' ? colors.primaryDark : colors.white}
+              />
+            </TouchableOpacity>
           </View>
         </View>
       </LinearGradient>
@@ -168,7 +183,7 @@ export default function PokedexScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={Colors.primary}
+              tintColor={colors.primary}
             />
           }
         />
@@ -183,7 +198,7 @@ export default function PokedexScreen() {
             accessibilityLabel="Escanear planta"
             accessibilityRole="button"
           >
-            <Ionicons name="camera" size={28} color={Colors.white} />
+            <Ionicons name="camera" size={28} color={colors.white} />
           </TouchableOpacity>
         </View>
       )}
@@ -191,127 +206,96 @@ export default function PokedexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  titleContainer: {
-    flex: 1,
-  },
-  title: {
-    fontSize: Typography.sizes.giant,
-    fontWeight: Typography.weights.extrabold,
-    color: Colors.white,
-    marginBottom: Spacing.sm,
-  },
-  progressContainer: {
-    alignSelf: 'flex-start',
-  },
-  progressBadge: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    borderWidth: 2,
-    borderColor: Colors.primaryDark,
-    ...Shadows.md,
-  },
-  progressText: {
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.bold,
-    color: Colors.primaryDark,
-  },
-  viewModeContainer: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-  },
-  viewModeButton: {
-    width: 40,
-    height: 40,
-    padding: 0,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: `${Colors.secondary}20`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  emptyEmoji: {
-    fontSize: 64,
-  },
-  emptyTitle: {
-    fontSize: Typography.sizes.xxl,
-    fontWeight: Typography.weights.bold,
-    color: Colors.text,
-    marginBottom: Spacing.md,
-    textAlign: 'center',
-  },
-  emptyDescription: {
-    fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-    lineHeight: 24,
-    paddingHorizontal: Spacing.lg,
-  },
-  emptyButton: {
-    minWidth: 200,
-  },
-  listContent: {
-    padding: Spacing.lg,
-    paddingBottom: 100,
-  },
-  gridRow: {
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-  },
-  gridContent: {
-    paddingTop: Spacing.md,
-    paddingBottom: 100,
-  },
-  fabContainer: {
-    position: 'absolute',
-    right: Spacing.lg,
-  },
-  fab: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.lg,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: {
+      paddingTop: 60,
+      paddingBottom: Spacing.lg,
+      paddingHorizontal: Spacing.lg,
+      borderBottomLeftRadius: 32,
+      borderBottomRightRadius: 32,
+    },
+    headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    titleContainer: { flex: 1 },
+    title: {
+      fontSize: Typography.sizes.giant,
+      fontWeight: Typography.weights.extrabold,
+      color: colors.white,
+      marginBottom: Spacing.sm,
+    },
+    progressContainer: { alignSelf: 'flex-start' },
+    progressBadge: {
+      backgroundColor: colors.white,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.full,
+      borderWidth: 2,
+      borderColor: colors.primaryDark,
+      ...Shadows.md,
+    },
+    progressText: {
+      fontSize: Typography.sizes.sm,
+      fontWeight: Typography.weights.bold,
+      color: colors.primaryDark,
+    },
+    viewModeContainer: { flexDirection: 'row', gap: Spacing.xs },
+    viewModeToggle: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    viewModeToggleActive: {
+      backgroundColor: colors.white,
+    },
+    viewModeToggleInactive: {
+      backgroundColor: colors.white + '22',
+      borderWidth: 1,
+      borderColor: colors.white + '55',
+    },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    loadingText: { marginTop: Spacing.md, fontSize: Typography.sizes.base, color: colors.textSecondary },
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
+    emptyIconContainer: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: colors.secondary + '20',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: Spacing.xl,
+    },
+    emptyEmoji: { fontSize: 64 },
+    emptyTitle: {
+      fontSize: Typography.sizes.xxl,
+      fontWeight: Typography.weights.bold,
+      color: colors.text,
+      marginBottom: Spacing.md,
+      textAlign: 'center',
+    },
+    emptyDescription: {
+      fontSize: Typography.sizes.base,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: Spacing.xl,
+      lineHeight: 24,
+      paddingHorizontal: Spacing.lg,
+    },
+    emptyButton: { minWidth: 200 },
+    listContent: { padding: Spacing.lg, paddingBottom: 100 },
+    gridRow: { justifyContent: 'space-between', paddingHorizontal: Spacing.md },
+    gridContent: { paddingTop: Spacing.md, paddingBottom: 100 },
+    fabContainer: { position: 'absolute', right: Spacing.lg },
+    fab: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...Shadows.lg,
+    },
+  });
+}

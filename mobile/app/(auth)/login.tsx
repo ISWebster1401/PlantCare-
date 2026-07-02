@@ -1,7 +1,7 @@
 /**
- * Pantalla de login - Rediseñada con DesignSystem
+ * Pantalla de login - Rediseñada con DesignSystem + Tema dinámico
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Google from 'expo-auth-session/providers/google';
@@ -19,50 +20,62 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { LoginCredentials } from '../../types';
 import { Config } from '../../constants/Config';
 import { Button, Card, Emoji } from '../../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius } from '../../constants/DesignSystem';
+import { useTheme, useThemeColors, useThemeGradients } from '../../context/ThemeContext';
 
-// Verificar si estamos en Expo Go (desarrollo) o en standalone build (producción)
 const isStandalone = Constants.executionEnvironment === 'standalone' || Constants.executionEnvironment === 'storeClient';
 
-// Necesario para completar el flujo de autenticación en el navegador
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  
+
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
+  const { isDark, toggleTheme } = useTheme();
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // Configurar redirect URI
+  const rotation = useSharedValue(0);
+  const animatedIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  const handleToggleTheme = () => {
+    rotation.value = withSpring(rotation.value + 180);
+    toggleTheme();
+  };
+
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'plantcare',
     path: 'oauth',
     useProxy: false,
   });
 
-  // Configurar Google OAuth
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: Config.GOOGLE_CLIENT_ID,
     redirectUri,
   });
 
-  // Debug: Verificar configuración
   React.useEffect(() => {
-    console.log('🔐 Google Auth Config:');
-    console.log('  Client ID:', Config.GOOGLE_CLIENT_ID ? '✅ Configurado' : '❌ No configurado');
-    console.log('  Redirect URI calculado:', redirectUri);
+    console.log('[AUTH] Google Auth Config:');
+    console.log('  Client ID:', Config.GOOGLE_CLIENT_ID ? 'Configured' : 'Not configured');
+    console.log('  Redirect URI:', redirectUri);
     if (request) {
-      console.log('  Request: ✅ Preparado');
+      console.log('  Request: Ready');
     } else {
-      console.log('  Request: ⏳ Cargando...');
+      console.log('  Request: Loading...');
     }
   }, [request, redirectUri]);
 
@@ -83,7 +96,6 @@ export default function LoginScreen() {
     }
   }, [loginWithGoogle, router]);
 
-  // Manejar respuesta de Google
   React.useEffect(() => {
     if (response?.type === 'success') {
       const { id_token } = response.params;
@@ -133,7 +145,7 @@ export default function LoginScreen() {
         password,
         remember_me: rememberMe,
       };
-      
+
       await login(credentials);
       router.replace('/(tabs)');
     } catch (error: any) {
@@ -146,35 +158,65 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <LinearGradient
-        colors={Gradients.card}
+        colors={Array.from(gradients.card) as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
+
+      {/* Botón de cambio de tema */}
+      <TouchableOpacity
+        style={styles.themeToggleButton}
+        onPress={handleToggleTheme}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Animated.View style={animatedIconStyle}>
+          <Ionicons
+            name={isDark ? 'sunny-outline' : 'moon-outline'}
+            size={22}
+            color={isDark ? '#FFD700' : colors.primary}
+          />
+        </Animated.View>
+      </TouchableOpacity>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
-          {/* Logo y título */}
           <View style={styles.header}>
             <Emoji name="plant" size={56} style={styles.emoji} />
-            <Text style={styles.title}>PlantCare</Text>
-            <Text style={styles.subtitle}>¡Cuida tus plantas de forma divertida!</Text>
+            <Text style={[styles.title, { color: colors.primary }]}>PlantCare</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              ¡Cuida tus plantas de forma divertida!
+            </Text>
           </View>
 
-          {/* Formulario */}
+          {/* Toggle Login / Registro */}
+          <View style={[styles.switchContainer, { backgroundColor: colors.backgroundLighter }]}>
+            <TouchableOpacity style={[styles.switchTab, { backgroundColor: colors.primary }]}>
+              <Text style={[styles.switchTabText, styles.switchTabTextActive]}>Iniciar Sesión</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.switchTab}
+              onPress={() => router.replace('/(auth)/register')}
+              disabled={isLoading || googleLoading}
+            >
+              <Text style={[styles.switchTabText, { color: colors.textSecondary }]}>Crear Cuenta</Text>
+            </TouchableOpacity>
+          </View>
+
           <Card variant="elevated" style={styles.formCard}>
             <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: colors.backgroundLighter, borderColor: colors.backgroundLighter }]}>
+                <Ionicons name="mail-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   placeholder="Email"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -184,30 +226,44 @@ export default function LoginScreen() {
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: colors.backgroundLighter, borderColor: colors.backgroundLighter }]}>
+                <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   placeholder="Contraseña"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   editable={!isLoading && !googleLoading}
                 />
+                <TouchableOpacity
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  style={styles.passwordEyeButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.checkboxContainer}>
-                <Button
-                  title=""
+                <TouchableOpacity
                   onPress={() => setRememberMe(!rememberMe)}
-                  variant="ghost"
-                  size="sm"
-                  icon={rememberMe ? 'checkbox' : 'checkbox-outline'}
-                  iconPosition="left"
-                  style={styles.checkboxButton}
-                />
-                <Text style={styles.checkboxLabel}>Recordarme</Text>
+                  style={styles.rememberMeButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  disabled={isLoading || googleLoading}
+                >
+                  <Ionicons
+                    name={rememberMe ? 'checkbox' : 'checkbox-outline'}
+                    size={20}
+                    color={colors.primary}
+                  />
+                </TouchableOpacity>
+                <Text style={[styles.checkboxLabel, { color: colors.textSecondary }]}>Recordarme</Text>
               </View>
 
               <Button
@@ -224,9 +280,9 @@ export default function LoginScreen() {
               {Config.GOOGLE_CLIENT_ID && isStandalone && (
                 <>
                   <View style={styles.divider}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>o</Text>
-                    <View style={styles.dividerLine} />
+                    <View style={[styles.dividerLine, { backgroundColor: colors.backgroundLighter }]} />
+                    <Text style={[styles.dividerText, { color: colors.textMuted }]}>ó</Text>
+                    <View style={[styles.dividerLine, { backgroundColor: colors.backgroundLighter }]} />
                   </View>
 
                   <Button
@@ -242,17 +298,6 @@ export default function LoginScreen() {
                   />
                 </>
               )}
-
-              <View style={styles.registerContainer}>
-                <Text style={styles.registerText}>¿No tienes cuenta? </Text>
-                <Button
-                  title="Regístrate"
-                  onPress={() => router.push('/(auth)/register')}
-                  variant="ghost"
-                  size="sm"
-                  disabled={isLoading || googleLoading}
-                />
-              </View>
             </View>
           </Card>
         </View>
@@ -261,107 +306,125 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: Spacing.lg,
-  },
-  content: {
-    width: '100%',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  emoji: {
-    fontSize: 64,
-    marginBottom: Spacing.sm,
-  },
-  title: {
-    fontSize: Typography.sizes.giant,
-    fontWeight: Typography.weights.extrabold,
-    color: Colors.primary,
-    marginBottom: Spacing.sm,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: Typography.sizes.base,
-    fontWeight: Typography.weights.regular,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  formCard: {
-    width: '100%',
-  },
-  form: {
-    width: '100%',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLighter,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.md,
-  },
-  inputIcon: {
-    marginRight: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    height: 48,
-    fontSize: Typography.sizes.base,
-    color: Colors.text,
-    paddingVertical: 0,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  checkboxButton: {
-    width: 40,
-    height: 40,
-    padding: 0,
-  },
-  checkboxLabel: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
-    marginLeft: Spacing.xs,
-  },
-  loginButton: {
-    marginBottom: Spacing.md,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.backgroundLighter,
-  },
-  dividerText: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.textMuted,
-    marginHorizontal: Spacing.md,
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.lg,
-  },
-  registerText: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    themeToggleButton: {
+      position: 'absolute',
+      top: Platform.OS === 'ios' ? 56 : 16,
+      right: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.overlay,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 100,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: Spacing.lg,
+    },
+    content: {
+      width: '100%',
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: Spacing.lg,
+    },
+    emoji: {
+      fontSize: 64,
+      marginBottom: Spacing.sm,
+    },
+    title: {
+      fontSize: Typography.sizes.giant,
+      fontWeight: Typography.weights.extrabold,
+      marginBottom: Spacing.sm,
+      textAlign: 'center',
+    },
+    subtitle: {
+      fontSize: Typography.sizes.base,
+      fontWeight: Typography.weights.regular,
+      textAlign: 'center',
+    },
+    switchContainer: {
+      flexDirection: 'row',
+      borderRadius: BorderRadius.md,
+      padding: Spacing.xs,
+      marginBottom: Spacing.lg,
+    },
+    switchTab: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderRadius: BorderRadius.sm,
+    },
+    switchTabText: {
+      fontSize: Typography.sizes.sm,
+      fontWeight: Typography.weights.semibold,
+    },
+    switchTabTextActive: {
+      color: '#fff',
+    },
+    formCard: {
+      width: '100%',
+    },
+    form: {
+      width: '100%',
+    },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      marginBottom: Spacing.md,
+      paddingHorizontal: Spacing.md,
+    },
+    inputIcon: {
+      marginRight: Spacing.sm,
+    },
+    input: {
+      flex: 1,
+      height: 48,
+      fontSize: Typography.sizes.base,
+      paddingVertical: 0,
+    },
+    checkboxContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: Spacing.lg,
+    },
+    rememberMeButton: {
+      width: 28,
+      height: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    checkboxLabel: {
+      fontSize: Typography.sizes.sm,
+      marginLeft: Spacing.xs,
+    },
+    loginButton: {
+      marginBottom: Spacing.sm,
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: Spacing.md,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+    },
+    dividerText: {
+      fontSize: Typography.sizes.sm,
+      marginHorizontal: Spacing.md,
+    },
+    passwordEyeButton: {
+      marginLeft: Spacing.xs,
+    },
+  });
+}

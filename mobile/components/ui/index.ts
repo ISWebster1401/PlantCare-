@@ -28,3 +28,6 @@ export type { EmojiProps, EmojiName } from './Emoji';
 
 export { TextWithEmoji } from './TextWithEmoji';
 export type { TextWithEmojiProps } from './TextWithEmoji';
+
+export { LottieIcon } from './LottieIcon';
+export type { LottieIconProps, LottieIconName } from './LottieIcon';

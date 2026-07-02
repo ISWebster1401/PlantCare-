@@ -751,6 +751,79 @@ async def get_plant(
         )
 
 
+@router.put("/{plant_id}/rename", response_model=PlantResponse)
+async def rename_plant(
+    plant_id: int,
+    body: dict,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Renombra una planta del usuario."""
+    new_name = body.get("plant_name")
+    if not new_name or not str(new_name).strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="plant_name es requerido",
+        )
+    new_name = str(new_name).strip()
+    try:
+        plants_df = await db.execute_query(
+            "SELECT id FROM plants WHERE id = %s AND user_id = %s LIMIT 1",
+            (plant_id, current_user["id"]),
+        )
+        if plants_df is None or plants_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planta no encontrada",
+            )
+
+        await db.execute_query(
+            "UPDATE plants SET plant_name = %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
+            (new_name, plant_id, current_user["id"]),
+        )
+
+        updated_df = await db.execute_query("""
+            SELECT
+                p.*,
+                pma.id as assignment_id,
+                pma.model_id as assigned_model_id,
+                pm.model_3d_url,
+                pm.default_render_url
+            FROM plants p
+            LEFT JOIN plant_model_assignments pma ON p.id = pma.plant_id
+            LEFT JOIN plant_models pm ON pma.model_id = pm.id
+            WHERE p.id = %s AND p.user_id = %s
+            LIMIT 1
+        """, (plant_id, current_user["id"]))
+
+        plant = updated_df.iloc[0].to_dict()
+        if not plant.get("character_mood"):
+            plant["character_mood"] = "happy"
+        if not plant.get("health_status"):
+            plant["health_status"] = "healthy"
+        if pd.notna(plant.get("model_3d_url")):
+            plant["model_3d_url"] = str(plant["model_3d_url"])
+        else:
+            plant["model_3d_url"] = None
+        if pd.notna(plant.get("default_render_url")):
+            plant["default_render_url"] = str(plant["default_render_url"])
+        else:
+            plant["default_render_url"] = None
+        _sanitize_plant_response_urls(plant)
+
+        logger.info(f"Planta {plant_id} renombrada a '{new_name}'")
+        return PlantResponse(**plant)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error renombrando planta: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error renombrando planta: {str(e)}",
+        )
+
+
 @router.post("/{plant_id}/add-accessory")
 async def add_accessory_to_plant(
     plant_id: int,

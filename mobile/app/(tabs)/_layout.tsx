@@ -5,12 +5,14 @@ import { Tabs, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { Colors, Shadows, BorderRadius } from '../../constants/DesignSystem';
+import { useThemeColors } from '../../context/ThemeContext';
+import { Shadows } from '../../constants/DesignSystem';
 
 export default function TabsLayout() {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const colors = useThemeColors();
 
   useEffect(() => {
     if (isLoading) return;
@@ -22,11 +24,11 @@ export default function TabsLayout() {
 
   const screenOptions = {
     headerShown: false,
-    tabBarActiveTintColor: Colors.primary,
-    tabBarInactiveTintColor: Colors.textMuted,
+    tabBarActiveTintColor: colors.primary,
+    tabBarInactiveTintColor: colors.textMuted,
     tabBarStyle: {
-      backgroundColor: Colors.backgroundLight,
-      borderTopColor: Colors.backgroundLighter,
+      backgroundColor: colors.backgroundLight,
+      borderTopColor: colors.backgroundLighter,
       borderTopWidth: 1,
       height: 65,
       paddingBottom: 4,

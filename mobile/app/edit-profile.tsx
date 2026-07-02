@@ -1,7 +1,7 @@
 /**
- * Pantalla de Editar Perfil - Rediseñada con DesignSystem
+ * Pantalla de Editar Perfil - Con soporte de tema (modo claro/oscuro)
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,12 +18,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
 import { Button, Card } from '../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius } from '../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
-  
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [phone, setPhone] = useState((user as any)?.phone || '');
   const [bio, setBio] = useState((user as any)?.bio || '');
@@ -135,7 +139,7 @@ export default function EditProfileScreen() {
       style={styles.container}
     >
       <LinearGradient
-        colors={Gradients.primary}
+        colors={gradients.primary as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -156,11 +160,11 @@ export default function EditProfileScreen() {
         <Card variant="elevated" style={styles.section}>
           <Text style={styles.sectionTitle}>Nombre</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="person-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Tu nombre completo"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={fullName}
               onChangeText={setFullName}
               editable={!isSaving}
@@ -183,11 +187,11 @@ export default function EditProfileScreen() {
         <Card variant="elevated" style={styles.section}>
           <Text style={styles.sectionTitle}>Teléfono</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="call-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="call-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Tu número de teléfono (opcional)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
@@ -211,11 +215,11 @@ export default function EditProfileScreen() {
         <Card variant="elevated" style={styles.section}>
           <Text style={styles.sectionTitle}>Biografía</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="document-text-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="document-text-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Cuéntanos sobre ti (opcional, máx. 500 caracteres)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={bio}
               onChangeText={setBio}
               multiline
@@ -242,11 +246,11 @@ export default function EditProfileScreen() {
         <Card variant="elevated" style={styles.section}>
           <Text style={styles.sectionTitle}>Ubicación</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="location-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+            <Ionicons name="location-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Tu ubicación (opcional, ej: Ciudad, País)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={location}
               onChangeText={setLocation}
               editable={!isSaving}
@@ -273,7 +277,7 @@ export default function EditProfileScreen() {
             <View style={styles.emailInfo}>
               <Text style={styles.emailText}>{user?.email}</Text>
               <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
                 <Text style={styles.verifiedText}>Verificado</Text>
               </View>
             </View>
@@ -296,112 +300,114 @@ export default function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: Spacing.lg,
-    paddingTop: 60,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  headerTitle: {
-    fontSize: Typography.sizes.xl,
-    fontWeight: Typography.weights.bold,
-    color: Colors.white,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    padding: 0,
-  },
-  backButtonPlaceholder: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: Spacing.lg,
-  },
-  section: {
-    marginBottom: Spacing.md,
-  },
-  sectionTitle: {
-    fontSize: Typography.sizes.base,
-    fontWeight: Typography.weights.semibold,
-    color: Colors.text,
-    marginBottom: Spacing.md,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLighter,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.md,
-  },
-  inputIcon: {
-    marginRight: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    height: 48,
-    fontSize: Typography.sizes.base,
-    color: Colors.text,
-    paddingVertical: 0,
-  },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: 'top',
-    paddingTop: Spacing.md,
-  },
-  charCount: {
-    fontSize: Typography.sizes.xs,
-    color: Colors.textMuted,
-    textAlign: 'right',
-    marginBottom: Spacing.sm,
-  },
-  saveButton: {
-    marginTop: Spacing.xs,
-  },
-  emailContainer: {
-    gap: Spacing.md,
-  },
-  emailInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: Spacing.md,
-    backgroundColor: Colors.backgroundLighter,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
-  },
-  emailText: {
-    fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
-    flex: 1,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginLeft: Spacing.md,
-  },
-  verifiedText: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.primary,
-    fontWeight: Typography.weights.medium,
-  },
-  changeEmailButton: {
-    marginTop: Spacing.xs,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: Spacing.lg,
+      paddingTop: 60,
+      borderBottomLeftRadius: 32,
+      borderBottomRightRadius: 32,
+    },
+    headerTitle: {
+      fontSize: Typography.sizes.xl,
+      fontWeight: Typography.weights.bold,
+      color: colors.white,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      padding: 0,
+    },
+    backButtonPlaceholder: {
+      width: 40,
+    },
+    content: {
+      flex: 1,
+    },
+    contentContainer: {
+      padding: Spacing.lg,
+    },
+    section: {
+      marginBottom: Spacing.md,
+    },
+    sectionTitle: {
+      fontSize: Typography.sizes.base,
+      fontWeight: Typography.weights.semibold,
+      color: colors.text,
+      marginBottom: Spacing.md,
+    },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.backgroundLighter,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.backgroundLighter,
+      marginBottom: Spacing.md,
+      paddingHorizontal: Spacing.md,
+    },
+    inputIcon: {
+      marginRight: Spacing.sm,
+    },
+    input: {
+      flex: 1,
+      height: 48,
+      fontSize: Typography.sizes.base,
+      color: colors.text,
+      paddingVertical: 0,
+    },
+    textArea: {
+      minHeight: 100,
+      textAlignVertical: 'top',
+      paddingTop: Spacing.md,
+    },
+    charCount: {
+      fontSize: Typography.sizes.xs,
+      color: colors.textMuted,
+      textAlign: 'right',
+      marginBottom: Spacing.sm,
+    },
+    saveButton: {
+      marginTop: Spacing.xs,
+    },
+    emailContainer: {
+      gap: Spacing.md,
+    },
+    emailInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: Spacing.md,
+      backgroundColor: colors.backgroundLighter,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.backgroundLighter,
+    },
+    emailText: {
+      fontSize: Typography.sizes.base,
+      color: colors.textSecondary,
+      flex: 1,
+    },
+    verifiedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      marginLeft: Spacing.md,
+    },
+    verifiedText: {
+      fontSize: Typography.sizes.sm,
+      color: colors.primary,
+      fontWeight: Typography.weights.medium,
+    },
+    changeEmailButton: {
+      marginTop: Spacing.xs,
+    },
+  });
+}

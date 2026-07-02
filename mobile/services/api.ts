@@ -254,7 +254,7 @@ export const plantsAPI = {
    * // TODO: verificar endpoint real del backend (PATCH /plants/{plantId})
    */
   renamePlant: async (plantId: number, newName: string): Promise<PlantResponse> => {
-    const response = await api.patch(`/plants/${plantId}`, { plant_name: newName });
+    const response = await api.put(`/plants/${plantId}/rename`, { plant_name: newName });
     return response.data;
   },
 };

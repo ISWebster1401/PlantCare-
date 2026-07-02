@@ -1,17 +1,22 @@
 /**
- * Pantalla de Sensores/Dispositivos - Rediseñada con DesignSystem
+ * Pantalla Dispositivos - Con modo oscuro (useThemeColors)
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Card, Button } from '../../components/ui';
-import { Colors, Typography, Spacing, Gradients } from '../../constants/DesignSystem';
+import { Card } from '../../components/ui';
+import { Typography, Spacing } from '../../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../../context/ThemeContext';
 
 export default function SensorsScreen() {
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={Gradients.ocean}
+        colors={gradients.ocean as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -35,55 +40,42 @@ export default function SensorsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  title: {
-    fontSize: Typography.sizes.giant,
-    fontWeight: Typography.weights.extrabold,
-    color: Colors.white,
-    marginBottom: Spacing.xs,
-  },
-  subtitle: {
-    fontSize: Typography.sizes.base,
-    fontWeight: Typography.weights.regular,
-    color: Colors.white,
-    opacity: 0.9,
-  },
-  content: {
-    flex: 1,
-    padding: Spacing.lg,
-    justifyContent: 'center',
-  },
-  placeholderCard: {
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  placeholderContent: {
-    alignItems: 'center',
-  },
-  placeholderEmoji: {
-    fontSize: 64,
-    marginBottom: Spacing.md,
-  },
-  placeholderTitle: {
-    fontSize: Typography.sizes.xxl,
-    fontWeight: Typography.weights.bold,
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  placeholderText: {
-    fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: {
+      paddingTop: 60,
+      paddingBottom: Spacing.xl,
+      paddingHorizontal: Spacing.lg,
+      borderBottomLeftRadius: 32,
+      borderBottomRightRadius: 32,
+    },
+    title: {
+      fontSize: Typography.sizes.giant,
+      fontWeight: Typography.weights.extrabold,
+      color: colors.white,
+      marginBottom: Spacing.xs,
+    },
+    subtitle: {
+      fontSize: Typography.sizes.base,
+      fontWeight: Typography.weights.regular,
+      color: colors.white,
+      opacity: 0.9,
+    },
+    content: { flex: 1, padding: Spacing.lg, justifyContent: 'center' },
+    placeholderCard: { alignItems: 'center', padding: Spacing.xl },
+    placeholderContent: { alignItems: 'center' },
+    placeholderEmoji: { fontSize: 64, marginBottom: Spacing.md },
+    placeholderTitle: {
+      fontSize: Typography.sizes.xxl,
+      fontWeight: Typography.weights.bold,
+      color: colors.text,
+      marginBottom: Spacing.sm,
+    },
+    placeholderText: {
+      fontSize: Typography.sizes.base,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+  });
+}

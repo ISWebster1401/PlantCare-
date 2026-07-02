@@ -158,7 +158,7 @@ status: ## Ver estado detallado con health checks
 	@docker inspect plantcare-redis --format='Redis: {{.State.Health.Status}}' 2>/dev/null || echo "Redis: no disponible"
 
 health: ## Verificar health del backend
-	@curl -s http://localhost:8000/api/health | python -m json.tool || echo "❌ Backend no responde"
+	@curl -s http://localhost:8000/health | python -m json.tool || echo "❌ Backend no responde"
 
 # ============================================
 # Por defecto
