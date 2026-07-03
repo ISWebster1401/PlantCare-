@@ -18,10 +18,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { notificationsAPI } from '../services/api';
 import { NotificationResponse } from '../types';
 import { Card, Button, Badge } from '../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = createStyles(colors);
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -112,7 +116,7 @@ export default function NotificationsScreen() {
           />
         ) : (
           <View style={styles.plantImagePlaceholder}>
-            <Ionicons name="leaf-outline" size={24} color={Colors.primary} />
+            <Ionicons name="leaf-outline" size={24} color={colors.primary} />
           </View>
         )}
         
@@ -139,7 +143,7 @@ export default function NotificationsScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={Gradients.sunset}
+          colors={gradients.sunset}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.header}
@@ -156,7 +160,7 @@ export default function NotificationsScreen() {
           <View style={styles.backButtonPlaceholder} />
         </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </View>
     );
@@ -165,7 +169,7 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={Gradients.sunset}
+        colors={gradients.sunset}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -219,7 +223,7 @@ export default function NotificationsScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor={Colors.primary}
+              tintColor={colors.primary}
             />
           }
         />
@@ -228,10 +232,10 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -252,7 +256,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
-    color: Colors.white,
+    color: colors.white,
   },
   backButton: {
     width: 40,
@@ -273,7 +277,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   notificationUnread: {
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     borderWidth: 2,
   },
   notificationContent: {
@@ -285,14 +289,14 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     marginRight: Spacing.md,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
   },
   plantImagePlaceholder: {
     width: 48,
     height: 48,
     borderRadius: 24,
     marginRight: Spacing.md,
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -301,28 +305,28 @@ const styles = StyleSheet.create({
   },
   notificationMessage: {
     fontSize: Typography.sizes.base,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: Spacing.xs,
   },
   notificationMessageUnread: {
-    color: Colors.text,
+    color: colors.text,
     fontWeight: Typography.weights.semibold,
   },
   plantName: {
     fontSize: Typography.sizes.sm,
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: Spacing.xs,
   },
   notificationTime: {
     fontSize: Typography.sizes.xs,
-    color: Colors.textMuted,
+    color: colors.textMuted,
     marginTop: Spacing.xs,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     marginLeft: Spacing.sm,
     marginTop: Spacing.xs,
   },
@@ -339,13 +343,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.semibold,
-    color: Colors.text,
+    color: colors.text,
     marginTop: Spacing.md,
     marginBottom: Spacing.xs,
   },
   emptySubtext: {
     fontSize: Typography.sizes.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   loadingContainer: {

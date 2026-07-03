@@ -17,11 +17,14 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
+import { useThemeColors } from '../context/ThemeContext';
 
 export default function ChangeEmailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ newEmail?: string }>();
   const { refreshUser } = useAuth();
+  const colors = useThemeColors();
+  const styles = createStyles(colors);
 
   const [newEmail] = useState(params.newEmail || '');
   const [code, setCode] = useState('');
@@ -93,7 +96,7 @@ export default function ChangeEmailScreen() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Verificar Nuevo Email</Text>
         <View style={styles.placeholder} />
@@ -112,7 +115,7 @@ export default function ChangeEmailScreen() {
         <TextInput
           style={styles.input}
           placeholder="Código (4 dígitos)"
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.textMuted}
           value={code}
           onChangeText={(text) => setCode(text.replace(/[^0-9]/g, '').slice(0, 4))}
           keyboardType="number-pad"
@@ -127,10 +130,10 @@ export default function ChangeEmailScreen() {
           disabled={isLoading || code.length !== 4 || isResending}
         >
           {isLoading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.white} />
           ) : (
             <>
-              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Ionicons name="checkmark-circle" size={20} color={colors.white} />
               <Text style={styles.buttonText}>Verificar y Cambiar Email</Text>
             </>
           )}
@@ -142,10 +145,10 @@ export default function ChangeEmailScreen() {
           style={styles.resendButton}
         >
           {isResending ? (
-            <ActivityIndicator color="#4caf50" />
+            <ActivityIndicator color={colors.primary} />
           ) : (
             <>
-              <Ionicons name="refresh" size={16} color="#4caf50" />
+              <Ionicons name="refresh" size={16} color={colors.primary} />
               <Text style={styles.resendText}>
                 ¿No recibiste el código? <Text style={styles.resendBold}>Reenviar código</Text>
               </Text>
@@ -157,10 +160,10 @@ export default function ChangeEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -170,7 +173,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: colors.backgroundLighter,
   },
   backButton: {
     padding: 8,
@@ -178,7 +181,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
   },
   placeholder: {
     width: 40,
@@ -191,45 +194,45 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#4caf50',
+    color: colors.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#b0bec5',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 8,
   },
   emailText: {
     fontSize: 16,
-    color: '#fff',
+    color: colors.text,
     textAlign: 'center',
     fontWeight: '600',
     marginBottom: 24,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.backgroundLighter,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.backgroundLighter,
   },
   input: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.backgroundLighter,
     borderRadius: 12,
     padding: 16,
     fontSize: 24,
-    color: '#fff',
+    color: colors.text,
     textAlign: 'center',
     letterSpacing: 8,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.backgroundLighter,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -239,7 +242,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -251,12 +254,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   resendText: {
-    color: '#b0bec5',
+    color: colors.textSecondary,
     textAlign: 'center',
     fontSize: 14,
   },
   resendBold: {
-    color: '#4caf50',
+    color: colors.primary,
     fontWeight: '600',
   },
 });

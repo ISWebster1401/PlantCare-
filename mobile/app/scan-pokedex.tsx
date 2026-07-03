@@ -20,11 +20,14 @@ import { pokedexAPI } from '../services/api';
 import { PokedexEntryResponse } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 import { PlantSpeciesAutocomplete } from '../components/PlantSpeciesAutocomplete';
+import { useThemeColors } from '../context/ThemeContext';
 
 type Step = 'photo' | 'identifying' | 'results';
 
 export default function ScanPokedexScreen() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = createStyles(colors);
   const [step, setStep] = useState<Step>('photo');
   const [plantSpecies, setPlantSpecies] = useState('');
   const [photo, setPhoto] = useState<{ uri: string; type: string; name: string } | null>(null);
@@ -96,7 +99,7 @@ export default function ScanPokedexScreen() {
           imageType = 'image/png';
           extension = 'png';
         }
-        
+
         setPhoto({
           uri: asset.uri,
           type: imageType,
@@ -125,7 +128,7 @@ export default function ScanPokedexScreen() {
       setStep('results');
     } catch (error: any) {
       console.error('Error escaneando planta:', error);
-      
+
       // Manejar error 404 de forma amigable
       if (error.response?.status === 404 || error.response?.statusCode === 404) {
         Alert.alert(
@@ -172,7 +175,7 @@ export default function ScanPokedexScreen() {
           <ScrollView style={styles.stepContainer} contentContainerStyle={styles.stepContent}>
             <View style={styles.iconContainer}>
               <View style={styles.iconCircle}>
-                <Ionicons name="camera" size={48} color="#4caf50" />
+                <Ionicons name="camera" size={48} color={colors.primary} />
               </View>
             </View>
             <Text style={styles.stepTitle}>Escanear para Pokedex</Text>
@@ -191,20 +194,20 @@ export default function ScanPokedexScreen() {
             <View style={styles.photoOptions}>
               <TouchableOpacity style={styles.photoButton} onPress={takePhoto} activeOpacity={0.8}>
                 <View style={styles.photoButtonIcon}>
-                  <Ionicons name="camera" size={40} color="#4caf50" />
+                  <Ionicons name="camera" size={40} color={colors.primary} />
                 </View>
                 <Text style={styles.photoButtonText}>Tomar Foto</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.photoButton} onPress={pickFromGallery} activeOpacity={0.8}>
                 <View style={styles.photoButtonIcon}>
-                  <Ionicons name="images" size={40} color="#4caf50" />
+                  <Ionicons name="images" size={40} color={colors.primary} />
                 </View>
                 <Text style={styles.photoButtonText}>Desde Galería</Text>
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={18} color="#4caf50" />
+              <Ionicons name="arrow-back" size={18} color={colors.primary} />
               <Text style={styles.backButtonText}>Volver</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -215,9 +218,9 @@ export default function ScanPokedexScreen() {
           <View style={styles.stepContainer}>
             <View style={styles.loadingContainer}>
               <View style={styles.loadingIconContainer}>
-                <Ionicons name="leaf" size={64} color="#4caf50" />
+                <Ionicons name="leaf" size={64} color={colors.primary} />
               </View>
-              <ActivityIndicator size="large" color="#4caf50" style={styles.loader} />
+              <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
               <Text style={styles.loadingText}>Identificando planta...</Text>
               <Text style={styles.loadingSubtext}>Esto puede tomar unos segundos</Text>
             </View>
@@ -238,7 +241,7 @@ export default function ScanPokedexScreen() {
 
             <View style={styles.resultCard}>
               <View style={styles.resultHeader}>
-                <Ionicons name="checkmark-circle" size={32} color="#4caf50" />
+                <Ionicons name="checkmark-circle" size={32} color={colors.primary} />
                 <View style={styles.resultTitleContainer}>
                   <Text style={styles.resultTitle}>{entry.plant_type}</Text>
                   {entry.scientific_name && (
@@ -256,7 +259,7 @@ export default function ScanPokedexScreen() {
             {entry.care_tips && (
               <View style={styles.resultCard}>
                 <View style={styles.resultCardHeader}>
-                  <Ionicons name="bulb" size={24} color="#ffb74d" />
+                  <Ionicons name="bulb" size={24} color={colors.warning} />
                   <Text style={styles.resultCardTitle}>Consejos de cuidado</Text>
                 </View>
                 <Text style={styles.resultText}>{entry.care_tips}</Text>
@@ -265,13 +268,13 @@ export default function ScanPokedexScreen() {
 
             <View style={styles.resultCard}>
               <View style={styles.resultCardHeader}>
-                <Ionicons name="stats-chart" size={24} color="#64b5f6" />
+                <Ionicons name="stats-chart" size={24} color={colors.secondary} />
                 <Text style={styles.resultCardTitle}>Condiciones óptimas</Text>
               </View>
               <View style={styles.conditionsRow}>
                 {entry.optimal_humidity_min && entry.optimal_humidity_max && (
                   <View style={styles.conditionItem}>
-                    <Ionicons name="water" size={20} color="#64b5f6" />
+                    <Ionicons name="water" size={20} color={colors.secondary} />
                     <Text style={styles.conditionText}>
                       {entry.optimal_humidity_min}% - {entry.optimal_humidity_max}%
                     </Text>
@@ -279,7 +282,7 @@ export default function ScanPokedexScreen() {
                 )}
                 {entry.optimal_temp_min && entry.optimal_temp_max && (
                   <View style={styles.conditionItem}>
-                    <Ionicons name="thermometer" size={20} color="#ef5350" />
+                    <Ionicons name="thermometer" size={20} color={colors.error} />
                     <Text style={styles.conditionText}>
                       {entry.optimal_temp_min}°C - {entry.optimal_temp_max}°C
                     </Text>
@@ -289,7 +292,7 @@ export default function ScanPokedexScreen() {
             </View>
 
             <TouchableOpacity style={styles.button} onPress={handleFinish} activeOpacity={0.8}>
-              <Ionicons name="checkmark-circle" size={24} color="#fff" />
+              <Ionicons name="checkmark-circle" size={24} color={colors.white} />
               <Text style={styles.buttonText}>Agregar a Pokedex</Text>
             </TouchableOpacity>
 
@@ -301,7 +304,7 @@ export default function ScanPokedexScreen() {
                 setEntry(null);
               }}
             >
-              <Ionicons name="camera-outline" size={18} color="#4caf50" />
+              <Ionicons name="camera-outline" size={18} color={colors.primary} />
               <Text style={styles.backButtonText}>Escanear otra</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -316,7 +319,7 @@ export default function ScanPokedexScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Escanear para Pokedex</Text>
         <View style={styles.closeButton} />
@@ -327,10 +330,10 @@ export default function ScanPokedexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a1929',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -339,13 +342,13 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 48,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
-    backgroundColor: '#0f172a',
+    borderBottomColor: colors.backgroundLighter,
+    backgroundColor: colors.backgroundLight,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#fff',
+    color: colors.text,
     letterSpacing: 0.5,
   },
   closeButton: {
@@ -354,7 +357,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 20,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.backgroundLighter,
   },
   stepContainer: {
     flex: 1,
@@ -372,23 +375,23 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#4caf5020',
+    backgroundColor: colors.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: '#4caf50',
+    borderColor: colors.primary,
   },
   stepTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
     marginBottom: 12,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
   stepDescription: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 22,
@@ -398,7 +401,7 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
     paddingHorizontal: 16,
@@ -413,42 +416,42 @@ const styles = StyleSheet.create({
   photoButton: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.backgroundLighter,
     borderRadius: 20,
     padding: 24,
     borderWidth: 2,
-    borderColor: '#334155',
+    borderColor: colors.backgroundLighter,
   },
   photoButtonIcon: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#4caf5015',
+    backgroundColor: colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   photoButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
   button: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.primary,
     borderRadius: 16,
     padding: 18,
     alignItems: 'center',
     marginBottom: 16,
     flexDirection: 'row',
     justifyContent: 'center',
-    shadowColor: '#4caf50',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
   buttonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 17,
     fontWeight: '700',
     marginLeft: 8,
@@ -460,7 +463,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backButtonText: {
-    color: '#4caf50',
+    color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
     marginLeft: 8,
@@ -478,14 +481,14 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   loadingText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 20,
     textAlign: 'center',
     marginTop: 16,
     fontWeight: '600',
   },
   loadingSubtext: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 15,
     textAlign: 'center',
     marginTop: 8,
@@ -505,7 +508,7 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: 320,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.backgroundLighter,
   },
   imageOverlay: {
     position: 'absolute',
@@ -515,12 +518,12 @@ const styles = StyleSheet.create({
     height: 100,
   },
   resultCard: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.backgroundLighter,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.backgroundLighter,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -539,23 +542,23 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#4caf50',
+    color: colors.primary,
     marginBottom: 4,
   },
   resultSubtitle: {
     fontSize: 15,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
   careLevelBadge: {
-    backgroundColor: '#4caf5015',
+    backgroundColor: colors.primary + '15',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   careLevelText: {
-    color: '#4caf50',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -567,12 +570,12 @@ const styles = StyleSheet.create({
   resultCardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
+    color: colors.text,
     marginLeft: 10,
   },
   resultText: {
     fontSize: 15,
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     lineHeight: 24,
   },
   conditionsRow: {
@@ -583,7 +586,7 @@ const styles = StyleSheet.create({
   conditionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.backgroundLight,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
@@ -591,7 +594,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   conditionText: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,

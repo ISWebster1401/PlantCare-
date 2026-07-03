@@ -17,7 +17,8 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button, Card } from '../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients, Shadows } from '../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
+import { useThemeColors } from '../context/ThemeContext';
 import { adminAPI } from '../services/api';
 import {
   AdminStats,
@@ -32,6 +33,8 @@ type TabType = 'dashboard' | 'users' | 'devices';
 export default function AdminPanelScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = createStyles(colors);
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,13 +61,13 @@ export default function AdminPanelScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+            <Ionicons name="arrow-back" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Panel Admin</Text>
           <View style={styles.backButton} />
         </View>
         <View style={styles.accessDenied}>
-          <Ionicons name="lock-closed" size={64} color={Colors.error} />
+          <Ionicons name="lock-closed" size={64} color={colors.error} />
           <Text style={styles.accessDeniedTitle}>Acceso Denegado</Text>
           <Text style={styles.accessDeniedText}>
             No tienes permisos para acceder al panel de administración.
@@ -183,7 +186,7 @@ export default function AdminPanelScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <View style={styles.statHeader}>
-              <Ionicons name="people" size={24} color={Colors.primary} />
+              <Ionicons name="people" size={24} color={colors.primary} />
               <Text style={styles.statLabel}>Usuarios</Text>
             </View>
             <Text style={styles.statValue}>{stats.total_users}</Text>
@@ -194,7 +197,7 @@ export default function AdminPanelScreen() {
 
           <View style={styles.statCard}>
             <View style={styles.statHeader}>
-              <Ionicons name="hardware-chip" size={24} color={Colors.primary} />
+              <Ionicons name="hardware-chip" size={24} color={colors.primary} />
               <Text style={styles.statLabel}>Dispositivos</Text>
             </View>
             <Text style={styles.statValue}>{stats.total_devices}</Text>
@@ -205,7 +208,7 @@ export default function AdminPanelScreen() {
 
           <View style={styles.statCard}>
             <View style={styles.statHeader}>
-              <Ionicons name="trending-up" size={24} color={Colors.primary} />
+              <Ionicons name="trending-up" size={24} color={colors.primary} />
               <Text style={styles.statLabel}>Hoy</Text>
             </View>
             <Text style={styles.statValue}>{stats.new_users_today}</Text>
@@ -214,7 +217,7 @@ export default function AdminPanelScreen() {
 
           <View style={styles.statCard}>
             <View style={styles.statHeader}>
-              <Ionicons name="analytics" size={24} color={Colors.primary} />
+              <Ionicons name="analytics" size={24} color={colors.primary} />
               <Text style={styles.statLabel}>Lecturas</Text>
             </View>
             <Text style={styles.statValue}>{stats.total_readings_today}</Text>
@@ -229,23 +232,23 @@ export default function AdminPanelScreen() {
     return (
       <View style={styles.listContent}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar usuarios..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={userSearch}
             onChangeText={setUserSearch}
             onSubmitEditing={loadUsers}
           />
           <TouchableOpacity onPress={loadUsers} style={styles.searchButton}>
-            <Ionicons name="arrow-forward" size={20} color={Colors.primary} />
+            <Ionicons name="arrow-forward" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
         {users.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={64} color={Colors.textMuted} />
+            <Ionicons name="people-outline" size={64} color={colors.textMuted} />
             <Text style={styles.emptyText}>No hay usuarios</Text>
           </View>
         ) : (
@@ -275,7 +278,7 @@ export default function AdminPanelScreen() {
                 <Ionicons
                   name={userItem.active ? 'pause' : 'play'}
                   size={20}
-                  color={Colors.text}
+                  color={colors.text}
                 />
               </TouchableOpacity>
             </View>
@@ -289,23 +292,23 @@ export default function AdminPanelScreen() {
     return (
       <View style={styles.listContent}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar dispositivos..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={deviceSearch}
             onChangeText={setDeviceSearch}
             onSubmitEditing={loadDevices}
           />
           <TouchableOpacity onPress={loadDevices} style={styles.searchButton}>
-            <Ionicons name="arrow-forward" size={20} color={Colors.primary} />
+            <Ionicons name="arrow-forward" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
         {devices.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="hardware-chip-outline" size={64} color={Colors.textMuted} />
+            <Ionicons name="hardware-chip-outline" size={64} color={colors.textMuted} />
             <Text style={styles.emptyText}>No hay dispositivos</Text>
           </View>
         ) : (
@@ -334,7 +337,7 @@ export default function AdminPanelScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+            <Ionicons name="arrow-back" size={24} color={colors.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Panel Admin</Text>
         <View style={styles.backButton} />
@@ -349,7 +352,7 @@ export default function AdminPanelScreen() {
           <Ionicons
             name="stats-chart"
             size={20}
-            color={activeTab === 'dashboard' ? Colors.primary : Colors.textSecondary}
+            color={activeTab === 'dashboard' ? colors.primary : colors.textSecondary}
           />
           <Text
             style={[
@@ -368,7 +371,7 @@ export default function AdminPanelScreen() {
           <Ionicons
             name="people"
             size={20}
-            color={activeTab === 'users' ? Colors.primary : Colors.textSecondary}
+            color={activeTab === 'users' ? colors.primary : colors.textSecondary}
           />
           <Text
             style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}
@@ -384,7 +387,7 @@ export default function AdminPanelScreen() {
           <Ionicons
             name="hardware-chip"
             size={20}
-            color={activeTab === 'devices' ? Colors.primary : Colors.textSecondary}
+            color={activeTab === 'devices' ? colors.primary : colors.textSecondary}
           />
           <Text
             style={[styles.tabText, activeTab === 'devices' && styles.tabTextActive]}
@@ -396,7 +399,7 @@ export default function AdminPanelScreen() {
 
       {error && (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={20} color={Colors.error} />
+          <Ionicons name="alert-circle" size={20} color={colors.error} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
@@ -404,12 +407,12 @@ export default function AdminPanelScreen() {
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
         {loading && !refreshing ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
           <>
@@ -423,10 +426,10 @@ export default function AdminPanelScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -436,7 +439,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.backgroundLighter,
+    borderBottomColor: colors.backgroundLighter,
   },
   backButton: {
     width: 40,
@@ -447,14 +450,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: Colors.text,
+    color: colors.text,
   },
   tabs: {
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.backgroundLighter,
+    borderBottomColor: colors.backgroundLighter,
     gap: 8,
   },
   tab: {
@@ -465,24 +468,24 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     gap: 6,
   },
   tabActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   tabTextActive: {
-    color: Colors.text,
+    color: colors.text,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.error + '20',
+    backgroundColor: colors.error + '20',
     padding: 12,
     marginHorizontal: 16,
     marginTop: 12,
@@ -492,7 +495,7 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.error,
+    color: colors.error,
   },
   content: {
     flex: 1,
@@ -512,13 +515,13 @@ const styles = StyleSheet.create({
   accessDeniedTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.error,
+    color: colors.error,
     marginTop: 16,
     marginBottom: 8,
   },
   accessDeniedText: {
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   dashboardContent: {
@@ -528,11 +531,11 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   statCard: {
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
+    borderColor: colors.backgroundLighter,
   },
   statHeader: {
     flexDirection: 'row',
@@ -542,18 +545,18 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   statValue: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: Colors.text,
+    color: colors.text,
     marginBottom: 4,
   },
   statDetail: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: colors.textMuted,
   },
   listContent: {
     padding: 16,
@@ -561,12 +564,12 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
+    borderColor: colors.backgroundLighter,
   },
   searchIcon: {
     marginRight: 8,
@@ -574,7 +577,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: Colors.text,
+    color: colors.text,
     paddingVertical: 12,
   },
   searchButton: {
@@ -582,12 +585,12 @@ const styles = StyleSheet.create({
   },
   listItem: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: colors.backgroundLight,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
+    borderColor: colors.backgroundLighter,
     alignItems: 'center',
   },
   listItemContent: {
@@ -596,12 +599,12 @@ const styles = StyleSheet.create({
   listItemTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text,
+    color: colors.text,
     marginBottom: 4,
   },
   listItemSubtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   listItemBadges: {
@@ -616,28 +619,28 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeActive: {
-    backgroundColor: Colors.primary + '30',
+    backgroundColor: colors.primary + '30',
   },
   badgeInactive: {
-    backgroundColor: Colors.error + '30',
+    backgroundColor: colors.error + '30',
   },
   badgeRole: {
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
   },
   badgeConnected: {
-    backgroundColor: Colors.primary + '30',
+    backgroundColor: colors.primary + '30',
   },
   badgeDisconnected: {
-    backgroundColor: Colors.textMuted + '30',
+    backgroundColor: colors.textMuted + '30',
   },
   badgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.text,
+    color: colors.text,
   },
   listItemUser: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   actionButton: {
     width: 40,
@@ -648,10 +651,10 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   actionButtonWarning: {
-    backgroundColor: Colors.error + '30',
+    backgroundColor: colors.error + '30',
   },
   actionButtonSuccess: {
-    backgroundColor: Colors.primary + '30',
+    backgroundColor: colors.primary + '30',
   },
   emptyState: {
     alignItems: 'center',
@@ -660,7 +663,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: 16,
   },
 });

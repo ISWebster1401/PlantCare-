@@ -17,11 +17,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { authAPI } from '../../services/api';
 import { Button, Card, Emoji } from '../../components/ui';
-import { Colors, Typography, Spacing, BorderRadius, Gradients } from '../../constants/DesignSystem';
+import { Typography, Spacing, BorderRadius } from '../../constants/DesignSystem';
+import { useThemeColors, useThemeGradients } from '../../context/ThemeContext';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ email?: string }>();
+  const colors = useThemeColors();
+  const gradients = useThemeGradients();
+  const styles = createStyles(colors);
 
   const [email, setEmail] = useState(params.email || '');
   const [code, setCode] = useState('');
@@ -82,7 +86,7 @@ export default function VerifyEmailScreen() {
       style={styles.container}
     >
       <LinearGradient
-        colors={Gradients.card}
+        colors={gradients.card}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -103,11 +107,11 @@ export default function VerifyEmailScreen() {
           <Card variant="elevated" style={styles.formCard}>
             <View style={styles.form}>
               <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <Ionicons name="mail-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -118,11 +122,11 @@ export default function VerifyEmailScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="key-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                <Ionicons name="key-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Código de verificación (4 dígitos)"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={code}
                   onChangeText={setCode}
                   keyboardType="number-pad"
@@ -168,10 +172,10 @@ export default function VerifyEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -192,14 +196,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.sizes.xxl,
     fontWeight: Typography.weights.extrabold,
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: Spacing.sm,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.regular,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: Spacing.md,
   },
@@ -212,10 +216,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundLighter,
+    backgroundColor: colors.backgroundLighter,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.backgroundLighter,
+    borderColor: colors.backgroundLighter,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.md,
   },
@@ -226,7 +230,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     fontSize: Typography.sizes.base,
-    color: Colors.text,
+    color: colors.text,
     paddingVertical: 0,
   },
   verifyButton: {
