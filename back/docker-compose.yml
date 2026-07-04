@@ -10,8 +10,11 @@ services:
     ports:
       - "8000:8000"  # Cambiado a 8000 para consistencia
     volumes:
-      # Volumen para desarrollo (hot reload)
-      - ./app:/app/app:ro  # Montar código como read-only (puedes cambiar a rw para hot reload)
+      # Bind mount de ./app deshabilitado: con RELOAD apagado no aporta hot-reload
+      # y el gRPC-FUSE/VirtioFS de Docker Desktop en macOS lo hace fallar con
+      # "OSError: [Errno 35] Resource deadlock avoided" al importar módulos.
+      # El Dockerfile ya copia el código en la imagen (COPY . /app).
+      # - ./app:/app/app:ro
       # Volúmenes para persistencia de datos
       - api_data:/app/data
       - uploads_data:/app/uploads
