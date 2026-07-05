@@ -22,8 +22,6 @@ import {
   DeviceCodeBatch,
   DeviceCodeResponse,
   PokedexEntryResponse,
-  WateringSession,
-  WateringHistoryEntry,
 } from '../types';
 
 // Log de configuración de API al iniciar
@@ -615,28 +613,60 @@ export const adminAPI = {
 // WATERING API
 // ============================================
 
+/** Sesión de riego tal como la devuelve el backend */
+export interface WateringSessionRecord {
+  id: number;
+  plant_id: number;
+  started_at: string;
+  ended_at: string;
+  duration_seconds: number;
+  humidity_start: number | null;
+  humidity_end: number | null;
+  target_humidity: number | null;
+}
+
 export const wateringAPI = {
   /**
-   * Registra un evento de riego para una planta.
-   * // TODO: conectar con endpoint real cuando el backend lo implemente
+   * Registra una sesión de riego (POST /plants/{plantId}/watering).
+   * También actualiza plants.last_watered en el backend.
    */
   recordWatering: async (
     plantId: number,
-    session: Omit<WateringSession, 'plantId'>,
-  ): Promise<{ message: string }> => {
-    // TODO: conectar con endpoint real - POST /plants/{plantId}/watering
-    console.log('[wateringAPI] recordWatering stub called', { plantId, session });
-    return { message: 'Riego registrado (stub)' };
+    session: {
+      startedAt: string;
+      endedAt: string;
+      durationSeconds: number;
+      humidityStart?: number | null;
+      humidityEnd?: number | null;
+      targetHumidity?: number | null;
+    },
+  ): Promise<WateringSessionRecord> => {
+    const response = await api.post(`/plants/${plantId}/watering`, {
+      started_at: session.startedAt,
+      ended_at: session.endedAt,
+      duration_seconds: session.durationSeconds,
+      humidity_start: session.humidityStart ?? null,
+      humidity_end: session.humidityEnd ?? null,
+      target_humidity: session.targetHumidity ?? null,
+    });
+    return response.data;
   },
 
   /**
-   * Obtiene historial de riegos de una planta.
-   * // TODO: conectar con endpoint real cuando el backend lo implemente
+   * Historial de riegos de una planta, más recientes primero
+   * (GET /plants/{plantId}/watering-history).
    */
-  getHistory: async (plantId: number): Promise<WateringHistoryEntry[]> => {
-    // TODO: conectar con endpoint real - GET /plants/{plantId}/watering-history
-    console.log('[wateringAPI] getHistory stub called', { plantId });
-    return [];
+  getHistory: async (plantId: number): Promise<WateringSessionRecord[]> => {
+    const response = await api.get(`/plants/${plantId}/watering-history`);
+    return response.data;
+  },
+
+  /**
+   * Elimina un registro de riego (DELETE /plants/{plantId}/watering/{sessionId}).
+   */
+  deleteSession: async (plantId: number, sessionId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/plants/${plantId}/watering/${sessionId}`);
+    return response.data;
   },
 };
 

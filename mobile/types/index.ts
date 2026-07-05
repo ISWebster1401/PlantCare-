@@ -227,25 +227,9 @@ export interface DeviceCodeResponse {
 // ============================================
 // WATERING TYPES
 // ============================================
-
-export interface WateringSession {
-  plantId: number;
-  startTime: string;
-  endTime?: string;
-  humidityStart: number;
-  humidityEnd?: number;
-  targetHumidity: number;
-  isActive: boolean;
-}
-
-export interface WateringHistoryEntry {
-  id: string;
-  plantId: number;
-  date: string;
-  durationSeconds: number;
-  humidityStart: number;
-  humidityEnd: number;
-}
+// El tipo de sesión de riego vive en services/api.ts (WateringSessionRecord,
+// forma exacta del backend). Las pantallas de riego usan su propio
+// StoredWateringSession para el fallback offline en AsyncStorage.
 
 // ============================================
 // POKEDEX TYPES

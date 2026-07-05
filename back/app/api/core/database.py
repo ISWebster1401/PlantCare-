@@ -700,7 +700,38 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla ai_messages creada exitosamente")
         else:
             logger.info("✅ Tabla ai_messages ya existe")
-            
+
+        # ============================================
+        # PASO 18: CREAR TABLA WATERING_SESSIONS (historial de riegos)
+        # ============================================
+        if "watering_sessions" not in tables:
+            logger.info("📋 Creando tabla watering_sessions...")
+            await db.create_table("watering_sessions", {
+                "id": "SERIAL PRIMARY KEY",
+                "plant_id": "INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE",
+                "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
+                # TIMESTAMPTZ: el cliente envia ISO UTC y espera recibirlo con zona
+                # horaria explicita para que new Date() lo interprete bien.
+                "started_at": "TIMESTAMPTZ NOT NULL",
+                "ended_at": "TIMESTAMPTZ NOT NULL",
+                "duration_seconds": "INTEGER NOT NULL DEFAULT 0",
+                "humidity_start": "DOUBLE PRECISION",
+                "humidity_end": "DOUBLE PRECISION",
+                "target_humidity": "DOUBLE PRECISION",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_watering_sessions_plant_started
+                ON watering_sessions(plant_id, started_at DESC)
+            """)
+            await db.execute_query("""
+                CREATE INDEX IF NOT EXISTS idx_watering_sessions_user_id
+                ON watering_sessions(user_id)
+            """)
+            logger.info("✅ Tabla watering_sessions creada exitosamente")
+        else:
+            logger.info("✅ Tabla watering_sessions ya existe")
+
     except Exception as e:
         log_error_with_context(e, "create_tables")
         raise

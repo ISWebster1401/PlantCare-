@@ -161,3 +161,28 @@ class PlantUpdate(BaseModel):
     """Datos para actualizar una planta"""
     plant_name: Optional[str] = None
     last_watered: Optional[datetime] = None
+
+
+class WateringSessionCreate(BaseModel):
+    """Datos para registrar una sesión de riego"""
+    started_at: datetime
+    ended_at: datetime
+    duration_seconds: int
+    humidity_start: Optional[float] = None
+    humidity_end: Optional[float] = None
+    target_humidity: Optional[float] = None
+
+
+class WateringSessionResponse(BaseModel):
+    """Sesión de riego registrada"""
+    id: int
+    plant_id: int
+    started_at: datetime
+    ended_at: datetime
+    duration_seconds: int
+    humidity_start: Optional[float] = None
+    humidity_end: Optional[float] = None
+    target_humidity: Optional[float] = None
+
+    class Config:
+        from_attributes = True

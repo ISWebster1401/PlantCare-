@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
 import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
+import { wateringAPI } from '../services/api';
 
 /* -------------------------------------------------- */
 /*  Constantes y tipo (igual que en watering.tsx)     */
@@ -58,19 +59,46 @@ export default function WateringHistoryScreen() {
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
+    const plantId = parseInt(params.plantId, 10);
+
+    // Sesiones locales: registros guardados offline (o de versiones anteriores
+    // de la app que solo persistían en AsyncStorage).
+    let localSessions: StoredWateringSession[] = [];
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       const all: StoredWateringSession[] = raw ? JSON.parse(raw) : [];
-      const plantId = parseInt(params.plantId, 10);
-      const filtered = all.filter((s) => s.plantId === plantId);
-      setSessions(filtered);
+      localSessions = all.filter((s) => s.plantId === plantId);
     } catch (e) {
-      console.error('Error cargando historial de riego:', e);
-      setSessions([]);
+      console.error('Error leyendo historial local de riego:', e);
+    }
+
+    // Historial del backend (fuente principal); los locales se muestran
+    // además, para no ocultar riegos hechos sin conexión.
+    try {
+      const remote = await wateringAPI.getHistory(plantId);
+      const mapped: StoredWateringSession[] = remote.map((r) => ({
+        id: String(r.id),
+        plantId: r.plant_id,
+        plantName: params.plantName || 'Planta',
+        sensorId: params.sensorId || '',
+        startTime: r.started_at,
+        endTime: r.ended_at,
+        durationSeconds: r.duration_seconds,
+        humidityStart: r.humidity_start ?? 0,
+        humidityEnd: r.humidity_end ?? 0,
+        targetHumidity: r.target_humidity ?? 0,
+      }));
+      const merged = [...mapped, ...localSessions].sort(
+        (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
+      );
+      setSessions(merged);
+    } catch (e) {
+      console.error('Error cargando historial de riego del backend, usando local:', e);
+      setSessions(localSessions);
     } finally {
       setLoading(false);
     }
-  }, [params.plantId]);
+  }, [params.plantId, params.plantName, params.sensorId]);
 
   // Recargar cuando la pantalla recibe foco (ej. volver del riego)
   useFocusEffect(
@@ -125,13 +153,19 @@ export default function WateringHistoryScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const raw = await AsyncStorage.getItem(STORAGE_KEY);
-              const all: StoredWateringSession[] = raw ? JSON.parse(raw) : [];
-              const updated = all.filter((s) => s.id !== sessionId);
-              await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+              // Id numérico = registro del backend; id "plantId-timestamp" = local
+              if (/^\d+$/.test(sessionId)) {
+                await wateringAPI.deleteSession(parseInt(params.plantId, 10), parseInt(sessionId, 10));
+              } else {
+                const raw = await AsyncStorage.getItem(STORAGE_KEY);
+                const all: StoredWateringSession[] = raw ? JSON.parse(raw) : [];
+                const updated = all.filter((s) => s.id !== sessionId);
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+              }
               setSessions((prev) => prev.filter((s) => s.id !== sessionId));
             } catch (e) {
               console.error('Error eliminando sesión:', e);
+              Alert.alert('Error', 'No se pudo eliminar el registro');
             }
           },
         },

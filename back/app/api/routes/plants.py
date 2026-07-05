@@ -27,6 +27,8 @@ from ..schemas.plants import (
     PokedexEntryResponse,
     PokedexCatalogEntry,
     PokedexUnlockResponse,
+    WateringSessionCreate,
+    WateringSessionResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -903,6 +905,162 @@ async def delete_plant(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error eliminando planta: {str(e)}",
+        )
+
+
+# ============================================
+# RIEGO (WATERING)
+# ============================================
+
+async def _get_owned_plant_or_404(db: AsyncPgDbToolkit, plant_id: int, user_id: int) -> dict:
+    """Verifica que la planta exista y pertenezca al usuario; devuelve la fila."""
+    df = await db.execute_query(
+        "SELECT id, plant_name FROM plants WHERE id = %s AND user_id = %s LIMIT 1",
+        (plant_id, user_id),
+    )
+    if df is None or df.empty:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Planta no encontrada",
+        )
+    return df.iloc[0].to_dict()
+
+
+@router.post("/{plant_id}/watering", response_model=WateringSessionResponse, status_code=status.HTTP_201_CREATED)
+async def record_watering(
+    plant_id: int,
+    session: WateringSessionCreate,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Registra una sesión de riego para una planta del usuario y actualiza
+    plants.last_watered con la hora de término del riego.
+    """
+    try:
+        await _get_owned_plant_or_404(db, plant_id, current_user["id"])
+
+        inserted_df = await db.execute_query(
+            """
+            INSERT INTO watering_sessions
+                (plant_id, user_id, started_at, ended_at, duration_seconds,
+                 humidity_start, humidity_end, target_humidity)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, plant_id, started_at, ended_at, duration_seconds,
+                      humidity_start, humidity_end, target_humidity
+            """,
+            (
+                plant_id,
+                current_user["id"],
+                session.started_at,
+                session.ended_at,
+                session.duration_seconds,
+                session.humidity_start,
+                session.humidity_end,
+                session.target_humidity,
+            ),
+        )
+
+        await db.execute_query(
+            "UPDATE plants SET last_watered = %s, updated_at = NOW() WHERE id = %s",
+            (session.ended_at, plant_id),
+        )
+
+        row = inserted_df.iloc[0].to_dict()
+        logger.info(
+            f"Riego registrado: planta {plant_id}, usuario {current_user['id']}, "
+            f"{session.duration_seconds}s, humedad {session.humidity_start}->{session.humidity_end}"
+        )
+        return WateringSessionResponse(**row)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error registrando riego: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error registrando riego: {str(e)}",
+        )
+
+
+@router.get("/{plant_id}/watering-history", response_model=List[WateringSessionResponse])
+async def get_watering_history(
+    plant_id: int,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Devuelve el historial de riegos de una planta (más recientes primero)."""
+    try:
+        await _get_owned_plant_or_404(db, plant_id, current_user["id"])
+
+        limit = max(1, min(limit, 500))
+        df = await db.execute_query(
+            """
+            SELECT id, plant_id, started_at, ended_at, duration_seconds,
+                   humidity_start, humidity_end, target_humidity
+            FROM watering_sessions
+            WHERE plant_id = %s AND user_id = %s
+            ORDER BY started_at DESC
+            LIMIT %s
+            """,
+            (plant_id, current_user["id"], limit),
+        )
+
+        if df is None or df.empty:
+            return []
+
+        sessions = []
+        for _, row in df.iterrows():
+            data = row.to_dict()
+            for key in ("humidity_start", "humidity_end", "target_humidity"):
+                if pd.isna(data.get(key)):
+                    data[key] = None
+            sessions.append(WateringSessionResponse(**data))
+        return sessions
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obteniendo historial de riego: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo historial de riego: {str(e)}",
+        )
+
+
+@router.delete("/{plant_id}/watering/{session_id}", status_code=status.HTTP_200_OK)
+async def delete_watering_session(
+    plant_id: int,
+    session_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Elimina un registro de riego del historial del usuario."""
+    try:
+        df = await db.execute_query(
+            "SELECT id FROM watering_sessions WHERE id = %s AND plant_id = %s AND user_id = %s LIMIT 1",
+            (session_id, plant_id, current_user["id"]),
+        )
+        if df is None or df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Registro de riego no encontrado",
+            )
+
+        await db.execute_query(
+            "DELETE FROM watering_sessions WHERE id = %s AND user_id = %s",
+            (session_id, current_user["id"]),
+        )
+        return {"message": "Registro de riego eliminado", "session_id": session_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error eliminando registro de riego: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error eliminando registro de riego: {str(e)}",
         )
 
 

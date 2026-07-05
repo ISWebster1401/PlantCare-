@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { plantsAPI, sensorsAPI } from '../services/api';
+import { plantsAPI, sensorsAPI, wateringAPI } from '../services/api';
 import { PlantResponse } from '../types';
 import { Typography, Spacing, BorderRadius, Shadows } from '../constants/DesignSystem';
 import { useThemeColors, useThemeGradients } from '../context/ThemeContext';
@@ -225,20 +225,34 @@ export default function WateringScreen() {
       const endTime = new Date();
       const durationSeconds = Math.round((endTime.getTime() - sessionStart.getTime()) / 1000);
 
-      const session: StoredWateringSession = {
-        id: `${plant.id}-${sessionStart.getTime()}`,
-        plantId: plant.id,
-        plantName: plant.plant_name || params.plantName || 'Planta',
-        sensorId: plant.sensor_id?.toString() ?? '',
-        startTime: sessionStart.toISOString(),
-        endTime: endTime.toISOString(),
-        durationSeconds,
-        humidityStart,
-        humidityEnd: currentHumidity ?? 0,
-        targetHumidity,
-      };
+      // Registrar en el backend (persiste el historial y actualiza last_watered).
+      // Si falla (sin conexión), guardar localmente para no perder el registro.
+      try {
+        await wateringAPI.recordWatering(plant.id, {
+          startedAt: sessionStart.toISOString(),
+          endedAt: endTime.toISOString(),
+          durationSeconds,
+          humidityStart,
+          humidityEnd: currentHumidity,
+          targetHumidity,
+        });
+      } catch (e) {
+        console.error('No se pudo registrar riego en backend, guardando local:', e);
+        const session: StoredWateringSession = {
+          id: `${plant.id}-${sessionStart.getTime()}`,
+          plantId: plant.id,
+          plantName: plant.plant_name || params.plantName || 'Planta',
+          sensorId: plant.sensor_id?.toString() ?? '',
+          startTime: sessionStart.toISOString(),
+          endTime: endTime.toISOString(),
+          durationSeconds,
+          humidityStart,
+          humidityEnd: currentHumidity ?? 0,
+          targetHumidity,
+        };
+        await saveWateringSession(session);
+      }
 
-      await saveWateringSession(session);
       Alert.alert('Riego registrado', `Duración: ${formatDuration(durationSeconds)}\nHumedad: ${humidityStart}% → ${currentHumidity}%`);
     }
   }, [plant, sessionStart, currentHumidity, targetHumidity, humidityStart, stopPolling, params.plantName]);
