@@ -7,11 +7,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Animated,
   Easing,
   Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -335,7 +335,7 @@ export default function WateringScreen() {
 
           <View style={styles.plantCircle}>
             {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.plantImg} resizeMode="cover" />
+              <Image source={{ uri: imageUri }} style={styles.plantImg} contentFit="cover" />
             ) : (
               <Ionicons name="leaf" size={60} color={colors.primaryLight} />
             )}

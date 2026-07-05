@@ -2,7 +2,8 @@
  * PlantCard - Con modo oscuro (useThemeColors)
  */
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ViewStyle, Image } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Card, PlantAvatar, Badge, ProgressBar, Emoji } from './ui';
 import { Typography, Spacing, HealthStatuses, PlantMoods, PlantMoodType } from '../constants/DesignSystem';
@@ -97,7 +98,7 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
             <Image
               source={{ uri: imageUrl }}
               style={styles.image}
-              resizeMode="cover"
+              contentFit="cover"
               onError={() => {
                 // Si falla la imagen remota, usamos el avatar como fallback
                 console.warn('No se pudo cargar la imagen de la planta, usando avatar por defecto.');

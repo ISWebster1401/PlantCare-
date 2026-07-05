@@ -3,7 +3,8 @@
  * Estilo Pokémon GO - fondo cielo/pasto, pasto abajo
  */
 import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -129,7 +130,7 @@ export function ScannerComplete({ imageUri, model3dUrl, onContinue }: ScannerCom
               <Image
                 source={{ uri: imageUri }}
                 style={styles.previewImage}
-                resizeMode="cover"
+                contentFit="cover"
               />
               <View style={styles.previewBadge}>
                 <Emoji name="plant" size={20} />

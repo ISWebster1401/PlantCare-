@@ -2,7 +2,8 @@
  * Scanner de galería: foto estática + animación de escaneo
  */
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { Typography, Spacing } from '../../constants/DesignSystem';
 import { useThemeColors } from '../../context/ThemeContext';
@@ -55,7 +56,7 @@ export function GalleryScanner({ imageUri, onComplete }: GalleryScannerProps) {
 
   return (
     <View style={styles.container}>
-      <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
+      <Image source={{ uri: imageUri }} style={styles.image} contentFit="cover" />
       <View style={styles.overlay}>
         <ScannerOverlay scanning progress={progress} />
         <View style={styles.progressSection}>

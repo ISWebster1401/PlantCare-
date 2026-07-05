@@ -10,11 +10,11 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
-  Image,
   TouchableOpacity,
   Modal,
   SafeAreaView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -370,7 +370,7 @@ export default function ScanPlantScreen() {
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.resultsContent}>
             {photo && (
               <Card variant="elevated" style={styles.imageCard}>
-                <Image source={{ uri: photo.uri }} style={styles.previewImage} resizeMode="cover" />
+                <Image source={{ uri: photo.uri }} style={styles.previewImage} contentFit="cover" />
               </Card>
             )}
 
@@ -503,7 +503,7 @@ export default function ScanPlantScreen() {
                 <Image
                   source={{ uri: createdImageUri }}
                   style={styles.createdImage}
-                  resizeMode="cover"
+                  contentFit="cover"
                 />
               </View>
             )}

@@ -2,7 +2,8 @@
  * PokedexCard - Con modo oscuro (useThemeColors)
  */
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Image, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Badge } from './ui';
 import { Typography, Spacing, BorderRadius } from '../constants/DesignSystem';
@@ -78,7 +79,7 @@ export const PokedexCard: React.FC<PokedexCardProps> = ({
           <Image
             source={{ uri: imageUrl }}
             style={styles.plantImage}
-            resizeMode="cover"
+            contentFit="cover"
           />
         ) : (
           // SIN IMAGEN: placeholder con hoja y candado

@@ -7,11 +7,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { pokedexAPI, plantsAPI } from '../services/api';
 import { PokedexEntryResponse } from '../types';
@@ -197,7 +197,7 @@ export default function PokedexEntryDetailScreen() {
                 <Image
                   source={{ uri: entry.discovered_photo_url }}
                   style={styles.plantImage}
-                  resizeMode="contain"
+                  contentFit="contain"
                 />
                 {entry.is_unlocked && (
                   <View style={[styles.unlockedBadge, { backgroundColor: '#4caf50' }]}>

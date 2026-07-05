@@ -10,13 +10,13 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
-  Image,
   Modal,
   Pressable,
   TextInput,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -258,7 +258,7 @@ export default function PlantDetailScreen() {
         <View style={styles.photoSection}>
           <View style={styles.photoCircle}>
             {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.plantImage} resizeMode="cover" />
+              <Image source={{ uri: imageUri }} style={styles.plantImage} contentFit="cover" />
             ) : (
               <View style={styles.photoPlaceholder}>
                 <Ionicons name="leaf" size={80} color={colors.primaryLight} />
