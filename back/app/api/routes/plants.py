@@ -10,7 +10,7 @@ from pgdbtoolkit import AsyncPgDbToolkit
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
 from ..core.openai_config import identify_plant_with_vision
-from ..core.supabase_storage import upload_image, upload_file
+from ..core.supabase_storage import upload_image, upload_file, delete_image
 # Nota: La personalización de personajes se mantiene para cuando se suban los modelos 3D manualmente
 from ..core.character_customization import (
     add_accessory_to_character,
@@ -821,6 +821,88 @@ async def rename_plant(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error renombrando planta: {str(e)}",
+        )
+
+
+def _storage_path_from_public_url(url: Optional[str]) -> Optional[str]:
+    """Extrae la ruta interna del bucket desde una URL pública de Supabase Storage.
+
+    Ej: https://x.supabase.co/storage/v1/object/public/plantcare/plants/original/a.jpg
+        -> plants/original/a.jpg
+    """
+    if not url or not isinstance(url, str):
+        return None
+    marker = "/storage/v1/object/public/"
+    idx = url.find(marker)
+    if idx == -1:
+        return None
+    rest = url[idx + len(marker):]
+    # rest = "{bucket}/{path...}"
+    parts = rest.split("/", 1)
+    if len(parts) != 2 or not parts[1]:
+        return None
+    return parts[1]
+
+
+@router.delete("/{plant_id}", status_code=status.HTTP_200_OK)
+async def delete_plant(
+    plant_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Elimina una planta del usuario.
+
+    Las tablas relacionadas se resuelven por FK: ai_conversations, notifications,
+    plant_accessory_assignments, plant_model_assignments y plant_photos tienen
+    ON DELETE CASCADE; sensors y sensor_readings tienen ON DELETE SET NULL
+    (el sensor queda desvinculado, sus lecturas se conservan).
+
+    Las imágenes en Supabase Storage se eliminan best-effort: si Storage no
+    está disponible la planta se borra igual y solo queda un warning en logs.
+    """
+    try:
+        plants_df = await db.execute_query(
+            "SELECT id, plant_name, original_photo_url, character_image_url "
+            "FROM plants WHERE id = %s AND user_id = %s LIMIT 1",
+            (plant_id, current_user["id"]),
+        )
+        if plants_df is None or plants_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Planta no encontrada",
+            )
+
+        plant = plants_df.iloc[0].to_dict()
+
+        await db.execute_query(
+            "DELETE FROM plants WHERE id = %s AND user_id = %s",
+            (plant_id, current_user["id"]),
+        )
+
+        # Limpieza best-effort de imágenes en Storage (nunca bloquea el borrado)
+        for url_field in ("original_photo_url", "character_image_url"):
+            path = _storage_path_from_public_url(plant.get(url_field))
+            if path:
+                try:
+                    delete_image(path)
+                except Exception as storage_err:
+                    logger.warning(
+                        f"No se pudo eliminar imagen de Storage ({path}): {storage_err}"
+                    )
+
+        logger.info(
+            f"Planta {plant_id} ('{plant.get('plant_name')}') eliminada por usuario {current_user['id']}"
+        )
+        return {"message": "Planta eliminada exitosamente", "plant_id": plant_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error eliminando planta: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error eliminando planta: {str(e)}",
         )
 
 

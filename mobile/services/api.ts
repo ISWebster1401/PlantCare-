@@ -241,8 +241,7 @@ export const plantsAPI = {
   },
 
   /**
-   * Elimina una planta del usuario.
-   * // TODO: verificar endpoint real del backend (DELETE /plants/{plantId})
+   * Elimina una planta del usuario (DELETE /plants/{plantId} en el backend).
    */
   deletePlant: async (plantId: number): Promise<{ message: string }> => {
     const response = await api.delete(`/plants/${plantId}`);
@@ -250,8 +249,7 @@ export const plantsAPI = {
   },
 
   /**
-   * Renombra una planta.
-   * // TODO: verificar endpoint real del backend (PATCH /plants/{plantId})
+   * Renombra una planta (PUT /plants/{plantId}/rename en el backend).
    */
   renamePlant: async (plantId: number, newName: string): Promise<PlantResponse> => {
     const response = await api.put(`/plants/${plantId}/rename`, { plant_name: newName });
