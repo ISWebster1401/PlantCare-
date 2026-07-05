@@ -1,16 +1,24 @@
 /**
  * Componente de botón animado reutilizable
- * Agrega animaciones fluidas de scale y opacity al presionar
+ * Agrega animaciones fluidas de scale y opacity al presionar.
+ * Usa reanimated (hilo de UI) para respuesta táctil sin lag.
  */
-import React, { useRef } from 'react';
+import React from 'react';
 import {
   TouchableOpacity,
   TouchableOpacityProps,
-  Animated,
   StyleSheet,
   ViewStyle,
-  TextStyle,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+
+// Equivalentes de tension=300/friction=10 del Animated clásico
+const SPRING_CONFIG = { stiffness: 300, damping: 10, mass: 1 };
 
 interface AnimatedButtonProps extends Omit<TouchableOpacityProps, 'style'> {
   children: React.ReactNode;
@@ -29,83 +37,40 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
   variant = 'primary',
   ...props
 }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
 
   const handlePressIn = (e: any) => {
     if (disabled) return;
-    
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 0.95,
-        useNativeDriver: true,
-        tension: 300,
-        friction: 10,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 0.7,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
+    scale.value = withSpring(0.95, SPRING_CONFIG);
+    opacity.value = withTiming(0.7, { duration: 100 });
     onPressIn?.(e);
   };
 
   const handlePressOut = (e: any) => {
     if (disabled) return;
-
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 300,
-        friction: 10,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
+    scale.value = withSpring(1, SPRING_CONFIG);
+    opacity.value = withTiming(1, { duration: 150 });
     onPressOut?.(e);
   };
 
   const handlePress = (e: any) => {
     if (disabled) return;
-    
-    // Reset animations
-    scaleAnim.setValue(0.95);
-    opacityAnim.setValue(0.7);
-    
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 300,
-        friction: 10,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
+    // Rebote rápido para taps sin pressIn/pressOut completos
+    scale.value = 0.95;
+    opacity.value = 0.7;
+    scale.value = withSpring(1, SPRING_CONFIG);
+    opacity.value = withTiming(1, { duration: 150 });
     onPress?.(e);
   };
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
   return (
-    <Animated.View
-      style={[
-        {
-          transform: [{ scale: scaleAnim }],
-          opacity: opacityAnim,
-        },
-        disabled && styles.disabled,
-      ]}
-    >
+    <Animated.View style={[animatedStyle, disabled && styles.disabled]}>
       <TouchableOpacity
         {...props}
         disabled={disabled}

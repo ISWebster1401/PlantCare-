@@ -19,6 +19,15 @@ import {
   Keyboard,
 } from 'react-native';
 import { Image } from 'expo-image';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withDelay,
+  withTiming,
+  cancelAnimation,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
@@ -57,82 +66,46 @@ const getWelcomeMessage = (plantName?: string): AIMessage => ({
   timestamp: new Date().toISOString(),
 });
 
-// Componente de indicador de escritura animado
-const TypingIndicator: React.FC<{ color: string }> = ({ color }) => {
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
+// Componente de indicador de escritura animado (reanimated: corre en el
+// hilo de UI, no tartamudea mientras el streaming de tokens ocupa el JS)
+const TypingDot: React.FC<{ color: string; delay: number }> = ({ color, delay }) => {
+  const translateY = useSharedValue(0);
 
   useEffect(() => {
-    const animate = (dot: Animated.Value, delay: number) => {
-      return Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.parallel([
-            Animated.timing(dot, {
-              toValue: -10,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-            Animated.timing(dot, {
-              toValue: 0,
-              duration: 400,
-              delay: 200,
-              useNativeDriver: true,
-            }),
-          ]),
-        ])
-      );
-    };
+    translateY.value = withRepeat(
+      withDelay(
+        delay,
+        withSequence(
+          withTiming(-6, { duration: 200 }),
+          withTiming(0, { duration: 400 }),
+        ),
+      ),
+      -1,
+    );
+    return () => cancelAnimation(translateY);
+  }, [translateY, delay]);
 
-    const animations = [
-      animate(dot1, 0),
-      animate(dot2, 200),
-      animate(dot3, 400),
-    ];
-
-    animations.forEach((anim) => anim.start());
-
-    return () => {
-      animations.forEach((anim) => anim.stop());
-    };
-  }, [dot1, dot2, dot3]);
-
-  const typingContainerStyle = {
-    flexDirection: 'row' as const,
-    gap: 4,
-    alignItems: 'center' as const,
-  };
-
-  const typingDotStyle = {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  };
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
   return (
-    <View style={typingContainerStyle}>
-      <Animated.View
-        style={[
-          typingDotStyle,
-          { backgroundColor: color, transform: [{ translateY: dot1 }] },
-        ]}
-      />
-      <Animated.View
-        style={[
-          typingDotStyle,
-          { backgroundColor: color, transform: [{ translateY: dot2 }] },
-        ]}
-      />
-      <Animated.View
-        style={[
-          typingDotStyle,
-          { backgroundColor: color, transform: [{ translateY: dot3 }] },
-        ]}
-      />
-    </View>
+    <Reanimated.View
+      style={[
+        { width: 8, height: 8, borderRadius: 4, backgroundColor: color },
+        dotStyle,
+      ]}
+    />
   );
 };
+
+const TypingIndicator: React.FC<{ color: string }> = ({ color }) => (
+  <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+    <TypingDot color={color} delay={0} />
+    <TypingDot color={color} delay={200} />
+    <TypingDot color={color} delay={400} />
+  </View>
+);
 
 // Sugerencias rápidas cuando el chat está vacío
 const QuickSuggestions: React.FC<{

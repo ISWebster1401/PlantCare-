@@ -7,10 +7,18 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Animated,
-  Easing,
   Alert,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withDelay,
+  withTiming,
+  cancelAnimation,
+  Easing,
+} from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,52 +75,44 @@ async function saveWateringSession(session: StoredWateringSession) {
 /* -------------------------------------------------- */
 
 function WaterDrop({ delay, left, waterDropStyle }: { delay: number; left: number; waterDropStyle?: any }) {
-  const translateY = useRef(new Animated.Value(-30)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useSharedValue(-30);
+  const opacity = useSharedValue(0);
 
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.parallel([
-          Animated.timing(translateY, {
-            toValue: 180,
-            duration: 1200,
-            easing: Easing.in(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.sequence([
-            Animated.timing(opacity, {
-              toValue: 1,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-            Animated.delay(700),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: true,
-            }),
-          ]),
-        ]),
-        Animated.timing(translateY, {
-          toValue: -30,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ]),
+    // Ambos loops duran delay + 1200ms por iteración, así se mantienen en sincronía
+    translateY.value = withRepeat(
+      withDelay(
+        delay,
+        withSequence(
+          withTiming(180, { duration: 1200, easing: Easing.in(Easing.quad) }),
+          withTiming(-30, { duration: 0 }),
+        ),
+      ),
+      -1,
     );
-    anim.start();
-    return () => anim.stop();
+    opacity.value = withRepeat(
+      withDelay(
+        delay,
+        withSequence(
+          withTiming(1, { duration: 200 }),
+          withDelay(700, withTiming(0, { duration: 300 })),
+        ),
+      ),
+      -1,
+    );
+    return () => {
+      cancelAnimation(translateY);
+      cancelAnimation(opacity);
+    };
   }, [delay, translateY, opacity]);
 
+  const dropStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
   return (
-    <Animated.Text
-      style={[
-        waterDropStyle,
-        { left: `${left}%`, transform: [{ translateY }], opacity },
-      ]}
-    >
+    <Animated.Text style={[waterDropStyle, { left: `${left}%` }, dropStyle]}>
       💧
     </Animated.Text>
   );
@@ -139,7 +139,7 @@ export default function WateringScreen() {
   const [noSensor, setNoSensor] = useState(false);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useSharedValue(1);
 
   /* --- carga planta --- */
 
@@ -173,18 +173,23 @@ export default function WateringScreen() {
 
   useEffect(() => {
     if (!isWatering) {
-      pulseAnim.setValue(1);
+      cancelAnimation(pulseAnim);
+      pulseAnim.value = 1;
       return;
     }
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 600, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ]),
+    pulseAnim.value = withRepeat(
+      withSequence(
+        withTiming(1.08, { duration: 600 }),
+        withTiming(1, { duration: 600 }),
+      ),
+      -1,
     );
-    anim.start();
-    return () => anim.stop();
+    return () => cancelAnimation(pulseAnim);
   }, [isWatering, pulseAnim]);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseAnim.value }],
+  }));
 
   /* --- polling sensor real --- */
 
@@ -391,7 +396,7 @@ export default function WateringScreen() {
         )}
 
         {/* Botón principal */}
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+        <Animated.View style={pulseStyle}>
           {noSensor ? (
             <TouchableOpacity
               style={[styles.waterButton, { backgroundColor: colors.accent }]}

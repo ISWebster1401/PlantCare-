@@ -1,80 +1,78 @@
 /**
  * Nubes animadas de fondo - estilo Pokémon GO (soporta tema)
+ * Animadas con reanimated: corren en el hilo de UI y no se traban
+ * aunque el hilo de JS esté ocupado.
  */
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withDelay,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
-export function CloudsBackground() {
-  const { isDark } = useTheme();
-  const cloud1 = useRef(new Animated.Value(0)).current;
-  const cloud2 = useRef(new Animated.Value(0)).current;
-  const cloud3 = useRef(new Animated.Value(0)).current;
+function Cloud({
+  duration,
+  delay,
+  cloudStyle,
+  opacity,
+  color,
+}: {
+  duration: number;
+  delay: number;
+  cloudStyle: object;
+  opacity: number;
+  color: string;
+}) {
+  const translateX = useSharedValue(0);
 
   useEffect(() => {
-    const animateCloud = (cloud: Animated.Value, duration: number, delay: number) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(cloud, {
-            toValue: width + 100,
-            duration,
-            useNativeDriver: true,
-          }),
-          Animated.timing(cloud, {
-            toValue: -100,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    };
+    translateX.value = withRepeat(
+      withDelay(
+        delay,
+        withSequence(
+          withTiming(width + 100, { duration, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-100, { duration: 0 }),
+        ),
+      ),
+      -1,
+    );
+  }, [translateX, duration, delay]);
 
-    animateCloud(cloud1, 25000, 0);
-    animateCloud(cloud2, 30000, 5000);
-    animateCloud(cloud3, 20000, 10000);
-  }, [cloud1, cloud2, cloud3]);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.cloud,
+        cloudStyle,
+        animatedStyle,
+        { backgroundColor: color, opacity },
+      ]}
+    />
+  );
+}
+
+export function CloudsBackground() {
+  const { isDark } = useTheme();
 
   const cloudOpacity = isDark ? 0.08 : 0.85;
   const cloudColor = '#FFFFFF';
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Animated.View
-        style={[
-          styles.cloud,
-          styles.cloud1,
-          {
-            transform: [{ translateX: cloud1 }],
-            backgroundColor: cloudColor,
-            opacity: cloudOpacity,
-          },
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.cloud,
-          styles.cloud2,
-          {
-            transform: [{ translateX: cloud2 }],
-            backgroundColor: cloudColor,
-            opacity: cloudOpacity * 0.7,
-          },
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.cloud,
-          styles.cloud3,
-          {
-            transform: [{ translateX: cloud3 }],
-            backgroundColor: cloudColor,
-            opacity: cloudOpacity * 0.5,
-          },
-        ]}
-      />
+      <Cloud duration={25000} delay={0} cloudStyle={styles.cloud1} opacity={cloudOpacity} color={cloudColor} />
+      <Cloud duration={30000} delay={5000} cloudStyle={styles.cloud2} opacity={cloudOpacity * 0.7} color={cloudColor} />
+      <Cloud duration={20000} delay={10000} cloudStyle={styles.cloud3} opacity={cloudOpacity * 0.5} color={cloudColor} />
     </View>
   );
 }
