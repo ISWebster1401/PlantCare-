@@ -902,56 +902,26 @@ async def _seed_plant_models(db: AsyncPgDbToolkit):
                 logger.info(f"✅ Ya existen {count} modelos 3D en la base de datos, omitiendo inserción")
                 return
         
-        # Modelos base con URLs placeholder
+        # Solo los modelos que realmente existen en Supabase Storage
+        # (proyecto PlantCare-v2 / axahnwmfguujxkelmolu, generados con meshy.ai).
+        # Los tipos sin modelo 3D quedan sin fila: la app muestra su fallback 2D.
         models = [
             {
                 "plant_type": "Cactus",
                 "name": "Cactus Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/cactus_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/cactus_default_render.jpg",
+                "model_3d_url": "https://axahnwmfguujxkelmolu.supabase.co/storage/v1/object/public/plantcare/3d_models/cactus_default.glb",
+                "default_render_url": None,
                 "is_default": True,
                 "metadata": {"category": "succulent", "scale": 1.0}
             },
             {
-                "plant_type": "Suculenta",
-                "name": "Suculenta Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/suculenta_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/suculenta_default_render.jpg",
+                "plant_type": "Amapola",
+                "name": "Amapola de California",
+                "model_3d_url": "https://axahnwmfguujxkelmolu.supabase.co/storage/v1/object/public/plantcare/3d_models/amapola_california_default.glb",
+                "default_render_url": None,
                 "is_default": True,
-                "metadata": {"category": "succulent", "scale": 1.0}
+                "metadata": {"category": "flower", "scale": 1.0}
             },
-            {
-                "plant_type": "Monstera",
-                "name": "Monstera Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/monstera_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/monstera_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "tropical", "scale": 1.2}
-            },
-            {
-                "plant_type": "Helecho",
-                "name": "Helecho Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/helecho_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/helecho_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "fern", "scale": 1.1}
-            },
-            {
-                "plant_type": "Rosa",
-                "name": "Rosa Default",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/rosa_default.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/rosa_default_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "flower", "scale": 0.8}
-            },
-            {
-                "plant_type": "Planta",
-                "name": "Planta Genérica",
-                "model_3d_url": "PLACEHOLDER_upload_to_supabase/planta_generica.glb",
-                "default_render_url": "PLACEHOLDER_upload_to_supabase/planta_generica_render.jpg",
-                "is_default": True,
-                "metadata": {"category": "generic", "scale": 1.0}
-            }
         ]
         
         # Insertar modelos usando execute_query

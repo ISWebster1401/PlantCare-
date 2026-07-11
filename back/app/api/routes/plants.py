@@ -149,6 +149,11 @@ def _normalize_plant_type(plant_type: str) -> str:
         # Helecho
         "helecho": "Helecho",
         "fern": "Helecho",
+
+        # Amapola de California
+        "amapola": "Amapola",
+        "eschscholzia": "Amapola",
+        "california poppy": "Amapola",
         
         # Dólar
         "dólar": "Dólar",
