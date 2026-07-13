@@ -315,6 +315,26 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
             model.position.y += scaledSize.y * 0.5 - 1.0;
           }
 
+          // ── Parche de color para modelos sin textura ──
+          // Los modelos actuales (meshy.ai, exportados solo con geometría) no
+          // traen material ni textura, así que GLTFLoader les asigna un material
+          // blanco plano. Mientras no subamos las versiones texturizadas, les
+          // aplicamos un verde del design system y calculamos las normales que
+          // faltan para que el sombreado no se vea plano. Los modelos que SÍ
+          // traigan textura (map) no se tocan, así el reemplazo futuro es directo.
+          model.traverse((child: any) => {
+            if (child.isMesh && !(child.material && child.material.map)) {
+              if (child.geometry && !child.geometry.attributes.normal) {
+                child.geometry.computeVertexNormals();
+              }
+              child.material = new THREE.MeshStandardMaterial({
+                color: 0x5a9e3a,
+                roughness: 0.85,
+                metalness: 0.0,
+              });
+            }
+          });
+
           scene.add(model);
           modelRef.current = model;
           setIsLoaded(true);

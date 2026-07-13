@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlantCare — QA de Modelos 3D</title>
+  <script type="module" src="https://unpkg.com/@google/model-viewer@3.4.0/dist/model-viewer.min.js"></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; margin: 0; padding: 24px; background: #0d1f0d; color: #e8f5e9; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.hint { color: #a5d6a7; margin: 0 0 20px; font-size: 13px; }
+    .grid { display: flex; gap: 20px; flex-wrap: wrap; }
+    .card { background: #1a2e1a; border-radius: 16px; padding: 16px; }
+    .card h2 { font-size: 15px; margin: 0 0 10px; color: #81c784; }
+    model-viewer { width: 420px; height: 420px; background: #e7f5e7; border-radius: 12px; }
+    .meta { font-size: 12px; color: #a5d6a7; margin-top: 8px; max-width: 420px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>🌱 PlantCare — QA de Modelos 3D</h1>
+  <p class="hint">Herramienta interna: verifica cómo se ve un .glb antes de conectarlo a la app.
+     Para probar un modelo nuevo, duplica una tarjeta y cambia el atributo <code>src</code>.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Cactus Default (plant_type: Cactus)</h2>
+      <model-viewer id="cactus"
+        src="https://axahnwmfguujxkelmolu.supabase.co/storage/v1/object/public/plantcare/3d_models/cactus_default.glb"
+        camera-controls auto-rotate rotation-per-second="30deg"
+        shadow-intensity="1" exposure="1"></model-viewer>
+      <div class="meta">3d_models/cactus_default.glb — 6.4MB, meshy.ai</div>
+    </div>
+
+    <div class="card">
+      <h2>Amapola de California (plant_type: Amapola)</h2>
+      <model-viewer id="amapola"
+        src="https://axahnwmfguujxkelmolu.supabase.co/storage/v1/object/public/plantcare/3d_models/amapola_california_default.glb"
+        camera-controls auto-rotate rotation-per-second="30deg"
+        shadow-intensity="1" exposure="1"></model-viewer>
+      <div class="meta">3d_models/amapola_california_default.glb — 6.4MB, meshy.ai</div>
+    </div>
+  </div>
+
+  <script>
+    // Marca en el título cuándo ambos modelos terminaron de cargar (útil para automatización)
+    let loaded = 0;
+    for (const id of ['cactus', 'amapola']) {
+      const mv = document.getElementById(id);
+      mv.addEventListener('load', () => { if (++loaded === 2) document.title = 'MODELOS_CARGADOS'; });
+      mv.addEventListener('error', (e) => { document.title = 'ERROR_CARGA_' + id; });
+    }
+  </script>
+</body>
+</html>
