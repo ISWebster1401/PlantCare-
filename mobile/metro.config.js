@@ -4,6 +4,13 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
+// Deshabilitar watchman: el proyecto vive bajo ~/Documents (sincronizado por
+// iCloud Drive), donde watchman falla con "Resource deadlock avoided" (errno 35)
+// al resolver el root y tumba a Metro. Sin watchman, Metro usa el crawler de
+// Node (algo más lento pero estable). Solución de raíz: mover el repo a una
+// carpeta fuera de iCloud, p.ej. ~/dev/PlantCare-.
+config.resolver.useWatchman = false;
+
 // Soporte para SVGs como componentes (Twemoji emojis)
 config.transformer = {
   ...config.transformer,
