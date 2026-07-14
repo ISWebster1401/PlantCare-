@@ -19,6 +19,55 @@ else:
     logger.info("✅ OPENAI_API_KEY configurada correctamente")
 
 
+class AIServiceError(Exception):
+    """
+    Error del servicio de IA con un mensaje ya listo para mostrar al usuario.
+    Evita filtrar el JSON crudo de OpenAI (quota, keys, etc.) a la app.
+    """
+    def __init__(self, user_message: str, status_code: int = 503):
+        self.user_message = user_message
+        self.status_code = status_code
+        super().__init__(user_message)
+
+
+def _friendly_openai_error(e: Exception) -> AIServiceError:
+    """Traduce una excepción de OpenAI a un AIServiceError con mensaje amigable."""
+    # Sin créditos / cuota agotada (429 insufficient_quota)
+    if isinstance(e, openai.RateLimitError):
+        detail = str(e).lower()
+        if "insufficient_quota" in detail or "exceeded your current quota" in detail:
+            return AIServiceError(
+                "El servicio de identificación no está disponible por ahora. "
+                "Vuelve a intentarlo más tarde.", 503,
+            )
+        return AIServiceError(
+            "Hay muchas solicitudes en este momento. Espera unos segundos e intenta de nuevo.", 429,
+        )
+    # API key inválida / permisos
+    if isinstance(e, (openai.AuthenticationError, openai.PermissionDeniedError)):
+        return AIServiceError(
+            "El servicio de identificación no está disponible por ahora. "
+            "Vuelve a intentarlo más tarde.", 503,
+        )
+    # Timeouts / problemas de conexión con OpenAI
+    if isinstance(e, (openai.APITimeoutError, openai.APIConnectionError)):
+        return AIServiceError(
+            "La identificación tardó demasiado. Revisa tu conexión e intenta de nuevo.", 504,
+        )
+    # Cualquier otro error de la IA
+    return AIServiceError("No se pudo identificar la planta. Intenta con otra foto.", 502)
+
+
+# Errores de OpenAI que NO tiene sentido reintentar con el fallback
+# (misma cuenta/key: si no hay créditos o la key es inválida, el 2º intento
+# fallaría igual y gastaría otra llamada).
+_NON_RETRYABLE_OPENAI = (
+    openai.RateLimitError,
+    openai.AuthenticationError,
+    openai.PermissionDeniedError,
+)
+
+
 async def identify_plant_with_vision(image_url: str, plant_species: Optional[str] = None) -> Dict[str, any]:
     """
     Usa GPT-4o Vision para identificar una planta con alta precisión.
@@ -219,9 +268,14 @@ Proporciona también información de cuidado ESPECÍFICA para la especie identif
         logger.info(f"✅ Planta identificada: {result['plant_type']} ({result['scientific_name']})")
         return result
         
+    except _NON_RETRYABLE_OPENAI as e:
+        # Sin créditos / key inválida: el fallback usaría la misma cuenta y
+        # fallaría igual. Devolvemos mensaje amigable directo, sin 2º intento.
+        logger.error(f"Error irrecuperable de OpenAI: {str(e)}")
+        raise _friendly_openai_error(e)
     except Exception as e:
         logger.error(f"Error identificando planta con OpenAI: {str(e)}", exc_info=True)
-        # Si structured outputs falla, intentar método tradicional como fallback
+        # Otros errores (parseo, formato): intentar método tradicional como fallback
         logger.warning("⚠️ Intentando método tradicional sin structured outputs...")
         return await _identify_plant_fallback(image_url, plant_species)
 
@@ -297,10 +351,12 @@ Responde SOLO con JSON válido:
     except json.JSONDecodeError as e:
         logger.error(f"Error parseando JSON (fallback): {str(e)}")
         logger.error(f"Contenido recibido: {content}")
-        raise Exception("No se pudo parsear la respuesta de la IA")
+        raise AIServiceError("No se pudo identificar la planta. Intenta con otra foto.", 502)
+    except AIServiceError:
+        raise
     except Exception as e:
         logger.error(f"Error en método fallback: {str(e)}")
-        raise
+        raise _friendly_openai_error(e)
 
 
 async def generate_character_with_dalle(plant_type: str, plant_name: str, mood: str = "happy") -> str:

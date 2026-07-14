@@ -9,7 +9,7 @@ from pgdbtoolkit import AsyncPgDbToolkit
 
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
-from ..core.openai_config import identify_plant_with_vision
+from ..core.openai_config import identify_plant_with_vision, AIServiceError
 from ..core.supabase_storage import upload_image, upload_file, delete_image
 # Nota: La personalización de personajes se mantiene para cuando se suban los modelos 3D manualmente
 from ..core.character_customization import (
@@ -417,13 +417,16 @@ async def identify_plant(
 
         return PlantIdentify(**plant_data)
 
+    except AIServiceError as e:
+        # Mensaje ya amigable (sin créditos, timeout, etc.) — no exponer el error crudo
+        raise HTTPException(status_code=e.status_code, detail=e.user_message)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error identificando planta: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error identificando planta: {str(e)}",
+            detail="No se pudo identificar la planta. Intenta con otra foto.",
         )
 
 
@@ -590,13 +593,15 @@ async def create_plant(
         logger.info(f"   default_render_url: {plant.get('default_render_url')}")
         return PlantResponse(**plant)
 
+    except AIServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.user_message)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error creando planta: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creando planta: {str(e)}",
+            detail="No se pudo crear la planta. Intenta de nuevo.",
         )
 
 
@@ -1939,13 +1944,15 @@ async def scan_pokedex(
             discovered_at=unlock_dict["discovered_at"]
         )
 
+    except AIServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.user_message)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error escaneando planta para pokedex: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error escaneando planta para pokedex: {str(e)}",
+            detail="No se pudo identificar la planta. Intenta con otra foto.",
         )
 
 
