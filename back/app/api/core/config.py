@@ -90,10 +90,17 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))  # 1 hora por defecto
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
-    # Configuración de IA (solo OpenAI para reconocimiento de plantas)
+    # Configuración de IA (OpenAI para reconocimiento de plantas y chat)
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "").strip()
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "True").lower() == "true"
+
+    # Identificación de plantas: "plantnet" (gratis, especializado) o "openai" (GPT-4o).
+    # Pl@ntNet no requiere créditos de pago; obtén tu key gratis en https://my.plantnet.org/
+    PLANT_ID_PROVIDER: str = os.getenv("PLANT_ID_PROVIDER", "plantnet").strip().lower()
+    PLANTNET_API_KEY: str = os.getenv("PLANTNET_API_KEY", "").strip()
+    # Proyecto/flora de Pl@ntNet: "all" (mundial), "weurope", "canada", etc.
+    PLANTNET_PROJECT: str = os.getenv("PLANTNET_PROJECT", "all").strip()
 
     # ============================================
     # Configuración de Supabase Storage

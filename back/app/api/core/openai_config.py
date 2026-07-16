@@ -68,6 +68,28 @@ _NON_RETRYABLE_OPENAI = (
 )
 
 
+async def identify_plant(
+    image_bytes: bytes,
+    filename: str,
+    image_url: str,
+    plant_species: Optional[str] = None,
+) -> Dict[str, any]:
+    """
+    Identifica una planta con el proveedor configurado en settings.PLANT_ID_PROVIDER.
+
+    - "plantnet": usa Pl@ntNet con los bytes de la imagen (gratis, sin OpenAI).
+    - "openai" (u otro): usa GPT-4o Vision con la URL de la imagen (requiere créditos).
+
+    Ambos devuelven el mismo dict (plant_type, scientific_name, care_level,
+    care_tips, rangos óptimos), así que el resto del flujo no cambia.
+    """
+    if settings.PLANT_ID_PROVIDER == "plantnet" and settings.PLANTNET_API_KEY:
+        # Import diferido: evita el ciclo openai_config <-> plantnet_config
+        from .plantnet_config import identify_plant_with_plantnet
+        return identify_plant_with_plantnet(image_bytes, filename, plant_species)
+    return await identify_plant_with_vision(image_url, plant_species=plant_species)
+
+
 async def identify_plant_with_vision(image_url: str, plant_species: Optional[str] = None) -> Dict[str, any]:
     """
     Usa GPT-4o Vision para identificar una planta con alta precisión.

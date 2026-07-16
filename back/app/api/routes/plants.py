@@ -9,7 +9,7 @@ from pgdbtoolkit import AsyncPgDbToolkit
 
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
-from ..core.openai_config import identify_plant_with_vision, AIServiceError
+from ..core.openai_config import identify_plant, AIServiceError
 from ..core.supabase_storage import upload_image, upload_file, delete_image
 # Nota: La personalización de personajes se mantiene para cuando se suban los modelos 3D manualmente
 from ..core.character_customization import (
@@ -412,8 +412,11 @@ async def identify_plant(
         file_buffer = BytesIO(file_content)
         
         original_photo_url = upload_image(file_buffer, folder="plants/original")
-        # Pasar especie si el usuario la proporcionó
-        plant_data = await identify_plant_with_vision(original_photo_url, plant_species=plant_species)
+        # Identificar con el proveedor configurado (Pl@ntNet usa los bytes; OpenAI la URL)
+        plant_data = await identify_plant(
+            file_content, file.filename or "plant.jpg", original_photo_url,
+            plant_species=plant_species,
+        )
 
         return PlantIdentify(**plant_data)
 
@@ -494,7 +497,10 @@ async def create_plant(
         logger.info("Identificando planta...")
         if plant_species:
             logger.info(f"Usuario proporcionó especie: {plant_species}. Mejorando identificación...")
-        plant_data = await identify_plant_with_vision(original_photo_url, plant_species=plant_species)
+        plant_data = await identify_plant(
+            file_content, file.filename or "plant.jpg", original_photo_url,
+            plant_species=plant_species,
+        )
 
         # 3. Guardar en DB usando execute_query con INSERT
         # Nota: character_image_url se establecerá manualmente después cuando se cree el modelo 3D
@@ -1844,10 +1850,13 @@ async def scan_pokedex(
         
         discovered_photo_url = upload_image(file_buffer, folder="pokedex")
 
-        # 2. Identificar planta con IA
+        # 2. Identificar planta con el proveedor configurado (Pl@ntNet/OpenAI)
         if plant_species:
             logger.info(f"Usuario proporcionó especie para pokedex: {plant_species}")
-        plant_data = await identify_plant_with_vision(discovered_photo_url, plant_species=plant_species)
+        plant_data = await identify_plant(
+            file_content, file.filename or "plant.jpg", discovered_photo_url,
+            plant_species=plant_species,
+        )
 
         identified_scientific = plant_data.get("scientific_name", "")
         identified_type = plant_data.get("plant_type", "")
