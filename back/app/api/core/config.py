@@ -95,9 +95,9 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     AI_ENABLED: bool = os.getenv("AI_ENABLED", "True").lower() == "true"
 
-    # Identificación de plantas: "plantnet" (gratis, especializado) o "openai" (GPT-4o).
-    # Pl@ntNet no requiere créditos de pago; obtén tu key gratis en https://my.plantnet.org/
-    PLANT_ID_PROVIDER: str = os.getenv("PLANT_ID_PROVIDER", "plantnet").strip().lower()
+    # Identificación de plantas: "openai" (GPT-4o, requiere créditos) o
+    # "plantnet" (gratis; queda como alternativa configurable). Default: openai.
+    PLANT_ID_PROVIDER: str = os.getenv("PLANT_ID_PROVIDER", "openai").strip().lower()
     PLANTNET_API_KEY: str = os.getenv("PLANTNET_API_KEY", "").strip()
     # Proyecto/flora de Pl@ntNet: "all" (mundial), "weurope", "canada", etc.
     PLANTNET_PROJECT: str = os.getenv("PLANTNET_PROJECT", "all").strip()
