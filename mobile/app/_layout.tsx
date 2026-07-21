@@ -6,6 +6,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '../context/AuthContext';
 import { ThemeProvider, useThemeColors } from '../context/ThemeContext';
 
+// En producción (build no-__DEV__) silenciamos los logs de desarrollo: evitan
+// exponer datos (tokens, respuestas de API) en la consola del dispositivo y
+// ahorran trabajo en el hilo JS. console.error se conserva para reportar fallos.
+if (!__DEV__) {
+  console.log = () => {};
+  console.info = () => {};
+  console.debug = () => {};
+  console.warn = () => {};
+}
+
 function ThemedStack() {
   const colors = useThemeColors();
   return (
