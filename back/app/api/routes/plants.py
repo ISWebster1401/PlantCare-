@@ -9,7 +9,7 @@ from pgdbtoolkit import AsyncPgDbToolkit
 
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
-from ..core.openai_config import identify_plant, AIServiceError
+from ..core.openai_config import identify_plant as run_plant_identification, AIServiceError
 from ..core.supabase_storage import upload_image, upload_file, delete_image
 # Nota: La personalización de personajes se mantiene para cuando se suban los modelos 3D manualmente
 from ..core.character_customization import (
@@ -413,7 +413,7 @@ async def identify_plant(
         
         original_photo_url = upload_image(file_buffer, folder="plants/original")
         # Identificar con el proveedor configurado (Pl@ntNet usa los bytes; OpenAI la URL)
-        plant_data = await identify_plant(
+        plant_data = await run_plant_identification(
             file_content, file.filename or "plant.jpg", original_photo_url,
             plant_species=plant_species,
         )
@@ -497,7 +497,7 @@ async def create_plant(
         logger.info("Identificando planta...")
         if plant_species:
             logger.info(f"Usuario proporcionó especie: {plant_species}. Mejorando identificación...")
-        plant_data = await identify_plant(
+        plant_data = await run_plant_identification(
             file_content, file.filename or "plant.jpg", original_photo_url,
             plant_species=plant_species,
         )
@@ -1853,7 +1853,7 @@ async def scan_pokedex(
         # 2. Identificar planta con el proveedor configurado (Pl@ntNet/OpenAI)
         if plant_species:
             logger.info(f"Usuario proporcionó especie para pokedex: {plant_species}")
-        plant_data = await identify_plant(
+        plant_data = await run_plant_identification(
             file_content, file.filename or "plant.jpg", discovered_photo_url,
             plant_species=plant_species,
         )
