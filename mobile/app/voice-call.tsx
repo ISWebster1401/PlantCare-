@@ -298,6 +298,10 @@ export default function VoiceCallScreen() {
           linearPCMIsFloat: false,
         },
         web: {},
+        // Sin esto expo-av no reporta el nivel de audio (status.metering queda
+        // undefined), así que la detección de voz nunca se disparaba y la
+        // llamada se quedaba en "Voz detectada: false" para siempre.
+        isMeteringEnabled: true,
       });
 
       recording.setOnRecordingStatusUpdate((status) => {

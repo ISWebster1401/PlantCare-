@@ -54,12 +54,21 @@ def _sanitize_plant_url(url: Optional[str]) -> Optional[str]:
 
 def _sanitize_plant_response_urls(plant: dict) -> None:
     """Modifica in-place los campos URL de una planta para no enviar placeholders al cliente.
-    
-    NOTA: Deshabilitado temporalmente - Supabase puede pausar buckets y reactivarlos,
-    así que devolvemos las URLs tal cual para que funcionen cuando Supabase esté activo.
+
+    Estaba deshabilitado por miedo a descartar URLs de Supabase pausado, pero
+    _sanitize_plant_url solo descarta lo que nunca podría cargar: valores
+    "PLACEHOLDER_..." y cadenas que no son http(s). Las URLs reales pasan
+    intactas aunque el bucket esté dormido.
+
+    Importa porque la app elige la primera imagen no nula
+    (character_image_url -> default_render_url -> original_photo_url): si un
+    placeholder llega como si fuera URL, gana sobre la foto real y la planta
+    se ve en blanco.
     """
-    # Deshabilitado: las URLs de Supabase/Cloudinary son válidas, solo estaban pausadas
-    pass
+    for field in ("original_photo_url", "character_image_url",
+                  "default_render_url", "model_3d_url"):
+        if field in plant:
+            plant[field] = _sanitize_plant_url(plant.get(field))
 
 
 def require_admin(current_user: dict = Depends(get_current_active_user)):
