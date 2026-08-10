@@ -40,7 +40,12 @@ const { width, height } = Dimensions.get('window');
 
 const REALTIME_WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-realtime';
 const SILENCE_THRESHOLD = -20; // dB - Aún menos sensible - solo detecta voz clara
-const SILENCE_DURATION_TO_SEND = 3000; // 3 segundos de silencio antes de enviar
+// 1.5s se siente conversacional; con 3s la planta tardaba demasiado en contestar
+const SILENCE_DURATION_TO_SEND = 1500;
+// Si el usuario no habla, se reinicia la grabación cada tanto para no acumular
+// silencio: una frase corta llegaba a mandar ~1 MB (unos 21s de audio), lo que
+// hace lenta la subida y encarece la llamada.
+const IDLE_RESTART_MS = 8000;
 const MIN_VOICE_DURATION = 300; // ms - Mínimo de sonido continuo para considerar "voz"
 const VOICE_CONFIRM_THRESHOLD = 3; // Número de lecturas consecutivas con sonido
 
@@ -336,15 +341,20 @@ export default function VoiceCallScreen() {
 
         const timeSinceLastSound = Date.now() - lastSoundTimeRef.current;
 
-        // Debug: ver el estado actual
-        console.log(`[TIMER] Silencio: ${(timeSinceLastSound / 1000).toFixed(1)}s | Voz detectada: ${hasDetectedVoiceRef.current} | Threshold: ${SILENCE_DURATION_TO_SEND / 1000}s`);
-
         // Si hay silencio suficiente Y se detectó voz antes, enviar
         if (timeSinceLastSound > SILENCE_DURATION_TO_SEND && hasDetectedVoiceRef.current) {
           console.log('[SEND] Enviando audio...');
           hasDetectedVoiceRef.current = false;
           consecutiveSoundCountRef.current = 0;
           await sendAudioToOpenAI();
+          return;
+        }
+
+        // Nadie habló en un buen rato: reiniciar la grabación para vaciar el
+        // buffer de silencio acumulado (si no, el próximo envío pesa de más).
+        if (!hasDetectedVoiceRef.current && timeSinceLastSound > IDLE_RESTART_MS) {
+          await stopListening();
+          if (!isSpeakingRef.current && !isMuted) startListening();
         }
       }, 500);
     } catch (error) {
