@@ -367,6 +367,7 @@ export default function VoiceCallScreen() {
 
         if (base64Pcm && base64Pcm.length > 5000) { // Mínimo ~100ms de audio real
           setStatus('processing');
+          console.log(`[REALTIME] enviando ${Math.round(base64Pcm.length / 1024)}KB de audio a OpenAI`);
           wsRef.current.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: base64Pcm }));
           wsRef.current.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
           wsRef.current.send(JSON.stringify({ type: 'response.create' }));
@@ -475,6 +476,7 @@ export default function VoiceCallScreen() {
       case 'response.audio.delta':
       case 'response.output_audio.delta':
         if (data.delta) {
+          if (audioQueueRef.current.length === 0) console.log('[REALTIME] llegó respuesta de audio ✅');
           audioQueueRef.current.push(data.delta);
           setStatus('speaking');
         }
@@ -490,6 +492,9 @@ export default function VoiceCallScreen() {
       case 'error':
         const code = data.error?.code;
         const msg = data.error?.message || 'Error';
+        // Siempre al log: sin esto, en pantalla solo se ve "Error" y no hay
+        // forma de saber qué rechazó OpenAI.
+        console.error(`[REALTIME] error de OpenAI (${code || 'sin código'}): ${msg}`);
         if (code === 'conversation_already_has_active_response') return;
         setErrorMessage(msg);
         break;
@@ -538,12 +543,11 @@ REGLAS: Responde SIEMPRE en español. Mantén respuestas CORTAS (1-2 oraciones).
               input: {
                 format: { type: 'audio/pcm', rate: 24000 },
                 transcription: { model: 'whisper-1' },
-                turn_detection: {
-                  type: 'server_vad',
-                  threshold: 0.5,
-                  silence_duration_ms: 1000,
-                  prefix_padding_ms: 300,
-                },
+                // Sin VAD del servidor: esta app no transmite audio continuo,
+                // graba por turnos y envía el bloque completo con commit +
+                // response.create. Con server_vad los dos compiten por decidir
+                // cuándo termina el turno y OpenAI rechaza la respuesta.
+                turn_detection: null,
               },
               output: {
                 format: { type: 'audio/pcm', rate: 24000 },
