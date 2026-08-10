@@ -68,6 +68,17 @@ export default function ProfileScreen() {
           />
           <View style={styles.divider} />
           <Button
+            title="Mis Logros"
+            onPress={() => router.push('/achievements')}
+            variant="ghost"
+            size="lg"
+            icon="trophy-outline"
+            iconPosition="left"
+            fullWidth
+            style={styles.menuItem}
+          />
+          <View style={styles.divider} />
+          <Button
             title="Notificaciones"
             onPress={() => router.push('/notifications')}
             variant="ghost"

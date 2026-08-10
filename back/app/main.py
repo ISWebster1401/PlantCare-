@@ -21,7 +21,7 @@ from app.api.core.log import logger, log_startup, log_shutdown, log_error_with_c
 from app.api.core.database import init_db, close_db, health_check, get_database_stats
 from app.api.core.supabase_storage import init_supabase
 from app.api.core.redis_cache import init_redis
-from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo, uploads, plants, sensors, notifications, streaks
+from app.api.routes import auth, humedad, devices, ai, contact, admin, reports, demo, uploads, plants, sensors, notifications, streaks, achievements
 from app.api.routes import demo_data
 
 # Crear aplicación FastAPI
@@ -164,6 +164,7 @@ app.include_router(plants.router, prefix="/api")
 app.include_router(sensors.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(streaks.router, prefix="/api")
+app.include_router(achievements.router, prefix="/api")
 app.include_router(demo_data.router, prefix="/api")
 
 # Ruta raíz

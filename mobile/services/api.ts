@@ -693,4 +693,40 @@ export const streaksAPI = {
   },
 };
 
+// ============================================
+// ACHIEVEMENTS API (logros)
+// ============================================
+
+export interface AchievementItem {
+  id: number;
+  name: string;
+  description: string | null;
+  points: number;
+  requirement_value: number;
+  progress: number;
+  /** false si el criterio aún no se puede medir (ej: histórico de sensores) */
+  measurable: boolean;
+  earned: boolean;
+  earned_at: string | null;
+}
+
+export interface AchievementsSummary {
+  total_points: number;
+  earned_count: number;
+  total_count: number;
+  achievements: AchievementItem[];
+}
+
+export const achievementsAPI = {
+  /**
+   * Logros con su progreso (GET /achievements/).
+   * El backend evalúa los criterios al consultar, así que abrir la pantalla
+   * desbloquea lo que ya se cumplió.
+   */
+  getMyAchievements: async (): Promise<AchievementsSummary> => {
+    const response = await api.get('/achievements/');
+    return response.data;
+  },
+};
+
 export default api;

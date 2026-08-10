@@ -168,6 +168,15 @@ function ThemedStack() {
           animationDuration: 300,
         }}
       />
+
+      {/* Logros - Slide desde derecha */}
+      <Stack.Screen
+        name="achievements"
+        options={{
+          animation: 'slide_from_right',
+          animationDuration: 300,
+        }}
+      />
     </Stack>
   );
 }
