@@ -262,7 +262,11 @@ export default function WateringScreen() {
         await saveWateringSession(session);
       }
 
-      Alert.alert('Riego registrado', `Duración: ${formatDuration(durationSeconds)}\nHumedad: ${humidityStart}% → ${currentHumidity}%`);
+      // En riego manual no hay humedad que mostrar (antes salía "0% → null%")
+      const detalle = noSensor || currentHumidity == null
+        ? `Duración: ${formatDuration(durationSeconds)}`
+        : `Duración: ${formatDuration(durationSeconds)}\nHumedad: ${humidityStart}% → ${currentHumidity}%`;
+      Alert.alert('Riego registrado', `${detalle}\n\n¡Suma para tu racha! 🔥`);
     }
   }, [plant, sessionStart, currentHumidity, targetHumidity, humidityStart, stopPolling, params.plantName]);
 

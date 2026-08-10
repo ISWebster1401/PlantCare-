@@ -557,11 +557,30 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 ('Coleccionista', 'Registra 5 plantas diferentes', 75, 'plants_count', 5),
                 ('Hidratación Perfecta', 'Mantén la humedad ideal por 14 días', 60, 'optimal_humidity_streak', 14),
                 ('Maestro Botánico', 'Identifica 10 plantas diferentes', 80, 'plants_identified', 10),
-                ('Guardián del Jardín', 'Mantén 3 plantas saludables simultáneamente', 90, 'healthy_plants_simultaneous', 3)
+                ('Guardián del Jardín', 'Mantén 3 plantas saludables simultáneamente', 90, 'healthy_plants_simultaneous', 3),
+                ('Primer Riego', 'Registra tu primer riego', 15, 'waterings_count', 1),
+                ('Constante', 'Cuida tus plantas 3 días seguidos', 25, 'water_streak', 3),
+                ('Manos a la Obra', 'Registra 10 riegos', 40, 'waterings_count', 10),
+                ('Conectado', 'Vincula tu primer sensor a una planta', 70, 'sensors_count', 1)
             """)
             logger.info("✅ Tabla achievements creada con logros por defecto")
         else:
             logger.info("✅ Tabla achievements ya existe")
+
+        # Logros agregados después de la primera versión: se insertan también
+        # en bases existentes (ON CONFLICT evita duplicarlos al reiniciar).
+        await db.execute_query("""
+            INSERT INTO achievements (name, description, points, requirement_type, requirement_value)
+            SELECT * FROM (VALUES
+                ('Primer Riego', 'Registra tu primer riego', 15, 'waterings_count', 1),
+                ('Constante', 'Cuida tus plantas 3 días seguidos', 25, 'water_streak', 3),
+                ('Manos a la Obra', 'Registra 10 riegos', 40, 'waterings_count', 10),
+                ('Conectado', 'Vincula tu primer sensor a una planta', 70, 'sensors_count', 1)
+            ) AS nuevos(name, description, points, requirement_type, requirement_value)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM achievements a WHERE a.name = nuevos.name
+            )
+        """)
         
         # ============================================
         # PASO 12: CREAR TABLA USER_ACHIEVEMENTS

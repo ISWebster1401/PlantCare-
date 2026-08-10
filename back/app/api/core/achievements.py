@@ -83,6 +83,15 @@ async def compute_progress(db: AsyncPgDbToolkit, user_id: int) -> Dict[str, int]
                 "FROM plants WHERE user_id = %s AND health_status = 'healthy'",
             (user_id,),
         ),
+        # Riegos registrados (manuales o con sensor)
+        "waterings_count": await _scalar(
+            db, "SELECT COUNT(*) FROM watering_sessions WHERE user_id = %s", (user_id,)
+        ),
+        # Sensores IoT vinculados a una planta
+        "sensors_count": await _scalar(
+            db, "SELECT COUNT(*) FROM sensors WHERE user_id = %s AND plant_id IS NOT NULL",
+            (user_id,),
+        ),
     }
 
 
