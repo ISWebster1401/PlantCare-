@@ -212,14 +212,17 @@ export default function WateringScreen() {
   }, [plant]);
 
   const startWatering = useCallback(() => {
-    if (!plant?.sensor_id) return;
+    if (!plant) return;
 
     setHumidityStart(currentHumidity ?? 0);
     setIsWatering(true);
     setSessionStart(new Date());
 
-    // Polling cada 1s al sensor real
-    pollingRef.current = setInterval(fetchHumidity, WATERING_POLLING_INTERVAL);
+    // Sin sensor se puede regar igual (riego manual): solo no hay lecturas
+    // de humedad que seguir, así que no arrancamos el polling.
+    if (plant.sensor_id) {
+      pollingRef.current = setInterval(fetchHumidity, WATERING_POLLING_INTERVAL);
+    }
   }, [currentHumidity, fetchHumidity, plant]);
 
   const stopWatering = useCallback(async () => {
@@ -237,9 +240,10 @@ export default function WateringScreen() {
           startedAt: sessionStart.toISOString(),
           endedAt: endTime.toISOString(),
           durationSeconds,
-          humidityStart,
-          humidityEnd: currentHumidity,
-          targetHumidity,
+          // En riego manual (sin sensor) no hay humedad que reportar
+          humidityStart: noSensor ? null : humidityStart,
+          humidityEnd: noSensor ? null : currentHumidity,
+          targetHumidity: noSensor ? null : targetHumidity,
         });
       } catch (e) {
         console.error('No se pudo registrar riego en backend, guardando local:', e);
@@ -280,15 +284,15 @@ export default function WateringScreen() {
 
   const reachedLimit = currentHumidity != null && currentHumidity >= targetHumidity;
 
-  const speechText = noSensor
-    ? 'Necesito un sensor para monitorear mi humedad'
+  const speechText = isWatering
+    ? '¡Qué rica agua! 💧'
+    : reachedLimit
+    ? '¡Deja de regarme! Ya estoy feliz 🌱'
+    : noSensor
+    ? 'Riégame y registro el riego por ti'
     : sensorError
     ? 'No puedo leer el sensor... ¿está encendido?'
-    : !isWatering && !reachedLimit
-    ? 'Presiona para comenzar el riego'
-    : isWatering
-    ? '¡Qué rica agua! 💧'
-    : '¡Deja de regarme! Ya estoy feliz 🌱';
+    : 'Presiona para comenzar el riego';
 
   const progressPercent = currentHumidity != null
     ? Math.min((currentHumidity / targetHumidity) * 100, 100)
@@ -300,7 +304,8 @@ export default function WateringScreen() {
     plant?.original_photo_url ||
     undefined;
 
-  const canStartWatering = !noSensor && !sensorError && !reachedLimit;
+  // Sin sensor igual se puede regar (riego manual, sin seguimiento de humedad)
+  const canStartWatering = !reachedLimit;
 
   /* --- render --- */
 
@@ -356,12 +361,12 @@ export default function WateringScreen() {
           <Text style={styles.speechText}>{speechText}</Text>
         </View>
 
-        {/* Aviso sin sensor */}
+        {/* Sin sensor se riega igual; el aviso solo explica qué se pierde */}
         {noSensor && (
           <View style={styles.noSensorBox}>
             <Ionicons name="hardware-chip-outline" size={24} color={colors.accent} />
             <Text style={styles.noSensorText}>
-              Esta planta no tiene un sensor asignado. Asigna un sensor desde la pantalla de dispositivos para ver datos de humedad en tiempo real.
+              Riego manual: se registrará en tu historial y cuenta para tu racha. Asigna un sensor desde Dispositivos para seguir la humedad en tiempo real.
             </Text>
           </View>
         )}
@@ -397,16 +402,6 @@ export default function WateringScreen() {
 
         {/* Botón principal */}
         <Animated.View style={pulseStyle}>
-          {noSensor ? (
-            <TouchableOpacity
-              style={[styles.waterButton, { backgroundColor: colors.accent }]}
-              onPress={() => router.back()}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="arrow-back-circle" size={28} color={colors.white} />
-              <Text style={styles.waterButtonText}>Volver y asignar sensor</Text>
-            </TouchableOpacity>
-          ) : (
             <TouchableOpacity
               style={[
                 styles.waterButton,
@@ -439,7 +434,6 @@ export default function WateringScreen() {
                   : 'Comenzar Riego'}
               </Text>
             </TouchableOpacity>
-          )}
         </Animated.View>
 
         {/* Info de sesión */}

@@ -305,7 +305,21 @@ def upload_image(file: BinaryIO, folder: str = "plantcare") -> str:
     Raises:
         Exception: Si falla la subida
     """
-    return upload_file(file, folder=folder, max_size_mb=10)
+    # Sin nombre de archivo, upload_file caía en la extensión ".bin" y Supabase
+    # servía la foto como application/octet-stream: la imagen se subía bien pero
+    # la app la mostraba en blanco (los visores rechazan un content-type que no
+    # sea de imagen). Como este helper es solo para imágenes, cuando no se puede
+    # deducir la extensión asumimos JPEG.
+    original_filename = getattr(file, "name", None)
+    if not original_filename or not os.path.splitext(str(original_filename))[1]:
+        original_filename = "image.jpg"
+
+    return upload_file(
+        file,
+        folder=folder,
+        max_size_mb=10,
+        original_filename=str(original_filename),
+    )
 
 
 def upload_image_from_url(image_url: str, folder: str = "plantcare/characters") -> str:
