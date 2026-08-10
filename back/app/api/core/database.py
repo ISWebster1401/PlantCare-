@@ -732,6 +732,24 @@ async def _create_tables(db: AsyncPgDbToolkit):
         else:
             logger.info("✅ Tabla watering_sessions ya existe")
 
+        # ============================================
+        # PASO 19: CREAR TABLA USER_STREAKS (rachas de cuidado)
+        # ============================================
+        if "user_streaks" not in tables:
+            logger.info("📋 Creando tabla user_streaks...")
+            await db.create_table("user_streaks", {
+                "user_id": "INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE",
+                "current_streak": "INTEGER NOT NULL DEFAULT 0",
+                "best_streak": "INTEGER NOT NULL DEFAULT 0",
+                # Solo la fecha (sin hora): la racha se cuenta por días de calendario
+                "last_care_date": "DATE",
+                "total_care_days": "INTEGER NOT NULL DEFAULT 0",
+                "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            logger.info("✅ Tabla user_streaks creada exitosamente")
+        else:
+            logger.info("✅ Tabla user_streaks ya existe")
+
     except Exception as e:
         log_error_with_context(e, "create_tables")
         raise

@@ -10,6 +10,7 @@ from pgdbtoolkit import AsyncPgDbToolkit
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
 from ..core.openai_config import identify_plant as run_plant_identification, AIServiceError
+from ..core.streaks import register_care_activity
 from ..core.supabase_storage import upload_image, upload_file, delete_image
 # Nota: La personalización de personajes se mantiene para cuando se suban los modelos 3D manualmente
 from ..core.character_customization import (
@@ -981,6 +982,13 @@ async def record_watering(
             "UPDATE plants SET last_watered = %s, updated_at = NOW() WHERE id = %s",
             (session.ended_at, plant_id),
         )
+
+        # Regar cuenta como cuidado del día para la racha. Best-effort: si algo
+        # falla no se pierde el riego, que es lo que el usuario acaba de hacer.
+        try:
+            await register_care_activity(db, current_user["id"])
+        except Exception as streak_err:
+            logger.warning(f"No se pudo actualizar la racha: {streak_err}")
 
         row = inserted_df.iloc[0].to_dict()
         logger.info(

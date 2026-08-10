@@ -670,4 +670,27 @@ export const wateringAPI = {
   },
 };
 
+// ============================================
+// STREAKS API (rachas de cuidado)
+// ============================================
+
+/** Racha de cuidado del usuario, tal como la devuelve el backend */
+export interface StreakRecord {
+  current_streak: number;
+  best_streak: number;
+  last_care_date: string | null;
+  total_care_days: number;
+  cared_today: boolean;
+  /** Cuidó ayer pero aún no hoy: la racha se pierde si no cuida antes de medianoche */
+  at_risk: boolean;
+}
+
+export const streaksAPI = {
+  /** Racha actual del usuario (GET /streaks/me). */
+  getMyStreak: async (): Promise<StreakRecord> => {
+    const response = await api.get('/streaks/me');
+    return response.data;
+  },
+};
+
 export default api;

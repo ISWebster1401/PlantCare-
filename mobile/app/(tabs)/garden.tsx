@@ -1,7 +1,7 @@
 /**
  * Pantalla Tu Jardín - Con modo oscuro (useThemeColors)
  */
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,11 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { plantsAPI } from '../../services/api';
+import { plantsAPI, streaksAPI, StreakRecord } from '../../services/api';
 import { PlantResponse } from '../../types';
 import { PlantCard } from '../../components/PlantCard';
 import { Button } from '../../components/ui';
@@ -24,6 +24,7 @@ import { useThemeColors, useThemeGradients } from '../../context/ThemeContext';
 
 export default function GardenScreen() {
   const [plants, setPlants] = useState<PlantResponse[]>([]);
+  const [streak, setStreak] = useState<StreakRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
@@ -33,6 +34,12 @@ export default function GardenScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const loadPlants = async () => {
+    // La racha es complementaria: si falla no debe impedir ver el jardín
+    streaksAPI
+      .getMyStreak()
+      .then(setStreak)
+      .catch(() => setStreak(null));
+
     try {
       const plantsList = await plantsAPI.getMyPlants();
       setPlants(plantsList);
@@ -48,9 +55,12 @@ export default function GardenScreen() {
     }
   };
 
-  useEffect(() => {
-    loadPlants();
-  }, []);
+  // Recargar al enfocar la pantalla: así la racha se actualiza al volver de regar
+  useFocusEffect(
+    useCallback(() => {
+      loadPlants();
+    }, []),
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -105,9 +115,22 @@ export default function GardenScreen() {
         style={styles.header}
       >
         <Text style={styles.title}>🌿 Tu Jardín</Text>
-        <Text style={styles.subtitle}>
-          {plants.length} {plants.length === 1 ? 'planta' : 'plantas'}
-        </Text>
+        <View style={styles.headerMeta}>
+          <Text style={styles.subtitle}>
+            {plants.length} {plants.length === 1 ? 'planta' : 'plantas'}
+          </Text>
+          {!!streak && streak.current_streak > 0 && (
+            <View style={styles.streakPill}>
+              <Text style={styles.streakText}>
+                🔥 {streak.current_streak}{' '}
+                {streak.current_streak === 1 ? 'día' : 'días'}
+              </Text>
+            </View>
+          )}
+        </View>
+        {!!streak && streak.at_risk && (
+          <Text style={styles.streakHint}>Riega hoy para no perder tu racha</Text>
+        )}
       </LinearGradient>
 
       <FlatList
@@ -160,6 +183,29 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontWeight: Typography.weights.extrabold,
       color: colors.white,
       marginBottom: Spacing.xs,
+    },
+    headerMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    streakPill: {
+      backgroundColor: 'rgba(255,255,255,0.22)',
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    streakText: {
+      fontSize: Typography.sizes.sm,
+      fontWeight: Typography.weights.bold,
+      color: colors.white,
+    },
+    streakHint: {
+      fontSize: Typography.sizes.xs,
+      fontWeight: Typography.weights.medium,
+      color: colors.white,
+      opacity: 0.85,
+      marginTop: Spacing.xs,
     },
     subtitle: {
       fontSize: Typography.sizes.base,
