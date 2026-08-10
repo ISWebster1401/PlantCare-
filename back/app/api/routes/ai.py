@@ -113,7 +113,9 @@ async def analyze_device_data(
         # Verificar que el sensor pertenece al usuario
         sensors_df = await db.execute_query(
             """
-            SELECT s.id, s.user_id, s.device_key, s.device_type, s.is_active, s.is_assigned,
+            SELECT s.id, s.user_id, s.device_id, s.device_type,
+                   (s.status = 'active') AS is_active,
+                   (s.plant_id IS NOT NULL) AS is_assigned,
                    s.last_connection, p.id AS plant_id, p.plant_name, p.plant_type
             FROM sensors s
             LEFT JOIN plants p ON p.sensor_id = s.id
@@ -155,10 +157,10 @@ async def analyze_device_data(
         }
 
         device_info = {
-            "name": sensor.get("plant_name") or f"Sensor {sensor['device_key']}",
+            "name": sensor.get("plant_name") or f"Sensor {sensor['device_id']}",
             "location": None,
             "plant_type": sensor.get("plant_type"),
-            "device_code": sensor["device_key"],
+            "device_code": sensor["device_id"],
         }
 
         question = query.question or "Analiza el estado actual de esta planta a partir de los datos del sensor." 
@@ -209,7 +211,9 @@ async def get_user_devices_for_ai(
     try:
         sensors_df = await db.execute_query(
             """
-            SELECT s.id, s.device_key, s.device_type, s.is_active, s.is_assigned,
+            SELECT s.id, s.device_id, s.device_type,
+                   (s.status = 'active') AS is_active,
+                   (s.plant_id IS NOT NULL) AS is_assigned,
                    s.last_connection, p.plant_name, p.plant_type
             FROM sensors s
             LEFT JOIN plants p ON p.sensor_id = s.id
@@ -228,8 +232,8 @@ async def get_user_devices_for_ai(
             simplified.append(
                 {
                     "id": data["id"],
-                    "name": data.get("plant_name") or f"Sensor {data['device_key']}",
-                    "device_code": data["device_key"],
+                    "name": data.get("plant_name") or f"Sensor {data['device_id']}",
+                    "device_code": data["device_id"],
                     "plant_type": data.get("plant_type"),
                     "connected": bool(data.get("is_active", False)),
                     "last_seen": data.get("last_connection"),
