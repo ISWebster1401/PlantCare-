@@ -730,3 +730,40 @@ export const achievementsAPI = {
 };
 
 export default api;
+
+// ============================================
+// STORE API (tienda de accesorios)
+// ============================================
+
+export interface StoreItem {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  cost_points: number;
+  category: string;
+  icon: string | null;
+  owned: boolean;
+  affordable: boolean;
+}
+
+export interface StoreSummary {
+  earned_points: number;
+  spent_points: number;
+  available_points: number;
+  items: StoreItem[];
+}
+
+export const storeAPI = {
+  /** Catálogo con el saldo de puntos del usuario (GET /store/). */
+  getStore: async (): Promise<StoreSummary> => {
+    const response = await api.get('/store/');
+    return response.data;
+  },
+
+  /** Canjea un accesorio (POST /store/{itemId}/redeem). */
+  redeem: async (itemId: number): Promise<{ message: string; available_points: number }> => {
+    const response = await api.post(`/store/${itemId}/redeem`);
+    return response.data;
+  },
+};

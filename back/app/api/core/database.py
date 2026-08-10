@@ -752,6 +752,60 @@ async def _create_tables(db: AsyncPgDbToolkit):
             logger.info("✅ Tabla watering_sessions ya existe")
 
         # ============================================
+        # PASO 20: TIENDA (items canjeables con puntos de logros)
+        # ============================================
+        if "store_items" not in tables:
+            logger.info("📋 Creando tabla store_items...")
+            await db.create_table("store_items", {
+                "id": "SERIAL PRIMARY KEY",
+                "code": "VARCHAR(50) UNIQUE NOT NULL",
+                "name": "VARCHAR(100) NOT NULL",
+                "description": "TEXT",
+                "cost_points": "INTEGER NOT NULL DEFAULT 0",
+                "category": "VARCHAR(50) DEFAULT 'accesorio'",
+                # Emoji provisional: cuando existan los .glb se usa model_3d_url
+                "icon": "VARCHAR(16)",
+                "model_3d_url": "TEXT",
+                "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            logger.info("✅ Tabla store_items creada")
+        else:
+            logger.info("✅ Tabla store_items ya existe")
+
+        if "user_items" not in tables:
+            logger.info("📋 Creando tabla user_items...")
+            await db.create_table("user_items", {
+                "id": "SERIAL PRIMARY KEY",
+                "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
+                "item_id": "INTEGER NOT NULL REFERENCES store_items(id) ON DELETE CASCADE",
+                "equipped_on_plant_id": "INTEGER REFERENCES plants(id) ON DELETE SET NULL",
+                "acquired_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            })
+            await db.execute_query(
+                "CREATE UNIQUE INDEX IF NOT EXISTS user_items_unique "
+                "ON user_items(user_id, item_id)"
+            )
+            logger.info("✅ Tabla user_items creada")
+        else:
+            logger.info("✅ Tabla user_items ya existe")
+
+        # Catálogo de la tienda (idempotente por code)
+        await db.execute_query("""
+            INSERT INTO store_items (code, name, description, cost_points, category, icon)
+            SELECT * FROM (VALUES
+                ('sombrero_paja', 'Sombrero de Paja', 'Para los días de sol', 25, 'sombrero', '👒'),
+                ('lentes_sol', 'Lentes de Sol', 'Estilo veraniego', 35, 'accesorio', '🕶️'),
+                ('bufanda', 'Bufanda', 'Abriga en invierno', 40, 'ropa', '🧣'),
+                ('gorro_fiesta', 'Gorro de Fiesta', 'Para celebrar rachas', 50, 'sombrero', '🎉'),
+                ('mono_elegante', 'Moño Elegante', 'Un toque formal', 60, 'accesorio', '🎀'),
+                ('corona', 'Corona Real', 'Solo para jardineros expertos', 120, 'sombrero', '👑')
+            ) AS nuevos(code, name, description, cost_points, category, icon)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM store_items s WHERE s.code = nuevos.code
+            )
+        """)
+
+        # ============================================
         # PASO 19: CREAR TABLA USER_STREAKS (rachas de cuidado)
         # ============================================
         if "user_streaks" not in tables:

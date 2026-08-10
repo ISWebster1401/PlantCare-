@@ -79,6 +79,17 @@ export default function ProfileScreen() {
           />
           <View style={styles.divider} />
           <Button
+            title="Tienda"
+            onPress={() => router.push('/store')}
+            variant="ghost"
+            size="lg"
+            icon="bag-handle-outline"
+            iconPosition="left"
+            fullWidth
+            style={styles.menuItem}
+          />
+          <View style={styles.divider} />
+          <Button
             title="Notificaciones"
             onPress={() => router.push('/notifications')}
             variant="ghost"
