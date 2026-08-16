@@ -21,6 +21,12 @@ interface Model3DViewerProps {
   characterMood?: string;
   /** Show the 3D garden environment. Default: true */
   gardenBackground?: boolean;
+  /**
+   * Códigos de accesorios de la tienda a dibujar sobre el personaje
+   * (ej: ['sombrero_paja']). Se generan proceduralmente con geometría de
+   * three.js mientras no existan los .glb reales de cada accesorio.
+   */
+  accessories?: string[];
   /** Called when the 3D model has loaded successfully */
   onLoad?: () => void;
   /** Called when the 3D model fails to load */
@@ -40,6 +46,103 @@ interface GLTFResult {
 
 // Seeded pseudo-random for consistent look across renders
 const seeded = (i: number) => Math.abs(Math.sin(i * 127.1 + 311.7)) % 1;
+
+// ─── Accesorios procedurales de la tienda ────────────────────────────────────
+// Se construyen en el espacio LOCAL del modelo (antes del escalado), usando su
+// bounding box original como ancla: así heredan la escala y la rotación del
+// personaje sin cálculos extra. Cuando existan .glb reales por accesorio, esta
+// función se reemplaza por un loader sin tocar el resto del visor.
+
+function _mat(color: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.05, ...extra });
+}
+
+function buildAccessoryMesh(
+  code: string,
+  box: THREE.Box3,
+  size: THREE.Vector3,
+  center: THREE.Vector3,
+): THREE.Group | null {
+  const g = new THREE.Group();
+  // Radio de referencia de la "cabeza" del personaje
+  const r = Math.max(size.x, size.z) / 2;
+  const topY = box.max.y;
+  const cx = center.x;
+  const cz = center.z;
+
+  switch (code) {
+    case 'sombrero_paja': {
+      const straw = 0xd9a94e;
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.15, r * 1.25, size.y * 0.03, 24), _mat(straw));
+      brim.position.set(cx, topY + size.y * 0.015, cz);
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.6, size.y * 0.16, 24), _mat(0xc99a3f));
+      crown.position.set(cx, topY + size.y * 0.1, cz);
+      g.add(brim, crown);
+      g.rotation.z = 0.08; // leve inclinación con gracia
+      break;
+    }
+    case 'gorro_fiesta': {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 0.45, size.y * 0.35, 24), _mat(0xe91e63));
+      cone.position.set(cx, topY + size.y * 0.17, cz);
+      const pompom = new THREE.Mesh(new THREE.SphereGeometry(r * 0.14, 12, 12), _mat(0xffeb3b));
+      pompom.position.set(cx, topY + size.y * 0.36, cz);
+      g.add(cone, pompom);
+      break;
+    }
+    case 'corona': {
+      const gold = _mat(0xffd700, { metalness: 0.6, roughness: 0.3 });
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r * 0.55, size.y * 0.1, 16), gold);
+      band.position.set(cx, topY + size.y * 0.05, cz);
+      g.add(band);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(r * 0.09, size.y * 0.1, 8), gold);
+        spike.position.set(cx + Math.cos(a) * r * 0.48, topY + size.y * 0.14, cz + Math.sin(a) * r * 0.48);
+        g.add(spike);
+      }
+      break;
+    }
+    case 'mono_elegante': {
+      const pink = _mat(0xd81b60);
+      const l = new THREE.Mesh(new THREE.SphereGeometry(r * 0.28, 14, 14), pink);
+      l.scale.set(1.3, 0.7, 0.5);
+      l.position.set(cx - r * 0.3, topY + size.y * 0.05, cz);
+      const rgt = l.clone();
+      rgt.position.set(cx + r * 0.3, topY + size.y * 0.05, cz);
+      const knot = new THREE.Mesh(new THREE.SphereGeometry(r * 0.13, 12, 12), _mat(0xad1457));
+      knot.position.set(cx, topY + size.y * 0.05, cz);
+      g.add(l, rgt, knot);
+      break;
+    }
+    case 'lentes_sol': {
+      const dark = _mat(0x1a1a1a, { roughness: 0.25 });
+      const faceY = box.min.y + size.y * 0.72;
+      const faceZ = box.max.z * 0.92;
+      for (const side of [-1, 1]) {
+        const lens = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.22, r * 0.22, r * 0.06, 20), dark);
+        lens.rotation.x = Math.PI / 2;
+        lens.position.set(cx + side * r * 0.3, faceY, faceZ);
+        g.add(lens);
+      }
+      const bridge = new THREE.Mesh(new THREE.BoxGeometry(r * 0.2, r * 0.05, r * 0.05), dark);
+      bridge.position.set(cx, faceY, faceZ);
+      g.add(bridge);
+      break;
+    }
+    case 'bufanda': {
+      const wrap = new THREE.Mesh(new THREE.TorusGeometry(r * 0.72, r * 0.17, 12, 24), _mat(0xc62828));
+      wrap.rotation.x = Math.PI / 2;
+      wrap.position.set(cx, box.min.y + size.y * 0.58, cz);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(r * 0.24, size.y * 0.22, r * 0.08), _mat(0xb71c1c));
+      tail.position.set(cx + r * 0.4, box.min.y + size.y * 0.45, box.max.z * 0.8);
+      g.add(wrap, tail);
+      break;
+    }
+    default:
+      return null;
+  }
+  return g;
+}
 
 // ─── Helper: build a realistic Pokemon GO-style environment ─────────────────
 function buildRealisticGarden(scene: THREE.Scene) {
@@ -137,6 +240,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   autoRotate = true,
   characterMood,
   gardenBackground = true,
+  accessories = [],
   onLoad,
   onError,
 }) => {
@@ -146,6 +250,11 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   const onErrorRef = useRef(onError);
   onLoadRef.current = onLoad;
   onErrorRef.current = onError;
+  // Ref para leer los accesorios vigentes dentro del callback del loader.
+  // OJO: el visor arma la escena una sola vez; si cambian los accesorios,
+  // el consumidor debe remontar el componente (ej: key={accessories.join()}).
+  const accessoriesRef = useRef(accessories);
+  accessoriesRef.current = accessories;
   const errorLoggedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -334,6 +443,14 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
               });
             }
           });
+
+          // ── Accesorios equipados (tienda) ──
+          // Se agregan como hijos del modelo, construidos con el bounding box
+          // ORIGINAL (pre-escala): heredan escala y rotación del personaje.
+          for (const code of accessoriesRef.current) {
+            const acc = buildAccessoryMesh(code, box, size, center);
+            if (acc) model.add(acc);
+          }
 
           scene.add(model);
           modelRef.current = model;

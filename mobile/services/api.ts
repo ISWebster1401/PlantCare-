@@ -766,4 +766,31 @@ export const storeAPI = {
     const response = await api.post(`/store/${itemId}/redeem`);
     return response.data;
   },
+
+  /** Accesorios canjeados, con la planta donde están puestos (GET /store/inventory). */
+  getInventory: async (): Promise<InventoryItem[]> => {
+    const response = await api.get('/store/inventory');
+    return response.data;
+  },
+
+  /** Pone un accesorio en una planta (POST /store/{itemId}/equip). */
+  equip: async (itemId: number, plantId: number): Promise<{ message: string }> => {
+    const response = await api.post(`/store/${itemId}/equip`, { plant_id: plantId });
+    return response.data;
+  },
+
+  /** Quita un accesorio de su planta (POST /store/{itemId}/unequip). */
+  unequip: async (itemId: number): Promise<{ message: string }> => {
+    const response = await api.post(`/store/${itemId}/unequip`);
+    return response.data;
+  },
 };
+
+export interface InventoryItem {
+  id: number;
+  code: string;
+  name: string;
+  icon: string | null;
+  category: string;
+  equipped_on_plant_id: number | null;
+}

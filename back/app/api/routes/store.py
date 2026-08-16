@@ -179,3 +179,110 @@ async def redeem_item(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo canjear el accesorio.",
         )
+
+class InventoryItem(BaseModel):
+    id: int
+    code: str
+    name: str
+    icon: Optional[str] = None
+    category: str
+    equipped_on_plant_id: Optional[int] = None
+
+
+@router.get("/inventory", response_model=List[InventoryItem])
+async def get_inventory(
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Accesorios que el usuario ya canjeó, con la planta donde están puestos."""
+    try:
+        df = await db.execute_query(
+            "SELECT s.id, s.code, s.name, s.icon, s.category, u.equipped_on_plant_id "
+            "FROM user_items u JOIN store_items s ON s.id = u.item_id "
+            "WHERE u.user_id = %s ORDER BY u.acquired_at ASC",
+            (current_user["id"],),
+        )
+        items: List[InventoryItem] = []
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                d = row.to_dict()
+                plant_raw = d.get("equipped_on_plant_id")
+                try:
+                    plant_id = int(plant_raw) if plant_raw is not None and str(plant_raw) != "nan" else None
+                except (TypeError, ValueError):
+                    plant_id = None
+                items.append(InventoryItem(
+                    id=int(d["id"]), code=d.get("code"), name=d.get("name"),
+                    icon=d.get("icon"), category=d.get("category") or "accesorio",
+                    equipped_on_plant_id=plant_id,
+                ))
+        return items
+    except Exception as e:
+        logger.error(f"Error obteniendo inventario: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="No se pudo cargar el inventario.")
+
+
+class EquipRequest(BaseModel):
+    plant_id: int
+
+
+@router.post("/{item_id}/equip")
+async def equip_item(
+    item_id: int,
+    body: EquipRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Pone un accesorio del inventario en una planta del usuario."""
+    try:
+        user_id = current_user["id"]
+        owned_df = await db.execute_query(
+            "SELECT id FROM user_items WHERE user_id = %s AND item_id = %s",
+            (user_id, item_id),
+        )
+        if owned_df is None or owned_df.empty:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="No tienes ese accesorio. Canjéalo primero en la tienda.")
+
+        plant_df = await db.execute_query(
+            "SELECT id FROM plants WHERE id = %s AND user_id = %s",
+            (body.plant_id, user_id),
+        )
+        if plant_df is None or plant_df.empty:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="Planta no encontrada.")
+
+        await db.execute_query(
+            "UPDATE user_items SET equipped_on_plant_id = %s "
+            "WHERE user_id = %s AND item_id = %s",
+            (body.plant_id, user_id, item_id),
+        )
+        return {"message": "Accesorio equipado", "plant_id": body.plant_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error equipando accesorio: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="No se pudo equipar el accesorio.")
+
+
+@router.post("/{item_id}/unequip")
+async def unequip_item(
+    item_id: int,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """Quita un accesorio de la planta donde estaba puesto."""
+    try:
+        await db.execute_query(
+            "UPDATE user_items SET equipped_on_plant_id = NULL "
+            "WHERE user_id = %s AND item_id = %s",
+            (current_user["id"], item_id),
+        )
+        return {"message": "Accesorio guardado en el inventario"}
+    except Exception as e:
+        logger.error(f"Error guardando accesorio: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="No se pudo guardar el accesorio.")
+

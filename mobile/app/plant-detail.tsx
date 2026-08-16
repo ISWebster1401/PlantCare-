@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { plantsAPI } from '../services/api';
+import { plantsAPI, storeAPI, InventoryItem } from '../services/api';
 import { PlantResponse } from '../types';
 import { Model3DViewer } from '../components/Model3DViewer';
 import { Button } from '../components/ui';
@@ -39,6 +39,9 @@ export default function PlantDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [show3D, setShow3D] = useState(false);
   const [isModel3DLoading, setIsModel3DLoading] = useState(true);
+  // Accesorios de la tienda: inventario del usuario y cuáles están puestos aquí
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [equippingId, setEquippingId] = useState<number | null>(null);
 
   const DetailStatCard = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
     <View style={styles.statCard}>
@@ -56,7 +59,46 @@ export default function PlantDetailScreen() {
 
   useEffect(() => {
     loadPlant();
+    loadInventory();
   }, [params.id]);
+
+  // Best-effort: si falla (p.ej. backend viejo), la pantalla sigue funcionando
+  const loadInventory = async () => {
+    try {
+      setInventory(await storeAPI.getInventory());
+    } catch {
+      setInventory([]);
+    }
+  };
+
+  // Códigos de accesorios puestos en ESTA planta → se dibujan sobre el modelo 3D
+  const equippedCodes = useMemo(
+    () =>
+      inventory
+        .filter((it) => plant && it.equipped_on_plant_id === plant.id)
+        .map((it) => it.code),
+    [inventory, plant]
+  );
+
+  const toggleAccessory = async (item: InventoryItem) => {
+    if (!plant || equippingId !== null) return;
+    const isOnThisPlant = item.equipped_on_plant_id === plant.id;
+    try {
+      setEquippingId(item.id);
+      if (isOnThisPlant) {
+        await storeAPI.unequip(item.id);
+      } else {
+        await storeAPI.equip(item.id, plant.id);
+      }
+      await loadInventory();
+      // El visor arma la escena una sola vez; el remontaje lo fuerza el key
+      setIsModel3DLoading(true);
+    } catch (e: any) {
+      Alert.alert('Ups', e?.response?.data?.detail || 'No se pudo cambiar el accesorio.');
+    } finally {
+      setEquippingId(null);
+    }
+  };
 
   const loadPlant = async () => {
     if (!params.id) {
@@ -359,10 +401,12 @@ export default function PlantDetailScreen() {
                   </View>
                 )}
                 <Model3DViewer
+                  key={equippedCodes.join(',')}
                   modelUrl={plant.model_3d_url}
                   style={isModel3DLoading ? { ...styles.model3dViewer, opacity: 0 } : styles.model3dViewer}
                   autoRotate={false}
                   characterMood={mood}
+                  accessories={equippedCodes}
                   onLoad={() => setIsModel3DLoading(false)}
                   onError={() => setIsModel3DLoading(false)}
                 />
@@ -373,6 +417,51 @@ export default function PlantDetailScreen() {
                 <Text style={styles.model3dPlaceholderText}>Modelo 3D no disponible</Text>
               </View>
             )}
+          </View>
+        )}
+
+        {/* Accesorios de la tienda: tocar para poner/quitar en esta planta */}
+        {inventory.length > 0 && (
+          <View style={styles.accessoriesSection}>
+            <Text style={styles.accessoriesTitle}>🎁 Accesorios</Text>
+            <Text style={styles.accessoriesHint}>
+              {show3D
+                ? 'Toca uno para ponérselo o quitárselo'
+                : 'Actívalos y míralos en el Modelo 3D'}
+            </Text>
+            <View style={styles.accessoriesRow}>
+              {inventory.map((item) => {
+                const onThisPlant = plant ? item.equipped_on_plant_id === plant.id : false;
+                const onOtherPlant =
+                  item.equipped_on_plant_id !== null && !onThisPlant;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.accessoryChip, onThisPlant && styles.accessoryChipActive]}
+                    onPress={() => toggleAccessory(item)}
+                    disabled={equippingId !== null}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.accessoryChipIcon}>{item.icon || '🎁'}</Text>
+                    <Text
+                      style={[
+                        styles.accessoryChipText,
+                        onThisPlant && styles.accessoryChipTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.name}
+                    </Text>
+                    {onThisPlant && (
+                      <Ionicons name="checkmark-circle" size={14} color={colors.white} />
+                    )}
+                    {onOtherPlant && (
+                      <Text style={styles.accessoryChipSub}>en otra planta</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -735,6 +824,63 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     fontSize: Typography.sizes.sm,
     color: colors.textSecondary,
   },
+  /* --- accesorios de la tienda --- */
+  accessoriesSection: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    backgroundColor: colors.backgroundLighter,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+  },
+  accessoriesTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: colors.text,
+  },
+  accessoriesHint: {
+    fontSize: Typography.sizes.xs,
+    color: colors.textMuted,
+    marginTop: 2,
+    marginBottom: Spacing.sm,
+  },
+  accessoriesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  accessoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+  },
+  accessoryChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  accessoryChipIcon: {
+    fontSize: Typography.sizes.md,
+  },
+  accessoryChipText: {
+    fontSize: Typography.sizes.sm,
+    color: colors.textSecondary,
+    maxWidth: 110,
+  },
+  accessoryChipTextActive: {
+    color: colors.white,
+    fontWeight: Typography.weights.semibold,
+  },
+  accessoryChipSub: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+  },
+
   model3dPlaceholder: {
     flex: 1,
     alignItems: 'center',
