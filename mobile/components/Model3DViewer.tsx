@@ -68,14 +68,17 @@ function buildAccessoryMesh(
   const g = new THREE.Group();
   // Radio de referencia de la "cabeza" del personaje
   const r = Math.max(size.x, size.z) / 2;
-  const topY = box.max.y;
+  // "Línea de la cabeza": 8% bajo la punta del modelo. Anclar a box.max.y deja
+  // los sombreros flotando, porque esa punta suele ser una hoja o un brote fino
+  // y no el volumen sobre el que realmente se apoyaría un gorro.
+  const topY = box.max.y - size.y * 0.08;
   const cx = center.x;
   const cz = center.z;
 
   switch (code) {
     case 'sombrero_paja': {
       const straw = 0xd9a94e;
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.15, r * 1.25, size.y * 0.03, 24), _mat(straw));
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.95, r * 1.05, size.y * 0.03, 24), _mat(straw));
       brim.position.set(cx, topY + size.y * 0.015, cz);
       const crown = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.6, size.y * 0.16, 24), _mat(0xc99a3f));
       crown.position.set(cx, topY + size.y * 0.1, cz);
@@ -337,12 +340,73 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   accessoriesRef.current = accessories;
   const showFaceRef = useRef(showFace);
   showFaceRef.current = showFace;
+
+  /**
+   * (Re)arma cara y accesorios sobre el modelo ya cargado. Se guarda en un ref
+   * para que el efecto que carga el .glb pueda llamarlo sin tenerlo como
+   * dependencia (si no, cada cambio de accesorio recargaría el modelo).
+   */
+  const rebuildDecorRef = useRef<() => void>(() => {});
+  rebuildDecorRef.current = () => {
+    const model = modelRef.current;
+    const anchor = decorAnchorRef.current;
+    if (!model || !anchor) return;
+
+    // Soltar el grupo anterior liberando su memoria en GPU
+    if (decorRef.current) {
+      model.remove(decorRef.current);
+      decorRef.current.traverse((o: any) => {
+        o.geometry?.dispose?.();
+        o.material?.dispose?.();
+      });
+      decorRef.current = null;
+    }
+
+    const { box, size, center } = anchor;
+    const group = new THREE.Group();
+
+    if (showFaceRef.current) {
+      try {
+        group.add(
+          buildFace(box, size, center, eyeColorFrom(accessoriesRef.current), characterMood),
+        );
+      } catch (e) {
+        console.warn('[3D] no se pudo construir la cara:', e);
+      }
+    }
+    for (const code of accessoriesRef.current) {
+      try {
+        const acc = buildAccessoryMesh(code, box, size, center);
+        if (acc) group.add(acc);
+      } catch (e) {
+        console.warn(`[3D] no se pudo construir el accesorio "${code}":`, e);
+      }
+    }
+
+    model.add(group);
+    decorRef.current = group;
+  };
+
+  // Cambiar de accesorio o de ánimo solo rearma la decoración: el .glb ya
+  // descargado se mantiene, así el cambio es instantáneo.
+  useEffect(() => {
+    rebuildDecorRef.current();
+  }, [accessories.join(','), showFace, characterMood]);
   const errorLoggedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const modelRef = useRef<THREE.Group | null>(null);
+  // Cara + accesorios viven en su propio grupo para poder rearmarlos sin
+  // recargar el .glb (son 6 MB: remontar el visor en cada cambio deja la
+  // pantalla en blanco varios segundos).
+  const decorRef = useRef<THREE.Group | null>(null);
+  const decorAnchorRef = useRef<{
+    box: THREE.Box3;
+    size: THREE.Vector3;
+    center: THREE.Vector3;
+  } | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const currentActionRef = useRef<THREE.AnimationAction | null>(null);
 
@@ -537,39 +601,24 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
             Number.isFinite(center.x) && Number.isFinite(center.y) && Number.isFinite(center.z) &&
             Math.max(size.x, size.z) > 0;
 
-          if (!boxIsUsable) {
-            console.warn('[3D] bounding box inservible, sin cara ni accesorios', {
-              size: size.toArray(), center: center.toArray(),
-            });
-          } else {
-            if (showFaceRef.current) {
-              try {
-                model.add(
-                  buildFace(box, size, center, eyeColorFrom(accessoriesRef.current), currentMood),
-                );
-              } catch (e) {
-                console.warn('[3D] no se pudo construir la cara:', e);
-              }
-            }
-
-            // Se agregan como hijos del modelo, construidos con el bounding box
-            // ORIGINAL (pre-escala): heredan escala y rotación del personaje.
-            for (const code of accessoriesRef.current) {
-              try {
-                const acc = buildAccessoryMesh(code, box, size, center);
-                if (acc) model.add(acc);
-              } catch (e) {
-                console.warn(`[3D] no se pudo construir el accesorio "${code}":`, e);
-              }
-            }
-          }
-
           console.log('[3D] modelo listo', {
             size: size.toArray().map((n) => +n.toFixed(2)),
             accesorios: accessoriesRef.current,
           });
           scene.add(model);
           modelRef.current = model;
+
+          // El bounding box ORIGINAL (pre-escala) queda como ancla: la
+          // decoración es hija del modelo, así hereda escala y rotación.
+          if (boxIsUsable) {
+            decorAnchorRef.current = { box, size, center };
+            rebuildDecorRef.current();
+          } else {
+            console.warn('[3D] bounding box inservible, sin cara ni accesorios', {
+              size: size.toArray(),
+              center: center.toArray(),
+            });
+          }
           setIsLoaded(true);
           onLoadRef.current?.();
 

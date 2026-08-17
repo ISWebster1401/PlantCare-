@@ -42,6 +42,8 @@ export default function PlantDetailScreen() {
   // Accesorios de la tienda: inventario del usuario y cuáles están puestos aquí
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [equippingId, setEquippingId] = useState<number | null>(null);
+  const [fullscreen3D, setFullscreen3D] = useState(false);
+  const [isFullscreenLoading, setIsFullscreenLoading] = useState(true);
 
   const DetailStatCard = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
     <View style={styles.statCard}>
@@ -91,8 +93,8 @@ export default function PlantDetailScreen() {
         await storeAPI.equip(item.id, plant.id);
       }
       await loadInventory();
-      // El visor arma la escena una sola vez; el remontaje lo fuerza el key
-      setIsModel3DLoading(true);
+      // El visor rearma solo la decoración al cambiar `accessories`: no hay que
+      // remontarlo ni volver a descargar el modelo.
     } catch (e: any) {
       Alert.alert('Ups', e?.response?.data?.detail || 'No se pudo cambiar el accesorio.');
     } finally {
@@ -401,7 +403,6 @@ export default function PlantDetailScreen() {
                   </View>
                 )}
                 <Model3DViewer
-                  key={equippedCodes.join(',')}
                   modelUrl={plant.model_3d_url}
                   style={isModel3DLoading ? { ...styles.model3dViewer, opacity: 0 } : styles.model3dViewer}
                   autoRotate={false}
@@ -410,6 +411,17 @@ export default function PlantDetailScreen() {
                   onLoad={() => setIsModel3DLoading(false)}
                   onError={() => setIsModel3DLoading(false)}
                 />
+                <TouchableOpacity
+                  style={styles.expandButton}
+                  onPress={() => {
+                    setIsFullscreenLoading(true);
+                    setFullscreen3D(true);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Ver el modelo 3D en pantalla completa"
+                >
+                  <Ionicons name="expand" size={18} color={colors.white} />
+                </TouchableOpacity>
               </>
             ) : (
               <View style={styles.model3dPlaceholder}>
@@ -497,6 +509,66 @@ export default function PlantDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ================================================ */}
+      {/*  Modal: Modelo 3D a pantalla completa            */}
+      {/* ================================================ */}
+      <Modal
+        visible={fullscreen3D}
+        animationType="fade"
+        onRequestClose={() => setFullscreen3D(false)}
+      >
+        <View style={styles.fsContainer}>
+          {plant?.model_3d_url && (
+            <Model3DViewer
+              modelUrl={plant.model_3d_url}
+              style={styles.fsViewer}
+              autoRotate={false}
+              characterMood={mood}
+              accessories={equippedCodes}
+              onLoad={() => setIsFullscreenLoading(false)}
+              onError={() => setIsFullscreenLoading(false)}
+            />
+          )}
+
+          {isFullscreenLoading && (
+            <View style={styles.fsLoading}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.model3dLoadingText}>Cargando modelo 3D...</Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.fsClose}
+            onPress={() => setFullscreen3D(false)}
+            activeOpacity={0.8}
+            accessibilityLabel="Cerrar pantalla completa"
+          >
+            <Ionicons name="close" size={26} color={colors.white} />
+          </TouchableOpacity>
+
+          <Text style={styles.fsHint}>Arrastra para girar · pellizca para acercar</Text>
+
+          {inventory.length > 0 && (
+            <View style={styles.fsChips}>
+              {inventory.map((item) => {
+                const on = plant ? item.equipped_on_plant_id === plant.id : false;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.fsChip, on && styles.fsChipActive]}
+                    onPress={() => toggleAccessory(item)}
+                    disabled={equippingId !== null}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.accessoryChipIcon}>{item.icon || '🎁'}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </Modal>
 
       {/* ================================================ */}
       {/*  Modal: Menú de 3 puntos                         */}
@@ -824,6 +896,78 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     fontSize: Typography.sizes.sm,
     color: colors.textSecondary,
   },
+  /* --- pantalla completa del modelo 3D --- */
+  expandButton: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  fsContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  fsViewer: {
+    flex: 1,
+    width: '100%',
+  },
+  fsLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  fsClose: {
+    position: 'absolute',
+    top: 52,
+    right: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsHint: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    fontSize: Typography.sizes.xs,
+    color: colors.white,
+    opacity: 0.75,
+  },
+  fsChips: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  fsChip: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  fsChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '55',
+  },
+
   /* --- accesorios de la tienda --- */
   accessoriesSection: {
     marginHorizontal: Spacing.lg,
