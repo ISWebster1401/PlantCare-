@@ -526,22 +526,48 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
             }
           });
 
-          // ── Cara del personaje ──
-          // Va antes que los accesorios para que los lentes queden por encima.
-          if (showFaceRef.current) {
-            model.add(
-              buildFace(box, size, center, eyeColorFrom(accessoriesRef.current), currentMood),
-            );
+          // ── Cara y accesorios ──
+          // Son decoración: si algo falla acá, la planta IGUAL se tiene que ver.
+          // three.js atrapa las excepciones de este callback y las manda al
+          // onError del loader, así que sin este try/catch un bug en la cara
+          // hace desaparecer el modelo entero.
+          const boxIsUsable =
+            !box.isEmpty() &&
+            Number.isFinite(size.x) && Number.isFinite(size.y) && Number.isFinite(size.z) &&
+            Number.isFinite(center.x) && Number.isFinite(center.y) && Number.isFinite(center.z) &&
+            Math.max(size.x, size.z) > 0;
+
+          if (!boxIsUsable) {
+            console.warn('[3D] bounding box inservible, sin cara ni accesorios', {
+              size: size.toArray(), center: center.toArray(),
+            });
+          } else {
+            if (showFaceRef.current) {
+              try {
+                model.add(
+                  buildFace(box, size, center, eyeColorFrom(accessoriesRef.current), currentMood),
+                );
+              } catch (e) {
+                console.warn('[3D] no se pudo construir la cara:', e);
+              }
+            }
+
+            // Se agregan como hijos del modelo, construidos con el bounding box
+            // ORIGINAL (pre-escala): heredan escala y rotación del personaje.
+            for (const code of accessoriesRef.current) {
+              try {
+                const acc = buildAccessoryMesh(code, box, size, center);
+                if (acc) model.add(acc);
+              } catch (e) {
+                console.warn(`[3D] no se pudo construir el accesorio "${code}":`, e);
+              }
+            }
           }
 
-          // ── Accesorios equipados (tienda) ──
-          // Se agregan como hijos del modelo, construidos con el bounding box
-          // ORIGINAL (pre-escala): heredan escala y rotación del personaje.
-          for (const code of accessoriesRef.current) {
-            const acc = buildAccessoryMesh(code, box, size, center);
-            if (acc) model.add(acc);
-          }
-
+          console.log('[3D] modelo listo', {
+            size: size.toArray().map((n) => +n.toFixed(2)),
+            accesorios: accessoriesRef.current,
+          });
           scene.add(model);
           modelRef.current = model;
           setIsLoaded(true);
@@ -586,7 +612,10 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
           }
         },
         undefined,
-        () => {
+        (err: unknown) => {
+          // El error venía descartado: sin esto un fallo de red y un bug propio
+          // se ven exactamente igual desde afuera.
+          console.warn('[3D] falló la carga del modelo:', modelUrl, err);
           setLoadError(true);
           errorLoggedRef.current = true;
           onErrorRef.current?.();
