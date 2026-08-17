@@ -1,13 +1,15 @@
 /**
  * Pantalla de Configuración - Con modo oscuro (Light / Dark / Sistema)
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Switch,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +18,17 @@ import { Card, Button } from '../components/ui';
 import { Typography, Spacing } from '../constants/DesignSystem';
 import { useThemeColors, useThemeGradients, useTheme } from '../context/ThemeContext';
 import type { ThemeMode } from '../context/ThemeContext';
+import {
+  getPrefs,
+  scheduleWateringReminder,
+  cancelWateringReminder,
+  sendTestReminder,
+  DEFAULT_PREFS,
+  type ReminderPrefs,
+} from '../services/notifications';
+
+/** Horas ofrecidas para el recordatorio. */
+const HOURS = [8, 9, 12, 19, 21];
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -23,6 +36,42 @@ export default function SettingsScreen() {
   const gradients = useThemeGradients();
   const { themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const [reminder, setReminder] = useState<ReminderPrefs>(DEFAULT_PREFS);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    getPrefs().then(setReminder);
+  }, []);
+
+  const toggleReminder = async (on: boolean) => {
+    setBusy(true);
+    try {
+      if (!on) {
+        await cancelWateringReminder();
+        setReminder((r) => ({ ...r, enabled: false }));
+        return;
+      }
+      const ok = await scheduleWateringReminder(reminder.hour, reminder.minute);
+      if (ok) {
+        setReminder((r) => ({ ...r, enabled: true }));
+      } else {
+        Alert.alert(
+          'Permiso necesario',
+          'Activa las notificaciones para PlantCare desde los ajustes de tu teléfono.',
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeHour = async (hour: number) => {
+    setReminder((r) => ({ ...r, hour }));
+    if (reminder.enabled) {
+      await scheduleWateringReminder(hour, reminder.minute);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -80,6 +129,69 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        </Card>
+
+        <Card variant="elevated" style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="notifications-outline" size={24} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Recordatorio de riego</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Un aviso diario para que no pierdas tu racha.
+          </Text>
+
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Avisarme todos los días</Text>
+            <Switch
+              value={reminder.enabled}
+              onValueChange={toggleReminder}
+              disabled={busy}
+              trackColor={{ false: colors.backgroundLighter, true: colors.primaryLight }}
+              thumbColor={reminder.enabled ? colors.primary : colors.textMuted}
+            />
+          </View>
+
+          {reminder.enabled && (
+            <>
+              <Text style={styles.hourLabel}>¿A qué hora?</Text>
+              <View style={styles.hourRow}>
+                {HOURS.map((h) => (
+                  <TouchableOpacity
+                    key={h}
+                    style={[styles.hourChip, reminder.hour === h && styles.hourChipActive]}
+                    onPress={() => changeHour(h)}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={[
+                        styles.hourChipText,
+                        reminder.hour === h && styles.hourChipTextActive,
+                      ]}
+                    >
+                      {String(h).padStart(2, '0')}:00
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={async () => {
+              const ok = await sendTestReminder();
+              Alert.alert(
+                ok ? 'Listo' : 'Permiso necesario',
+                ok
+                  ? 'Te llega una notificación de prueba en 5 segundos.'
+                  : 'Activa las notificaciones para PlantCare desde los ajustes de tu teléfono.',
+              );
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="play-outline" size={18} color={colors.primary} />
+            <Text style={styles.testButtonText}>Probar ahora</Text>
+          </TouchableOpacity>
         </Card>
 
         <Card variant="elevated" style={styles.section}>
@@ -161,6 +273,64 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: Typography.sizes.sm,
       color: colors.textSecondary,
       marginBottom: Spacing.md,
+    },
+    switchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: Spacing.md,
+    },
+    switchLabel: {
+      flex: 1,
+      fontSize: Typography.sizes.base,
+      color: colors.text,
+    },
+    hourLabel: {
+      fontSize: Typography.sizes.sm,
+      color: colors.textSecondary,
+      marginTop: Spacing.md,
+      marginBottom: Spacing.sm,
+    },
+    hourRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.sm,
+    },
+    hourChip: {
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.primaryLight,
+      backgroundColor: colors.background,
+    },
+    hourChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    hourChipText: {
+      fontSize: Typography.sizes.sm,
+      color: colors.textSecondary,
+    },
+    hourChipTextActive: {
+      color: colors.white,
+      fontWeight: Typography.weights.semibold,
+    },
+    testButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      marginTop: Spacing.lg,
+      paddingVertical: Spacing.sm,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.primaryLight,
+    },
+    testButtonText: {
+      fontSize: Typography.sizes.sm,
+      color: colors.primary,
+      fontWeight: Typography.weights.semibold,
     },
     themeRow: {
       flexDirection: 'row',

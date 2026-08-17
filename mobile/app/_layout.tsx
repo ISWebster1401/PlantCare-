@@ -5,6 +5,10 @@ import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '../context/AuthContext';
 import { ThemeProvider, useThemeColors } from '../context/ThemeContext';
+import { configureNotificationHandler } from '../services/notifications';
+
+// Debe quedar registrado antes de que llegue cualquier notificación
+configureNotificationHandler();
 
 // En producción (build no-__DEV__) silenciamos los logs de desarrollo: evitan
 // exponer datos (tokens, respuestas de API) en la consola del dispositivo y

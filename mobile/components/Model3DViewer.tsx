@@ -27,6 +27,8 @@ interface Model3DViewerProps {
    * three.js mientras no existan los .glb reales de cada accesorio.
    */
   accessories?: string[];
+  /** Dibuja ojos y boca sobre el modelo (los .glb no traen cara). Default: true */
+  showFace?: boolean;
   /** Called when the 3D model has loaded successfully */
   onLoad?: () => void;
   /** Called when the 3D model fails to load */
@@ -144,6 +146,83 @@ function buildAccessoryMesh(
   return g;
 }
 
+// ─── Cara del personaje ──────────────────────────────────────────────────────
+// Los modelos de meshy.ai vienen solo con geometría: no traen ojos ni boca. Se
+// los construimos acá, en el mismo espacio local que los accesorios, así el
+// personaje tiene expresión sobre cualquier modelo. El color de iris se vende
+// en la tienda como un item más (códigos `ojos_*`).
+
+const EYE_COLORS: Record<string, number> = {
+  ojos_azules: 0x3d6f94,
+  ojos_dorados: 0xc9a227,
+  ojos_violeta: 0x7a5fa0,
+  ojos_esmeralda: 0x2f7d5a,
+};
+const DEFAULT_EYE = 0x2e3328;
+
+/** Deriva el color de iris de los accesorios equipados. */
+function eyeColorFrom(accessories: string[]): number {
+  for (const code of accessories) {
+    if (EYE_COLORS[code] !== undefined) return EYE_COLORS[code];
+  }
+  return DEFAULT_EYE;
+}
+
+function buildFace(
+  box: THREE.Box3,
+  size: THREE.Vector3,
+  center: THREE.Vector3,
+  eyeColor: number,
+  mood?: string,
+): THREE.Group {
+  const g = new THREE.Group();
+  const r = Math.max(size.x, size.z) / 2;
+  const cx = center.x;
+  // Misma altura que los lentes de sol, para que calcen justo encima de los ojos
+  const faceY = box.min.y + size.y * 0.72;
+  const faceZ = box.max.z * 0.92;
+
+  const white = _mat(0xfdfcf7, { roughness: 0.35 });
+  const iris = _mat(eyeColor, { roughness: 0.3 });
+  const dark = _mat(0x1b1f18, { roughness: 0.4 });
+  const shineMat = _mat(0xffffff, { roughness: 0.1 });
+
+  for (const side of [-1, 1]) {
+    const x = cx + side * r * 0.3;
+    const z = faceZ * 0.92;
+
+    const sclera = new THREE.Mesh(new THREE.SphereGeometry(r * 0.2, 18, 18), white);
+    sclera.scale.set(1, 1.12, 0.7);
+    sclera.position.set(x, faceY, z);
+
+    const ir = new THREE.Mesh(new THREE.SphereGeometry(r * 0.1, 14, 14), iris);
+    ir.scale.set(1, 1, 0.6);
+    ir.position.set(x, faceY, z + r * 0.13);
+
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(r * 0.045, 10, 10), dark);
+    pupil.position.set(x, faceY, z + r * 0.17);
+
+    // El brillo es lo que lo hace ver vivo y no un muñeco
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(r * 0.025, 8, 8), shineMat);
+    shine.position.set(x + r * 0.045, faceY + r * 0.06, z + r * 0.18);
+
+    g.add(sclera, ir, pupil, shine);
+  }
+
+  // Boca según el ánimo que ya calcula el backend
+  const m = (mood || '').toLowerCase();
+  const sad = ['sad', 'triste', 'thirsty', 'sediento', 'sick', 'enfermo', 'critical'].some((k) =>
+    m.includes(k),
+  );
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(r * 0.17, r * 0.035, 8, 18, Math.PI), dark);
+  // El arco de un toro parcial abre hacia arriba (∩); girarlo 180° lo vuelve sonrisa (∪)
+  mouth.rotation.z = sad ? 0 : Math.PI;
+  mouth.position.set(cx, faceY - r * 0.36, faceZ * 0.9);
+  g.add(mouth);
+
+  return g;
+}
+
 // ─── Helper: build a realistic Pokemon GO-style environment ─────────────────
 function buildRealisticGarden(scene: THREE.Scene) {
   // ── Layered ground: concentric rings with varying green shades ──
@@ -241,6 +320,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   characterMood,
   gardenBackground = true,
   accessories = [],
+  showFace = true,
   onLoad,
   onError,
 }) => {
@@ -255,6 +335,8 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   // el consumidor debe remontar el componente (ej: key={accessories.join()}).
   const accessoriesRef = useRef(accessories);
   accessoriesRef.current = accessories;
+  const showFaceRef = useRef(showFace);
+  showFaceRef.current = showFace;
   const errorLoggedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -443,6 +525,14 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
               });
             }
           });
+
+          // ── Cara del personaje ──
+          // Va antes que los accesorios para que los lentes queden por encima.
+          if (showFaceRef.current) {
+            model.add(
+              buildFace(box, size, center, eyeColorFrom(accessoriesRef.current), currentMood),
+            );
+          }
 
           // ── Accesorios equipados (tienda) ──
           // Se agregan como hijos del modelo, construidos con el bounding box

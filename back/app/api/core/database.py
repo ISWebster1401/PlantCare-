@@ -798,7 +798,11 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 ('bufanda', 'Bufanda', 'Abriga en invierno', 40, 'ropa', '🧣'),
                 ('gorro_fiesta', 'Gorro de Fiesta', 'Para celebrar rachas', 50, 'sombrero', '🎉'),
                 ('mono_elegante', 'Moño Elegante', 'Un toque formal', 60, 'accesorio', '🎀'),
-                ('corona', 'Corona Real', 'Solo para jardineros expertos', 120, 'sombrero', '👑')
+                ('corona', 'Corona Real', 'Solo para jardineros expertos', 120, 'sombrero', '👑'),
+                ('ojos_azules', 'Ojos Azules', 'Mirada de cielo despejado', 20, 'ojos', '🔵'),
+                ('ojos_dorados', 'Ojos Dorados', 'Mirada de atardecer', 45, 'ojos', '🟡'),
+                ('ojos_esmeralda', 'Ojos Esmeralda', 'Verde como sus hojas', 55, 'ojos', '🟢'),
+                ('ojos_violeta', 'Ojos Violeta', 'La mirada más rara del jardín', 90, 'ojos', '🟣')
             ) AS nuevos(code, name, description, cost_points, category, icon)
             WHERE NOT EXISTS (
                 SELECT 1 FROM store_items s WHERE s.code = nuevos.code
