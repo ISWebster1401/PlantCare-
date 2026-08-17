@@ -59,19 +59,47 @@ function _mat(color: number, extra: Partial<THREE.MeshStandardMaterialParameters
   return new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.05, ...extra });
 }
 
+/**
+ * Dónde van la cara y los sombreros, como fracción del alto del modelo medido
+ * desde su base. Al ser proporciones y no medidas fijas, se adaptan solas a
+ * modelos de cualquier tamaño — pero no a cualquier FORMA: un cactus redondo y
+ * una monstera alta tienen la cabeza en proporciones distintas, así que cada
+ * modelo puede sobrescribir estos números en ANCHOR_OVERRIDES.
+ */
+export interface ModelAnchors {
+  /** Altura de los ojos (y de los lentes, que van al mismo nivel) */
+  faceY: number;
+  /** Línea donde se apoyan sombreros, gorros y coronas */
+  headY: number;
+  /** Altura de la bufanda, a la altura del "cuello" */
+  scarfY: number;
+}
+
+const DEFAULT_ANCHORS: ModelAnchors = { faceY: 0.62, headY: 0.8, scarfY: 0.5 };
+
+/** Ajustes por modelo, indexados por el nombre del archivo .glb sin extensión. */
+const ANCHOR_OVERRIDES: Record<string, Partial<ModelAnchors>> = {
+  // El cactus tiene un brote de hojas que ocupa la punta: el sombrero se apoya
+  // sobre el cuerpo redondo, más abajo.
+  cactus_default: { faceY: 0.6, headY: 0.78 },
+};
+
+export function anchorsFor(modelUrl: string): ModelAnchors {
+  const name = modelUrl.split('/').pop()?.replace(/\.glb$/i, '') ?? '';
+  return { ...DEFAULT_ANCHORS, ...(ANCHOR_OVERRIDES[name] ?? {}) };
+}
+
 function buildAccessoryMesh(
   code: string,
   box: THREE.Box3,
   size: THREE.Vector3,
   center: THREE.Vector3,
+  anchors: ModelAnchors,
 ): THREE.Group | null {
   const g = new THREE.Group();
   // Radio de referencia de la "cabeza" del personaje
   const r = Math.max(size.x, size.z) / 2;
-  // "Línea de la cabeza": 8% bajo la punta del modelo. Anclar a box.max.y deja
-  // los sombreros flotando, porque esa punta suele ser una hoja o un brote fino
-  // y no el volumen sobre el que realmente se apoyaría un gorro.
-  const topY = box.max.y - size.y * 0.08;
+  const topY = box.min.y + size.y * anchors.headY;
   const cx = center.x;
   const cz = center.z;
 
@@ -121,7 +149,7 @@ function buildAccessoryMesh(
     }
     case 'lentes_sol': {
       const dark = _mat(0x1a1a1a, { roughness: 0.25 });
-      const faceY = box.min.y + size.y * 0.72;
+      const faceY = box.min.y + size.y * anchors.faceY;
       const faceZ = box.max.z * 0.92;
       for (const side of [-1, 1]) {
         const lens = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.22, r * 0.22, r * 0.06, 20), dark);
@@ -137,9 +165,9 @@ function buildAccessoryMesh(
     case 'bufanda': {
       const wrap = new THREE.Mesh(new THREE.TorusGeometry(r * 0.72, r * 0.17, 12, 24), _mat(0xc62828));
       wrap.rotation.x = Math.PI / 2;
-      wrap.position.set(cx, box.min.y + size.y * 0.58, cz);
+      wrap.position.set(cx, box.min.y + size.y * anchors.scarfY, cz);
       const tail = new THREE.Mesh(new THREE.BoxGeometry(r * 0.24, size.y * 0.22, r * 0.08), _mat(0xb71c1c));
-      tail.position.set(cx + r * 0.4, box.min.y + size.y * 0.45, box.max.z * 0.8);
+      tail.position.set(cx + r * 0.4, box.min.y + size.y * (anchors.scarfY - 0.13), box.max.z * 0.8);
       g.add(wrap, tail);
       break;
     }
@@ -176,13 +204,14 @@ function buildFace(
   size: THREE.Vector3,
   center: THREE.Vector3,
   eyeColor: number,
+  anchors: ModelAnchors,
   mood?: string,
 ): THREE.Group {
   const g = new THREE.Group();
   const r = Math.max(size.x, size.z) / 2;
   const cx = center.x;
-  // Misma altura que los lentes de sol, para que calcen justo encima de los ojos
-  const faceY = box.min.y + size.y * 0.72;
+  // Los lentes de sol usan esta misma ancla, así calzan justo sobre los ojos
+  const faceY = box.min.y + size.y * anchors.faceY;
   const faceZ = box.max.z * 0.92;
 
   const white = _mat(0xfdfcf7, { roughness: 0.35 });
@@ -363,12 +392,20 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
     }
 
     const { box, size, center } = anchor;
+    const anchors = anchorsFor(modelUrl);
     const group = new THREE.Group();
 
     if (showFaceRef.current) {
       try {
         group.add(
-          buildFace(box, size, center, eyeColorFrom(accessoriesRef.current), characterMood),
+          buildFace(
+            box,
+            size,
+            center,
+            eyeColorFrom(accessoriesRef.current),
+            anchors,
+            characterMood,
+          ),
         );
       } catch (e) {
         console.warn('[3D] no se pudo construir la cara:', e);
@@ -376,7 +413,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
     }
     for (const code of accessoriesRef.current) {
       try {
-        const acc = buildAccessoryMesh(code, box, size, center);
+        const acc = buildAccessoryMesh(code, box, size, center, anchors);
         if (acc) group.add(acc);
       } catch (e) {
         console.warn(`[3D] no se pudo construir el accesorio "${code}":`, e);
