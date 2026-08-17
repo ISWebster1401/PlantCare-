@@ -153,7 +153,7 @@ function buildRealisticGarden(scene: THREE.Scene) {
     { radius: 4.0, color: 0x447a30 },
     { radius: 3.0, color: 0x4e8838 },
     { radius: 2.0, color: 0x569440 },
-    { radius: 1.2, color: 0x5a9e3a }, // innermost - lighter
+    { radius: 1.2, color: 0x5a7355 }, // innermost - lighter
   ];
 
   for (let li = 0; li < groundLayers.length; li++) {
@@ -183,7 +183,7 @@ function buildRealisticGarden(scene: THREE.Scene) {
   scene.add(shadow);
 
   // ── Grass blades ──
-  const grassColors = [0x3a6f28, 0x447a30, 0x4e8838, 0x569440, 0x5a9e3a, 0x4a8530];
+  const grassColors = [0x3a6f28, 0x447a30, 0x4e8838, 0x569440, 0x5a7355, 0x4a8530];
   const grassCount = 70;
   // Reuse a single geometry for all blades
   const bladeGeo = new THREE.PlaneGeometry(0.02, 0.12);
@@ -437,7 +437,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
                 child.geometry.computeVertexNormals();
               }
               child.material = new THREE.MeshStandardMaterial({
-                color: 0x5a9e3a,
+                color: 0x5a7355,
                 roughness: 0.85,
                 metalness: 0.0,
               });
@@ -551,7 +551,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   if (loadError) {
     return (
       <View style={[styles.container, styles.placeholder, style]}>
-        <Ionicons name="leaf" size={48} color="#81C784" />
+        <Ionicons name="leaf" size={48} color="#8FA889" />
         <Text style={styles.placeholderText}>Planta</Text>
       </View>
     );
@@ -582,12 +582,12 @@ const styles = StyleSheet.create({
   placeholder: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#e8f5e9',
+    backgroundColor: '#F1F0E4',
   },
   placeholderText: {
     marginTop: 8,
     fontSize: 14,
-    color: '#2e7d32',
+    color: '#4A6146',
   },
   touchOverlay: {
     ...StyleSheet.absoluteFillObject,

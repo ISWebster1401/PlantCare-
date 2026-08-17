@@ -55,7 +55,7 @@ function FloatingParticle({ size, duration }: { size: number; duration: number }
 }
 
 /** Partículas de fondo sutiles */
-export function ScannerParticles({ color = '#4CAF50' }: { color?: string }) {
+export function ScannerParticles({ color = '#5A7355' }: { color?: string }) {
   const particles = [
     { size: 4, left: width * 0.1, top: height * 0.2, delay: 0, duration: 3000 },
     { size: 2, left: width * 0.8, top: height * 0.3, delay: 500, duration: 2500 },

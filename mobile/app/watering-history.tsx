@@ -243,7 +243,7 @@ export default function WateringHistoryScreen() {
             ]}
           />
           <LinearGradient
-            colors={['#64B5F6', reachedGoal ? '#4CAF50' : '#FFB74D']}
+            colors={['#7C9CA8', reachedGoal ? '#5A7355' : '#C48F3E']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={[

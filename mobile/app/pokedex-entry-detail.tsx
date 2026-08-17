@@ -200,7 +200,7 @@ export default function PokedexEntryDetailScreen() {
                   contentFit="contain"
                 />
                 {entry.is_unlocked && (
-                  <View style={[styles.unlockedBadge, { backgroundColor: '#4caf50' }]}>
+                  <View style={[styles.unlockedBadge, { backgroundColor: '#5A7355' }]}>
                     <Ionicons name="checkmark-circle" size={20} color="#fff" />
                     <Text style={styles.unlockedText}>¡Desbloqueada!</Text>
                   </View>
@@ -225,15 +225,15 @@ export default function PokedexEntryDetailScreen() {
         {/* Información Botánica con diseño más atractivo */}
         {entry.is_unlocked ? (
           <View style={styles.botanicalSection}>
-            <View style={[styles.botanicalCard, { borderLeftColor: '#4caf50' }]}>
+            <View style={[styles.botanicalCard, { borderLeftColor: '#5A7355' }]}>
               <View style={styles.botanicalHeader}>
-                <Ionicons name="school" size={28} color="#4caf50" />
+                <Ionicons name="school" size={28} color="#5A7355" />
                 <Text style={styles.botanicalCardTitle}>📚 Información Científica</Text>
               </View>
               {entry.catalog_entry.scientific_name && (
                 <View style={styles.botanicalRow}>
-                  <View style={[styles.botanicalIconCircle, { backgroundColor: '#4caf5030' }]}>
-                    <Ionicons name="flask" size={24} color="#4caf50" />
+                  <View style={[styles.botanicalIconCircle, { backgroundColor: '#5A735530' }]}>
+                    <Ionicons name="flask" size={24} color="#5A7355" />
                   </View>
                   <View style={styles.botanicalContent}>
                     <Text style={styles.botanicalLabel}>🔬 Nombre Científico</Text>
@@ -254,8 +254,8 @@ export default function PokedexEntryDetailScreen() {
               )}
               {entry.catalog_entry.common_names && (
                 <View style={[styles.botanicalRow, styles.botanicalRowSeparator]}>
-                  <View style={[styles.botanicalIconCircle, { backgroundColor: '#ff980030' }]}>
-                    <Ionicons name="bookmark" size={24} color="#ff9800" />
+                  <View style={[styles.botanicalIconCircle, { backgroundColor: '#A0503C30' }]}>
+                    <Ionicons name="bookmark" size={24} color="#A0503C" />
                   </View>
                   <View style={styles.botanicalContent}>
                     <Text style={styles.botanicalLabel}>🏷️ También se llama</Text>
@@ -312,14 +312,14 @@ export default function PokedexEntryDetailScreen() {
               
               {entry.catalog_entry.care_level && (
                 <View style={[styles.statCard, styles.statCardVibrant, { 
-                  borderLeftColor: '#ff9800',
-                  backgroundColor: '#ff980015'
+                  borderLeftColor: '#A0503C',
+                  backgroundColor: '#A0503C15'
                 }]}>
-                  <View style={[styles.statIconContainer, { backgroundColor: '#ff980030' }]}>
-                    <Ionicons name="star" size={32} color="#ff9800" />
+                  <View style={[styles.statIconContainer, { backgroundColor: '#A0503C30' }]}>
+                    <Ionicons name="star" size={32} color="#A0503C" />
                   </View>
                   <Text style={styles.statLabel}>⭐ Nivel</Text>
-                  <Text style={[styles.statValue, { color: '#ff9800' }]}>
+                  <Text style={[styles.statValue, { color: '#A0503C' }]}>
                     {entry.catalog_entry.care_level}
                   </Text>
                 </View>
@@ -341,14 +341,14 @@ export default function PokedexEntryDetailScreen() {
               )}
               
               <View style={[styles.statCard, styles.statCardVibrant, { 
-                borderLeftColor: '#4caf50',
-                backgroundColor: '#4caf5015'
+                borderLeftColor: '#5A7355',
+                backgroundColor: '#5A735515'
               }]}>
-                <View style={[styles.statIconContainer, { backgroundColor: '#4caf5030' }]}>
-                  <Ionicons name="leaf" size={32} color="#4caf50" />
+                <View style={[styles.statIconContainer, { backgroundColor: '#5A735530' }]}>
+                  <Ionicons name="leaf" size={32} color="#5A7355" />
                 </View>
                 <Text style={styles.statLabel}>🌿 Categoría</Text>
-                <Text style={[styles.statValue, { color: '#4caf50' }]}>
+                <Text style={[styles.statValue, { color: '#5A7355' }]}>
                   {entry.catalog_entry.plant_type || 'Planta'}
                 </Text>
               </View>
@@ -373,14 +373,14 @@ export default function PokedexEntryDetailScreen() {
         {entry.is_unlocked && entry.catalog_entry.care_tips && (
           <View style={styles.tipsSection}>
             <View style={styles.sectionTitleContainer}>
-              <View style={[styles.sectionIconContainer, { backgroundColor: '#ffb74d20' }]}>
-                <Ionicons name="bulb" size={28} color="#ffb74d" />
+              <View style={[styles.sectionIconContainer, { backgroundColor: '#C48F3E20' }]}>
+                <Ionicons name="bulb" size={28} color="#C48F3E" />
               </View>
               <Text style={styles.sectionTitle}>💡 Tips de Cuidado</Text>
             </View>
-            <View style={[styles.tipsCard, { borderLeftColor: '#ffb74d' }]}>
+            <View style={[styles.tipsCard, { borderLeftColor: '#C48F3E' }]}>
               <View style={styles.tipsHeader}>
-                <Ionicons name="sparkles" size={24} color="#ffb74d" />
+                <Ionicons name="sparkles" size={24} color="#C48F3E" />
                 <Text style={styles.tipsTitle}>¡Aprende a cuidarla!</Text>
               </View>
               {(entry.catalog_entry.care_tips || '')
@@ -403,8 +403,8 @@ export default function PokedexEntryDetailScreen() {
         {entry.is_unlocked && (entry.catalog_entry.optimal_humidity_min || entry.catalog_entry.optimal_temp_min) && (
           <View style={styles.conditionsSection}>
             <View style={styles.sectionTitleContainer}>
-              <View style={[styles.sectionIconContainer, { backgroundColor: '#64b5f620' }]}>
-                <Ionicons name="thermometer" size={28} color="#64b5f6" />
+              <View style={[styles.sectionIconContainer, { backgroundColor: '#7C9CA820' }]}>
+                <Ionicons name="thermometer" size={28} color="#7C9CA8" />
               </View>
               <Text style={styles.sectionTitle}>🌡️ Condiciones Ideales</Text>
             </View>
@@ -639,7 +639,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 2,
       borderColor: colors.backgroundLighter,
       borderLeftWidth: 6,
-      shadowColor: '#ffb74d',
+      shadowColor: '#C48F3E',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.2,
       shadowRadius: 12,
@@ -649,7 +649,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     tipsTitle: { fontSize: 18, fontWeight: '700', color: colors.text, letterSpacing: 0.3 },
     tipsText: { flex: 1, fontSize: 15, lineHeight: 24, color: colors.text, fontWeight: '500' },
     tipBulletRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-    tipBulletDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#ffb74d', marginTop: 8, marginRight: 12, flexShrink: 0 },
+    tipBulletDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#C48F3E', marginTop: 8, marginRight: 12, flexShrink: 0 },
     conditionsSection: { paddingHorizontal: 16, paddingBottom: 20 },
     conditionsGrid: { flexDirection: 'row', gap: 12 },
     conditionCard: {

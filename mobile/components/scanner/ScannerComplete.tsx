@@ -104,7 +104,7 @@ export function ScannerComplete({ imageUri, model3dUrl, onContinue }: ScannerCom
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#E3F2FD', '#E8F5E9', '#C8E6C9']}
+        colors={['#E3F2FD', '#F1F0E4', '#E6EDE2']}
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
       />

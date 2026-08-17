@@ -153,7 +153,7 @@ export const PlantCard: React.FC<PlantCardProps> = ({ plant, onPress, style }) =
               <ProgressBar
                 progress={waterProgress}
                 height={8}
-                gradient={['#64B5F6', '#4FC3F7']}
+                gradient={['#7C9CA8', '#4FC3F7']}
                 showShimmer={waterProgress > 80}
               />
             </View>

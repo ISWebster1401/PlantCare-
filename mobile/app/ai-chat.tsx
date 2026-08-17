@@ -762,7 +762,7 @@ export default function AIChatScreen() {
                   <Text style={[styles.plantTypeCompact, { color: colors.textSecondary }]}>{item.plant_type}</Text>
                 )}
               </View>
-              <View style={[styles.statusDotCompact, { backgroundColor: item.health_status === 'healthy' ? '#4ade80' : '#ff9800' }]} />
+              <View style={[styles.statusDotCompact, { backgroundColor: item.health_status === 'healthy' ? '#4ade80' : '#A0503C' }]} />
               <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           )}

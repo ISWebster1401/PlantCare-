@@ -52,7 +52,7 @@ export function ScannerSelection({ onSelect, onBack }: ScannerSelectionProps) {
 
   const backgroundGradient = isDark
     ? (['#0D1F0D', '#1A2E1A', '#243524'] as const)
-    : (['#E3F2FD', '#E8F5E9', '#C8E6C9'] as const);
+    : (['#E3F2FD', '#F1F0E4', '#E6EDE2'] as const);
   const pagerRef = useRef<PagerView>(null);
   const buttonScale = useSharedValue(1);
 

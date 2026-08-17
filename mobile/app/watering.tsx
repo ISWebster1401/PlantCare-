@@ -381,7 +381,7 @@ export default function WateringScreen() {
             <Text style={styles.gaugeLabel}>Humedad del suelo (sensor real)</Text>
             <View style={styles.gaugeTrack}>
               <LinearGradient
-                colors={['#64B5F6', '#4CAF50']}
+                colors={['#7C9CA8', '#5A7355']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={[styles.gaugeFill, { width: `${progressPercent}%` }]}

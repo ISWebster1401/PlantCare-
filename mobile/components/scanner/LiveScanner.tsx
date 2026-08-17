@@ -407,7 +407,7 @@ const getStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.crea
     position: 'absolute',
     width: 24,
     height: 24,
-    borderColor: colors.scanner || '#4CAF50',
+    borderColor: colors.scanner || '#5A7355',
     borderWidth: 3,
   },
   cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 12 },
@@ -461,7 +461,7 @@ const getStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.crea
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#5A7355',
     borderRadius: 3,
   },
   stepsRow: {
@@ -484,7 +484,7 @@ const getStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.crea
     marginBottom: 4,
   },
   dotCompleted: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#5A7355',
   },
   dotCurrent: {
     borderWidth: 2,
@@ -536,7 +536,7 @@ const getStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.crea
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#5A7355',
     justifyContent: 'center',
     alignItems: 'center',
   },

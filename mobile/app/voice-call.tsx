@@ -770,7 +770,7 @@ REGLAS: Responde SIEMPRE en español. Mantén respuestas CORTAS (1-2 oraciones).
             </Animated.View>
             {status === 'listening' && (
               <Animated.View style={[styles.micIndicator, micStyle]}>
-                <Ionicons name="mic" size={24} color="#4CAF50" />
+                <Ionicons name="mic" size={24} color="#5A7355" />
               </Animated.View>
             )}
           </View>
@@ -788,7 +788,7 @@ REGLAS: Responde SIEMPRE en español. Mantén respuestas CORTAS (1-2 oraciones).
           {isConnected && (
             <View style={styles.controlsRow}>
               <TouchableOpacity style={[styles.controlButton, isMuted && styles.controlButtonActive]} onPress={toggleMute}>
-                <Ionicons name={isMuted ? 'mic-off' : 'mic'} size={28} color={isMuted ? '#EF5350' : '#fff'} />
+                <Ionicons name={isMuted ? 'mic-off' : 'mic'} size={28} color={isMuted ? '#A0503C' : '#fff'} />
                 <Text style={styles.controlLabel}>{isMuted ? 'Silenciado' : 'Mute'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.controlButton, isVideoMode && styles.controlButtonActive]} onPress={toggleVideoMode}>
@@ -796,7 +796,7 @@ REGLAS: Responde SIEMPRE en español. Mantén respuestas CORTAS (1-2 oraciones).
                 <Text style={[styles.controlLabel, !plantModel3D && { color: '#666' }]}>Video</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive]} onPress={toggleSpeaker}>
-                <Ionicons name={isSpeakerOn ? 'volume-high' : 'volume-low'} size={28} color={isSpeakerOn ? '#4CAF50' : '#fff'} />
+                <Ionicons name={isSpeakerOn ? 'volume-high' : 'volume-low'} size={28} color={isSpeakerOn ? '#5A7355' : '#fff'} />
                 <Text style={styles.controlLabel}>{isSpeakerOn ? 'Altavoz' : 'Auricular'}</Text>
               </TouchableOpacity>
             </View>
@@ -904,7 +904,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: 24,
       justifyContent: 'center',
       alignItems: 'center',
-      shadowColor: '#4CAF50',
+      shadowColor: '#5A7355',
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.5,
       shadowRadius: 10,
@@ -920,15 +920,15 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     videoStatus: { fontSize: Typography.sizes.sm, marginTop: Spacing.xs },
     bottomSection: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
     errorContainer: { backgroundColor: 'rgba(239, 83, 80, 0.2)', padding: Spacing.md, borderRadius: 12, marginBottom: Spacing.md },
-    errorText: { color: '#EF5350', textAlign: 'center', fontSize: Typography.sizes.sm },
+    errorText: { color: '#A0503C', textAlign: 'center', fontSize: Typography.sizes.sm },
     controlsRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: Spacing.lg },
     controlButton: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(255, 255, 255, 0.15)', justifyContent: 'center', alignItems: 'center' },
     controlButtonActive: { backgroundColor: 'rgba(255, 255, 255, 0.3)' },
     controlLabel: { color: '#fff', fontSize: 9, marginTop: 4, textAlign: 'center' },
     mainControlsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: Spacing.xl, marginBottom: Spacing.md },
     secondaryButton: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(255, 255, 255, 0.15)', justifyContent: 'center', alignItems: 'center' },
-    callButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center', shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8 },
-    hangUpButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#EF5350', justifyContent: 'center', alignItems: 'center', shadowColor: '#EF5350', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8 },
+    callButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#5A7355', justifyContent: 'center', alignItems: 'center', shadowColor: '#5A7355', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8 },
+    hangUpButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#A0503C', justifyContent: 'center', alignItems: 'center', shadowColor: '#A0503C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8 },
     statusHintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: Spacing.sm },
     statusHint: { color: 'rgba(255, 255, 255, 0.6)', fontSize: Typography.sizes.sm },
   });

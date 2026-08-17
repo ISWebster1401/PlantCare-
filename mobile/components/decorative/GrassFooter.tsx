@@ -17,8 +17,8 @@ export function GrassFooter({ isDark: isDarkProp }: GrassFooterProps) {
   const isDark = isDarkProp ?? themeDark;
 
   const grassColors = isDark
-    ? { front: '#1B5E20', middle: '#2E7D32', back: '#388E3C' }
-    : { front: '#4CAF50', middle: '#66BB6A', back: '#81C784' };
+    ? { front: '#42563E', middle: '#4A6146', back: '#5A7355' }
+    : { front: '#5A7355', middle: '#6B8465', back: '#8FA889' };
 
   return (
     <View style={styles.container}>
@@ -26,7 +26,7 @@ export function GrassFooter({ isDark: isDarkProp }: GrassFooterProps) {
         <Defs>
           <LinearGradient id="grassGradient1" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0%" stopColor={grassColors.front} />
-            <Stop offset="100%" stopColor={isDark ? '#0D1F0D' : '#2E7D32'} />
+            <Stop offset="100%" stopColor={isDark ? '#0D1F0D' : '#4A6146'} />
           </LinearGradient>
           <LinearGradient id="grassGradient2" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0%" stopColor={grassColors.middle} />
