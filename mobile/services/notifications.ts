@@ -27,8 +27,6 @@ export function configureNotificationHandler() {
       shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
-      // Compatibilidad con versiones previas del SDK
-      shouldShowAlert: true,
     }),
   });
 }
