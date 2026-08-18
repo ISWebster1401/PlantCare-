@@ -34,7 +34,7 @@ async def list_notifications(
         notifications = await db.fetch_records(
             "notifications",
             conditions=conditions,
-            order_by="created_at DESC",
+            order_by=[("created_at", "DESC")],
             limit=50  # Limitar a las últimas 50
         )
         

@@ -174,7 +174,7 @@ async def verify_email_with_code(db, email: str, code: str) -> bool:
         tokens = await db.fetch_records(
             "email_verification_tokens",
             conditions={"user_id": user["id"], "token": code, "used_at": None},
-            order_by="created_at DESC",
+            order_by=[("created_at", "DESC")],
             limit=1
         )
         
