@@ -133,6 +133,10 @@ def _normalize_plant_type(plant_type: str) -> str:
         "espada de san jorge": "Sansevieria",
         "snake plant": "Sansevieria",
         
+        # Petunia
+        "petunia": "Petunia",
+        "petunias": "Petunia",
+
         # Ficus
         "ficus": "Ficus",
         "higuera": "Ficus",

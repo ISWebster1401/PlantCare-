@@ -82,6 +82,9 @@ const ANCHOR_OVERRIDES: Record<string, Partial<ModelAnchors>> = {
   // El cactus tiene un brote de hojas que ocupa la punta: el sombrero se apoya
   // sobre el cuerpo redondo, más abajo.
   cactus_default: { faceY: 0.6, headY: 0.78 },
+  // Mata redonda de flores, sin brote ni maceta: la cara va algo más abajo del
+  // ecuador y el sombrero casi en la cima.
+  petunia_default: { faceY: 0.58, headY: 0.86, scarfY: 0.42 },
 };
 
 export function anchorsFor(modelUrl: string): ModelAnchors {
