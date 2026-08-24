@@ -178,6 +178,30 @@ def _normalize_plant_type(plant_type: str) -> str:
         "pilea": "Dólar",
         "pilea peperomioides": "Dólar",
         "money plant": "Dólar",
+
+        # Peral
+        "peral": "Peral",
+        "pera": "Peral",
+        "pyrus": "Peral",
+
+        # Pimenton / pimiento / aji
+        "pimenton": "Pimenton",
+        "pimentón": "Pimenton",
+        "pimiento": "Pimenton",
+        "ají": "Pimenton",
+        "capsicum": "Pimenton",
+
+        # Papa. "papaya" va antes a proposito: el match por substring toma la
+        # primera coincidencia, y sin esto una papaya se convertiria en papa.
+        "papaya": "Planta",
+        "patata": "Patata",
+        "papa": "Patata",
+        "solanum tuberosum": "Patata",
+
+        # Pata de vaca
+        "pata de vaca": "Pata de Vaca",
+        "pezuña de vaca": "Pata de Vaca",
+        "bauhinia": "Pata de Vaca",
     }
     
     # Buscar match exacto primero

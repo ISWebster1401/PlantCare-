@@ -92,16 +92,74 @@ export function anchorsFor(modelUrl: string): ModelAnchors {
   return { ...DEFAULT_ANCHORS, ...(ANCHOR_OVERRIDES[name] ?? {}) };
 }
 
+/**
+ * Perfil de anchura del modelo por altura. Los .glb de meshy son formas muy
+ * distintas entre si — un peral se angosta hacia arriba, un cactus es una
+ * bola — y dimensionar los accesorios con el ancho MAXIMO le pone al peral un
+ * sombrero del porte de su base. Medimos el ancho real a cada altura y los
+ * accesorios se ajustan solos, sin calibrar cada modelo a mano.
+ */
+export interface ShapeProfile {
+  /** Radio del modelo a la altura t (0 = base, 1 = punta) */
+  radiusAt: (t: number) => number;
+  /** Cara frontal (Z maximo) a la altura t */
+  frontZAt: (t: number) => number;
+}
+
+const PROFILE_BINS = 20;
+
+function measureProfile(
+  model: THREE.Object3D,
+  box: THREE.Box3,
+  size: THREE.Vector3,
+): ShapeProfile {
+  const halfW = new Array(PROFILE_BINS).fill(0);
+  const frontZ = new Array(PROFILE_BINS).fill(-Infinity);
+  const v = new THREE.Vector3();
+
+  model.traverse((child: any) => {
+    const pos = child.isMesh && child.geometry?.attributes?.position;
+    if (!pos) return;
+    child.updateWorldMatrix(true, false);
+    // Submuestreo: un perfil no necesita millones de puntos y esto corre en el
+    // hilo JS del telefono
+    const step = Math.max(1, Math.floor(pos.count / 40000));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(child.matrixWorld);
+      const t = size.y > 0 ? (v.y - box.min.y) / size.y : 0;
+      const b = Math.min(PROFILE_BINS - 1, Math.max(0, Math.floor(t * PROFILE_BINS)));
+      const dx = Math.abs(v.x - (box.min.x + size.x / 2));
+      const dz = Math.abs(v.z - (box.min.z + size.z / 2));
+      const d = Math.max(dx, dz);
+      if (d > halfW[b]) halfW[b] = d;
+      if (v.z > frontZ[b]) frontZ[b] = v.z;
+    }
+  });
+
+  // Rellenar bins vacios con el vecino util, para que un hueco no devuelva 0
+  const fallbackR = Math.max(size.x, size.z) / 2;
+  for (let i = 0; i < PROFILE_BINS; i++) {
+    if (halfW[i] === 0) halfW[i] = i > 0 ? halfW[i - 1] : fallbackR;
+    if (frontZ[i] === -Infinity) frontZ[i] = i > 0 ? frontZ[i - 1] : box.max.z;
+  }
+
+  const at = (arr: number[]) => (t: number) =>
+    arr[Math.min(PROFILE_BINS - 1, Math.max(0, Math.floor(t * PROFILE_BINS)))];
+
+  return { radiusAt: at(halfW), frontZAt: at(frontZ) };
+}
+
 function buildAccessoryMesh(
   code: string,
   box: THREE.Box3,
   size: THREE.Vector3,
   center: THREE.Vector3,
   anchors: ModelAnchors,
+  profile: ShapeProfile,
 ): THREE.Group | null {
   const g = new THREE.Group();
-  // Radio de referencia de la "cabeza" del personaje
-  const r = Math.max(size.x, size.z) / 2;
+  // Radio medido a la altura donde va el accesorio, no el ancho maximo
+  const r = profile.radiusAt(anchors.headY);
   const topY = box.min.y + size.y * anchors.headY;
   const cx = center.x;
   const cz = center.z;
@@ -153,24 +211,27 @@ function buildAccessoryMesh(
     case 'lentes_sol': {
       const dark = _mat(0x1a1a1a, { roughness: 0.25 });
       const faceY = box.min.y + size.y * anchors.faceY;
-      const faceZ = box.max.z * 0.92;
+      const faceZ = profile.frontZAt(anchors.faceY) * 0.98;
+      const fr = profile.radiusAt(anchors.faceY);
       for (const side of [-1, 1]) {
-        const lens = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.22, r * 0.22, r * 0.06, 20), dark);
+        const lens = new THREE.Mesh(new THREE.CylinderGeometry(fr * 0.22, fr * 0.22, fr * 0.06, 20), dark);
         lens.rotation.x = Math.PI / 2;
-        lens.position.set(cx + side * r * 0.3, faceY, faceZ);
+        lens.position.set(cx + side * fr * 0.3, faceY, faceZ);
         g.add(lens);
       }
-      const bridge = new THREE.Mesh(new THREE.BoxGeometry(r * 0.2, r * 0.05, r * 0.05), dark);
+      const bridge = new THREE.Mesh(new THREE.BoxGeometry(fr * 0.2, fr * 0.05, fr * 0.05), dark);
       bridge.position.set(cx, faceY, faceZ);
       g.add(bridge);
       break;
     }
     case 'bufanda': {
-      const wrap = new THREE.Mesh(new THREE.TorusGeometry(r * 0.72, r * 0.17, 12, 24), _mat(0xc62828));
+      const sr = profile.radiusAt(anchors.scarfY);
+      const wrap = new THREE.Mesh(new THREE.TorusGeometry(sr * 0.95, sr * 0.22, 12, 24), _mat(0xc62828));
       wrap.rotation.x = Math.PI / 2;
       wrap.position.set(cx, box.min.y + size.y * anchors.scarfY, cz);
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(r * 0.24, size.y * 0.22, r * 0.08), _mat(0xb71c1c));
-      tail.position.set(cx + r * 0.4, box.min.y + size.y * (anchors.scarfY - 0.13), box.max.z * 0.8);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(sr * 0.3, size.y * 0.22, sr * 0.1), _mat(0xb71c1c));
+      tail.position.set(cx + sr * 0.5, box.min.y + size.y * (anchors.scarfY - 0.13),
+                        profile.frontZAt(anchors.scarfY) * 0.8);
       g.add(wrap, tail);
       break;
     }
@@ -208,14 +269,15 @@ function buildFace(
   center: THREE.Vector3,
   eyeColor: number,
   anchors: ModelAnchors,
+  profile: ShapeProfile,
   mood?: string,
 ): THREE.Group {
   const g = new THREE.Group();
-  const r = Math.max(size.x, size.z) / 2;
+  const r = profile.radiusAt(anchors.faceY);
   const cx = center.x;
   // Los lentes de sol usan esta misma ancla, así calzan justo sobre los ojos
   const faceY = box.min.y + size.y * anchors.faceY;
-  const faceZ = box.max.z * 0.92;
+  const faceZ = profile.frontZAt(anchors.faceY) * 0.98;
 
   const white = _mat(0xfdfcf7, { roughness: 0.35 });
   const iris = _mat(eyeColor, { roughness: 0.3 });
@@ -407,6 +469,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
             center,
             eyeColorFrom(accessoriesRef.current),
             anchors,
+            anchor.profile,
             characterMood,
           ),
         );
@@ -416,7 +479,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
     }
     for (const code of accessoriesRef.current) {
       try {
-        const acc = buildAccessoryMesh(code, box, size, center, anchors);
+        const acc = buildAccessoryMesh(code, box, size, center, anchors, anchor.profile);
         if (acc) group.add(acc);
       } catch (e) {
         console.warn(`[3D] no se pudo construir el accesorio "${code}":`, e);
@@ -446,6 +509,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
     box: THREE.Box3;
     size: THREE.Vector3;
     center: THREE.Vector3;
+    profile: ShapeProfile;
   } | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const currentActionRef = useRef<THREE.AnimationAction | null>(null);
@@ -651,7 +715,10 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
           // El bounding box ORIGINAL (pre-escala) queda como ancla: la
           // decoración es hija del modelo, así hereda escala y rotación.
           if (boxIsUsable) {
-            decorAnchorRef.current = { box, size, center };
+            decorAnchorRef.current = {
+              box, size, center,
+              profile: measureProfile(model, box, size),
+            };
             rebuildDecorRef.current();
           } else {
             console.warn('[3D] bounding box inservible, sin cara ni accesorios', {
