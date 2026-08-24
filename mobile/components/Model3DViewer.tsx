@@ -19,6 +19,9 @@ interface Model3DViewerProps {
   style?: ViewStyle;
   autoRotate?: boolean;
   characterMood?: string;
+  /** health_status del backend: healthy | warning | critical. Cambia color,
+   *  cara y postura del personaje sin recargar el modelo. */
+  healthStatus?: string;
   /** Show the 3D garden environment. Default: true */
   gardenBackground?: boolean;
   /**
@@ -263,6 +266,43 @@ function eyeColorFrom(accessories: string[]): number {
   return DEFAULT_EYE;
 }
 
+/**
+ * Los tres estados de cuidado que ya distingue el backend en health_status.
+ * Se dibujan proceduralmente en vez de cargar un .glb por animo: el modelo ya
+ * lo pintamos nosotros (viene sin textura), asi que cambiar su aspecto es
+ * instantaneo, no pesa nada y funciona sobre cualquier modelo futuro.
+ */
+export type HealthLevel = 'healthy' | 'warning' | 'critical';
+
+interface HealthLook {
+  /** Color del cuerpo: el que mas comunica de un vistazo */
+  body: number;
+  /** Cuanto baja el parpado, 0 = ojo abierto */
+  lid: number;
+  /** El brillo del ojo se pierde cuando la planta esta mal */
+  shine: boolean;
+  /** Curva de la boca: 1 sonrisa, 0 recta, -1 hacia abajo */
+  mouth: 1 | 0 | -1;
+  /** Inclinacion de las cejas hacia adentro (radianes). 0 = sin cejas */
+  brow: number;
+  /** Cuanto se marchita el cuerpo entero */
+  droop: number;
+}
+
+const HEALTH_LOOKS: Record<HealthLevel, HealthLook> = {
+  healthy:  { body: 0x5a7355, lid: 0.0,  shine: true,  mouth: 1,  brow: 0,     droop: 0 },
+  warning:  { body: 0x7d7a3e, lid: 0.28, shine: true,  mouth: 0,  brow: 0.0,   droop: 0.02 },
+  critical: { body: 0x6f6353, lid: 0.5,  shine: false, mouth: -1, brow: 0.38,  droop: 0.07 },
+};
+
+/** Normaliza lo que venga del backend a uno de los tres niveles. */
+export function healthLevelOf(status?: string, mood?: string): HealthLevel {
+  const s = `${status ?? ''} ${mood ?? ''}`.toLowerCase();
+  if (/critical|sick|enfermo|muriendo/.test(s)) return 'critical';
+  if (/warning|sad|triste|thirsty|sediento|regular/.test(s)) return 'warning';
+  return 'healthy';
+}
+
 function buildFace(
   box: THREE.Box3,
   size: THREE.Vector3,
@@ -270,8 +310,9 @@ function buildFace(
   eyeColor: number,
   anchors: ModelAnchors,
   profile: ShapeProfile,
-  mood?: string,
+  level: HealthLevel,
 ): THREE.Group {
+  const look = HEALTH_LOOKS[level];
   const g = new THREE.Group();
   const r = profile.radiusAt(anchors.faceY);
   const cx = center.x;
@@ -283,12 +324,15 @@ function buildFace(
   const iris = _mat(eyeColor, { roughness: 0.3 });
   const dark = _mat(0x1b1f18, { roughness: 0.4 });
   const shineMat = _mat(0xffffff, { roughness: 0.1 });
+  const lidMat = _mat(look.body, { roughness: 0.85 });
+
+  const eyeR = r * 0.2;
 
   for (const side of [-1, 1]) {
     const x = cx + side * r * 0.3;
     const z = faceZ * 0.92;
 
-    const sclera = new THREE.Mesh(new THREE.SphereGeometry(r * 0.2, 18, 18), white);
+    const sclera = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 18, 18), white);
     sclera.scale.set(1, 1.12, 0.7);
     sclera.position.set(x, faceY, z);
 
@@ -299,23 +343,48 @@ function buildFace(
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(r * 0.045, 10, 10), dark);
     pupil.position.set(x, faceY, z + r * 0.17);
 
-    // El brillo es lo que lo hace ver vivo y no un muñeco
-    const shine = new THREE.Mesh(new THREE.SphereGeometry(r * 0.025, 8, 8), shineMat);
-    shine.position.set(x + r * 0.045, faceY + r * 0.06, z + r * 0.18);
+    g.add(sclera, ir, pupil);
 
-    g.add(sclera, ir, pupil, shine);
+    // El brillo es lo que lo hace ver vivo y no un muñeco: se apaga al enfermar
+    if (look.shine) {
+      const shine = new THREE.Mesh(new THREE.SphereGeometry(r * 0.025, 8, 8), shineMat);
+      shine.position.set(x + r * 0.045, faceY + r * 0.06, z + r * 0.18);
+      g.add(shine);
+    }
+
+    // Párpado: una tapa del color del cuerpo que baja sobre el ojo
+    if (look.lid > 0) {
+      const lid = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 1.06, 16, 12), lidMat);
+      lid.scale.set(1, 1.12, 0.75);
+      lid.position.set(x, faceY + eyeR * 1.12 * (1 - look.lid), z);
+      g.add(lid);
+    }
+
+    // Cejas inclinadas hacia adentro: la señal más legible de preocupación
+    if (look.brow > 0) {
+      const brow = new THREE.Mesh(
+        new THREE.BoxGeometry(eyeR * 1.5, eyeR * 0.22, eyeR * 0.22),
+        dark,
+      );
+      brow.position.set(x, faceY + eyeR * 1.5, z + eyeR * 0.5);
+      brow.rotation.z = -side * look.brow;
+      g.add(brow);
+    }
   }
 
-  // Boca según el ánimo que ya calcula el backend
-  const m = (mood || '').toLowerCase();
-  const sad = ['sad', 'triste', 'thirsty', 'sediento', 'sick', 'enfermo', 'critical'].some((k) =>
-    m.includes(k),
-  );
-  const mouth = new THREE.Mesh(new THREE.TorusGeometry(r * 0.17, r * 0.035, 8, 18, Math.PI), dark);
-  // El arco de un toro parcial abre hacia arriba (∩); girarlo 180° lo vuelve sonrisa (∪)
-  mouth.rotation.z = sad ? 0 : Math.PI;
-  mouth.position.set(cx, faceY - r * 0.36, faceZ * 0.9);
-  g.add(mouth);
+  // Boca: sonrisa, línea recta o hacia abajo
+  const mouthY = faceY - r * 0.36;
+  if (look.mouth === 0) {
+    const recta = new THREE.Mesh(new THREE.BoxGeometry(r * 0.3, r * 0.04, r * 0.04), dark);
+    recta.position.set(cx, mouthY, faceZ * 0.9);
+    g.add(recta);
+  } else {
+    const mouth = new THREE.Mesh(new THREE.TorusGeometry(r * 0.17, r * 0.035, 8, 18, Math.PI), dark);
+    // El arco de un toro parcial abre hacia arriba (∩); girarlo 180° lo vuelve sonrisa (∪)
+    mouth.rotation.z = look.mouth === 1 ? Math.PI : 0;
+    mouth.position.set(cx, mouthY, faceZ * 0.9);
+    g.add(mouth);
+  }
 
   return g;
 }
@@ -415,6 +484,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   style,
   autoRotate = true,
   characterMood,
+  healthStatus,
   gardenBackground = true,
   accessories = [],
   showFace = true,
@@ -434,6 +504,12 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   accessoriesRef.current = accessories;
   const showFaceRef = useRef(showFace);
   showFaceRef.current = showFace;
+  // Materiales que pintamos nosotros: guardarlos permite cambiar el color del
+  // cuerpo al vuelo, sin volver a cargar el .glb
+  const bodyMatsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  // Escala original del modelo: la postura marchita se aplica sobre ella, para
+  // que no se vaya encogiendo cada vez que se recalcula
+  const baseScaleYRef = useRef(1);
 
   /**
    * (Re)arma cara y accesorios sobre el modelo ya cargado. Se guarda en un ref
@@ -458,7 +534,15 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
 
     const { box, size, center } = anchor;
     const anchors = anchorsFor(modelUrl);
+    const level = healthLevelOf(healthStatus, characterMood);
+    const look = HEALTH_LOOKS[level];
     const group = new THREE.Group();
+
+    // El color del cuerpo es lo que más comunica de un vistazo
+    for (const mat of bodyMatsRef.current) mat.color.setHex(look.body);
+    // Y la postura: una planta descuidada se ve marchita
+    model.rotation.z = look.droop;
+    model.scale.y = baseScaleYRef.current * (1 - look.droop);
 
     if (showFaceRef.current) {
       try {
@@ -470,7 +554,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
             eyeColorFrom(accessoriesRef.current),
             anchors,
             anchor.profile,
-            characterMood,
+            level,
           ),
         );
       } catch (e) {
@@ -494,7 +578,7 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
   // descargado se mantiene, así el cambio es instantáneo.
   useEffect(() => {
     rebuildDecorRef.current();
-  }, [accessories.join(','), showFace, characterMood]);
+  }, [accessories.join(','), showFace, characterMood, healthStatus]);
   const errorLoggedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -666,6 +750,8 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
           const maxDim = Math.max(size.x, size.y, size.z);
           const scale = maxDim > 0 ? 2 / maxDim : 1;
           model.scale.multiplyScalar(scale);
+          baseScaleYRef.current = model.scale.y;
+          bodyMatsRef.current = [];
 
           // Place model on ground
           if (gardenBackground) {
@@ -686,11 +772,13 @@ export const Model3DViewer: React.FC<Model3DViewerProps> = ({
               if (child.geometry && !child.geometry.attributes.normal) {
                 child.geometry.computeVertexNormals();
               }
-              child.material = new THREE.MeshStandardMaterial({
-                color: 0x5a7355,
+              const mat = new THREE.MeshStandardMaterial({
+                color: HEALTH_LOOKS[healthLevelOf(healthStatus, characterMood)].body,
                 roughness: 0.85,
                 metalness: 0.0,
               });
+              child.material = mat;
+              bodyMatsRef.current.push(mat);
             }
           });
 

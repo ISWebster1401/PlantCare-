@@ -407,6 +407,7 @@ export default function PlantDetailScreen() {
                   style={isModel3DLoading ? { ...styles.model3dViewer, opacity: 0 } : styles.model3dViewer}
                   autoRotate={false}
                   characterMood={mood}
+                  healthStatus={plant.health_status}
                   accessories={equippedCodes}
                   onLoad={() => setIsModel3DLoading(false)}
                   onError={() => setIsModel3DLoading(false)}
@@ -525,6 +526,7 @@ export default function PlantDetailScreen() {
               style={styles.fsViewer}
               autoRotate={false}
               characterMood={mood}
+                  healthStatus={plant.health_status}
               accessories={equippedCodes}
               onLoad={() => setIsFullscreenLoading(false)}
               onError={() => setIsFullscreenLoading(false)}
