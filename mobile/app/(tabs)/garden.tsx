@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { plantsAPI, streaksAPI, StreakRecord } from '../../services/api';
+import { refreshReminderContent } from '../../services/notifications';
 import { PlantResponse } from '../../types';
 import { PlantCard } from '../../components/PlantCard';
 import { Button } from '../../components/ui';
@@ -43,6 +44,9 @@ export default function GardenScreen() {
     try {
       const plantsList = await plantsAPI.getMyPlants();
       setPlants(plantsList);
+      // El recordatorio de mañana se redacta ahora, con el estado de hoy: una
+      // notificación local no puede consultar nada cuando suena.
+      refreshReminderContent(plantsList);
     } catch (error: any) {
       if (error.isNetworkError || error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error')) {
         console.error('❌ Error de conexión al cargar plantas:', error.userMessage || error.message);

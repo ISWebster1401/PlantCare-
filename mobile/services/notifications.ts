@@ -15,6 +15,8 @@ export interface ReminderPrefs {
   enabled: boolean;
   hour: number;
   minute: number;
+  /** Titulo ya agendado, para no reprogramar si el texto no cambio */
+  lastText?: string;
 }
 
 export const DEFAULT_PREFS: ReminderPrefs = { enabled: false, hour: 9, minute: 0 };
@@ -66,6 +68,63 @@ async function savePrefs(prefs: ReminderPrefs) {
   await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 }
 
+/** Lo minimo que necesitamos de una planta para redactar el recordatorio. */
+export interface ReminderPlant {
+  plant_name: string;
+  last_watered: string | null;
+}
+
+export interface ReminderText {
+  title: string;
+  body: string;
+}
+
+const GENERIC_TEXT: ReminderText = {
+  title: '🌿 Tus plantas te esperan',
+  body: 'Riega hoy para no perder tu racha 🔥',
+};
+
+function daysSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return Math.floor((Date.now() - t) / 86_400_000);
+}
+
+/**
+ * Redacta el recordatorio nombrando a la planta mas sedienta. Un aviso que dice
+ * "Pepito lleva 4 dias sin agua" mueve mucho mas que uno generico.
+ */
+export function buildReminderText(plants: ReminderPlant[]): ReminderText {
+  if (!plants.length) return GENERIC_TEXT;
+
+  // Nunca regada pesa mas que cualquier cantidad de dias sin agua
+  const nunca = plants.find((p) => !p.last_watered);
+  if (nunca) {
+    return {
+      title: `🌱 ${nunca.plant_name} espera su primer riego`,
+      body: 'Riégala hoy y arranca tu racha 🔥',
+    };
+  }
+
+  let peor: ReminderPlant | null = null;
+  let peorDias = -1;
+  for (const p of plants) {
+    const d = daysSince(p.last_watered);
+    if (d !== null && d > peorDias) {
+      peorDias = d;
+      peor = p;
+    }
+  }
+
+  if (!peor || peorDias < 2) return GENERIC_TEXT;
+
+  return {
+    title: `💧 ${peor.plant_name} lleva ${peorDias} días sin agua`,
+    body: 'Riégala hoy para no perder tu racha 🔥',
+  };
+}
+
 /**
  * Agenda el recordatorio diario. Cancela los anteriores primero para que no se
  * acumulen si el usuario cambia la hora varias veces.
@@ -73,6 +132,7 @@ async function savePrefs(prefs: ReminderPrefs) {
 export async function scheduleWateringReminder(
   hour: number,
   minute: number,
+  text: ReminderText = GENERIC_TEXT,
 ): Promise<boolean> {
   const ok = await ensurePermission();
   if (!ok) return false;
@@ -82,8 +142,8 @@ export async function scheduleWateringReminder(
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🌿 Tus plantas te esperan',
-      body: 'Riega hoy para no perder tu racha 🔥',
+      title: text.title,
+      body: text.body,
       data: { type: 'watering_reminder' },
     },
     trigger: {
@@ -94,7 +154,7 @@ export async function scheduleWateringReminder(
     },
   });
 
-  await savePrefs({ enabled: true, hour, minute });
+  await savePrefs({ enabled: true, hour, minute, lastText: text.title });
   return true;
 }
 
@@ -113,14 +173,16 @@ export async function cancelWateringReminder() {
  * Notificación de prueba a los 5 segundos: sirve para demostrar que funciona
  * sin esperar hasta la hora agendada.
  */
-export async function sendTestReminder(): Promise<boolean> {
+export async function sendTestReminder(
+  text: ReminderText = GENERIC_TEXT,
+): Promise<boolean> {
   const ok = await ensurePermission();
   if (!ok) return false;
   await ensureAndroidChannel();
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🌿 Tus plantas te esperan',
-      body: 'Riega hoy para no perder tu racha 🔥',
+      title: text.title,
+      body: text.body,
       data: { type: 'watering_reminder_test' },
     },
     trigger: {
@@ -130,4 +192,26 @@ export async function sendTestReminder(): Promise<boolean> {
     },
   });
   return true;
+}
+
+/**
+ * Vuelve a agendar el recordatorio con el estado actual de las plantas.
+ *
+ * Una notificación local lleva su texto fijo desde el momento en que se agenda:
+ * cuando suena no puede consultar nada. Por eso el texto se refresca cada vez
+ * que el usuario abre la app, y así el aviso de mañana ya sabe qué planta está
+ * más sedienta. Si el texto no cambió, no se reprograma nada.
+ */
+export async function refreshReminderContent(plants: ReminderPlant[]): Promise<void> {
+  try {
+    const prefs = await getPrefs();
+    if (!prefs.enabled) return;
+
+    const text = buildReminderText(plants);
+    if (text.title === prefs.lastText) return;
+
+    await scheduleWateringReminder(prefs.hour, prefs.minute, text);
+  } catch {
+    // El recordatorio es accesorio: nunca debe romper la pantalla que lo llama
+  }
 }

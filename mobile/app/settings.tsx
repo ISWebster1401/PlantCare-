@@ -23,9 +23,11 @@ import {
   scheduleWateringReminder,
   cancelWateringReminder,
   sendTestReminder,
+  buildReminderText,
   DEFAULT_PREFS,
   type ReminderPrefs,
 } from '../services/notifications';
+import { plantsAPI } from '../services/api';
 
 /** Horas ofrecidas para el recordatorio. */
 const HOURS = [8, 9, 12, 19, 21];
@@ -179,7 +181,15 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.testButton}
             onPress={async () => {
-              const ok = await sendTestReminder();
+              // Prueba con el texto real, no el genérico: así se ve tal cual
+              // llegará mañana, nombrando la planta más sedienta.
+              let texto;
+              try {
+                texto = buildReminderText(await plantsAPI.getMyPlants());
+              } catch {
+                texto = undefined;
+              }
+              const ok = await sendTestReminder(texto);
               Alert.alert(
                 ok ? 'Listo' : 'Permiso necesario',
                 ok
