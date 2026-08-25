@@ -1,7 +1,7 @@
 /**
  * Pantalla de Detalles de Planta - Con modo oscuro (useThemeColors)
  */
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI, storeAPI, InventoryItem } from '../services/api';
@@ -44,6 +44,10 @@ export default function PlantDetailScreen() {
   const [equippingId, setEquippingId] = useState<number | null>(null);
   const [fullscreen3D, setFullscreen3D] = useState(false);
   const [isFullscreenLoading, setIsFullscreenLoading] = useState(true);
+  // Solo la primera carga muestra la pantalla de espera: las recargas al volver
+  // de regar deben ser silenciosas, o el visor 3D se desmonta y vuelve a
+  // descargar el modelo completo.
+  const yaCargoRef = useRef(false);
 
   const DetailStatCard = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
     <View style={styles.statCard}>
@@ -59,10 +63,15 @@ export default function PlantDetailScreen() {
   const [renameVisible, setRenameVisible] = useState(false);
   const [newName, setNewName] = useState('');
 
-  useEffect(() => {
-    loadPlant();
-    loadInventory();
-  }, [params.id]);
+  // Al enfocar y no solo al montar: la pantalla de riego vuelve con
+  // router.back() dejando este detalle montado, así que con useEffect la planta
+  // seguía viéndose sedienta después de regarla.
+  useFocusEffect(
+    useCallback(() => {
+      loadPlant();
+      loadInventory();
+    }, [params.id]),
+  );
 
   // Best-effort: si falla (p.ej. backend viejo), la pantalla sigue funcionando
   const loadInventory = async () => {
@@ -108,17 +117,22 @@ export default function PlantDetailScreen() {
       setIsLoading(false);
       return;
     }
+    const primeraVez = !yaCargoRef.current;
     try {
-      setIsLoading(true);
+      if (primeraVez) setIsLoading(true);
       setError(null);
       const plantData = await plantsAPI.getPlant(parseInt(params.id, 10));
       setPlant(plantData);
+      yaCargoRef.current = true;
     } catch (err: any) {
       console.error('Error cargando planta:', err);
-      setError('No se pudo cargar la información de la planta');
-      Alert.alert('Error', 'No se pudo cargar la información de la planta');
+      // Una recarga silenciosa que falla no debe tapar lo que ya se ve
+      if (primeraVez) {
+        setError('No se pudo cargar la información de la planta');
+        Alert.alert('Error', 'No se pudo cargar la información de la planta');
+      }
     } finally {
-      setIsLoading(false);
+      if (primeraVez) setIsLoading(false);
     }
   };
 
