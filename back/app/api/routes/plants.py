@@ -9,6 +9,7 @@ from pgdbtoolkit import AsyncPgDbToolkit
 
 from ..core.auth_user import get_current_active_user
 from ..core.database import get_db
+from ..core.health import compute_health
 from ..core.openai_config import identify_plant as run_plant_identification, AIServiceError
 from ..core.streaks import register_care_activity
 from ..core.supabase_storage import upload_image, upload_file, delete_image
@@ -93,6 +94,39 @@ def require_admin(current_user: dict = Depends(get_current_active_user)):
     
     logger.info(f"[DEBUG ADMIN] Acceso permitido para usuario {current_user.get('email')} (role_id={role_id_int})")
     return current_user
+
+
+def _apply_health(plant: dict, soil_moisture: Optional[float] = None) -> None:
+    """
+    Calcula el estado de la planta al momento de leerla.
+
+    Antes esto se dejaba fijo en "healthy": una planta abandonada un mes seguia
+    apareciendo sana y feliz, asi que descuidarla no tenia ninguna consecuencia
+    visible. Se calcula en lectura y no con un proceso aparte para que no haya
+    nada que se pueda quedar atrasado.
+    """
+    def _fecha(valor):
+        if valor is None or (hasattr(pd, "isna") and pd.isna(valor)):
+            return None
+        if isinstance(valor, str):
+            try:
+                return datetime.fromisoformat(valor)
+            except ValueError:
+                return None
+        return valor if isinstance(valor, datetime) else None
+
+    estado, animo = compute_health(
+        # El tipo guardado viene tal cual lo identifico la IA ("Cactus Columnar"),
+        # y los intervalos de riego estan por tipo base: sin normalizar, a un
+        # cactus se le aplicaria el intervalo generico de 7 dias en vez de 14.
+        plant_type=_normalize_plant_type(plant.get("plant_type") or ""),
+        last_watered=_fecha(plant.get("last_watered")),
+        created_at=_fecha(plant.get("created_at")),
+        soil_moisture=soil_moisture,
+        optimal_humidity_min=plant.get("optimal_humidity_min"),
+    )
+    plant["health_status"] = estado
+    plant["character_mood"] = animo
 
 
 def _normalize_plant_type(plant_type: str) -> str:
@@ -617,10 +651,7 @@ async def create_plant(
         plant = plants_df.iloc[0].to_dict()
 
         # Asegurar valores por defecto
-        if "character_mood" not in plant or not plant["character_mood"]:
-            plant["character_mood"] = "happy"
-        if not plant.get("health_status"):
-            plant["health_status"] = "healthy"
+        _apply_health(plant)
         # Manejar valores NaN/None de pandas para campos de modelo 3D
         if pd.notna(plant.get("model_3d_url")):
             plant["model_3d_url"] = str(plant["model_3d_url"])
@@ -681,10 +712,7 @@ async def list_plants(
                 plant = row.to_dict()
                 
                 # Asegurar valores por defecto para campos requeridos
-                if not plant.get("character_mood"):
-                    plant["character_mood"] = "happy"
-                if not plant.get("health_status"):
-                    plant["health_status"] = "healthy"
+                _apply_health(plant)
                 
                 # Manejar valores NaN/None de pandas - convertir a None explícitamente
                 # Campos numéricos
@@ -782,8 +810,7 @@ async def get_plant(
         plant = plants_df.iloc[0].to_dict()
         if not plant.get("character_mood"):
             plant["character_mood"] = "happy"
-        if not plant.get("health_status"):
-            plant["health_status"] = "healthy"
+        _apply_health(plant)
         # Manejar valores NaN/None de pandas para campos de modelo 3D
         if pd.notna(plant.get("model_3d_url")):
             plant["model_3d_url"] = str(plant["model_3d_url"])
@@ -855,8 +882,7 @@ async def rename_plant(
         plant = updated_df.iloc[0].to_dict()
         if not plant.get("character_mood"):
             plant["character_mood"] = "happy"
-        if not plant.get("health_status"):
-            plant["health_status"] = "healthy"
+        _apply_health(plant)
         if pd.notna(plant.get("model_3d_url")):
             plant["model_3d_url"] = str(plant["model_3d_url"])
         else:
