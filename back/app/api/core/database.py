@@ -827,6 +827,36 @@ async def _create_tables(db: AsyncPgDbToolkit):
         else:
             logger.info("✅ Tabla user_streaks ya existe")
 
+        # ============================================
+        # PASO 21: AMISTADES (fase social)
+        # ============================================
+        if "friendships" not in tables:
+            logger.info("📋 Creando tabla friendships...")
+            # Una amistad es UNA fila, no dos: quien invita y quien recibe. Las
+            # consultas miran ambas direcciones. Guardar dos filas espejo seria
+            # mas comodo de leer pero se desincroniza en cuanto una se pierda.
+            await db.execute_query("""
+                CREATE TABLE friendships (
+                    id SERIAL PRIMARY KEY,
+                    requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    addressee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    responded_at TIMESTAMP,
+                    CONSTRAINT friendship_distinct CHECK (requester_id <> addressee_id),
+                    CONSTRAINT friendship_unique UNIQUE (requester_id, addressee_id)
+                )
+            """)
+            await db.execute_query(
+                "CREATE INDEX idx_friendships_requester ON friendships(requester_id, status)"
+            )
+            await db.execute_query(
+                "CREATE INDEX idx_friendships_addressee ON friendships(addressee_id, status)"
+            )
+            logger.info("✅ Tabla friendships creada exitosamente")
+        else:
+            logger.info("✅ Tabla friendships ya existe")
+
     except Exception as e:
         log_error_with_context(e, "create_tables")
         raise
