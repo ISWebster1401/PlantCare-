@@ -182,6 +182,15 @@ function ThemedStack() {
         }}
       />
 
+      {/* Amigos - Slide desde derecha */}
+      <Stack.Screen
+        name="friends"
+        options={{
+          animation: 'slide_from_right',
+          animationDuration: 300,
+        }}
+      />
+
       {/* Logros - Slide desde derecha */}
       <Stack.Screen
         name="achievements"

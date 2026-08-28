@@ -68,6 +68,17 @@ export default function ProfileScreen() {
           />
           <View style={styles.divider} />
           <Button
+            title="Amigos"
+            onPress={() => router.push('/friends')}
+            variant="ghost"
+            size="lg"
+            icon="people-outline"
+            iconPosition="left"
+            fullWidth
+            style={styles.menuItem}
+          />
+          <View style={styles.divider} />
+          <Button
             title="Mis Logros"
             onPress={() => router.push('/achievements')}
             variant="ghost"

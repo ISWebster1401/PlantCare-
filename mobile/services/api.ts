@@ -794,3 +794,66 @@ export interface InventoryItem {
   category: string;
   equipped_on_plant_id: number | null;
 }
+
+// ============================================
+// FRIENDS API (fase social)
+// ============================================
+
+export interface Friend {
+  friendship_id: number;
+  user_id: number;
+  full_name: string;
+  email: string | null;
+  current_streak: number;
+  best_streak: number;
+  plants_count: number;
+}
+
+export interface RankingEntry extends Friend {
+  position: number;
+  is_me: boolean;
+}
+
+export const friendsAPI = {
+  /** Amigos aceptados (GET /friends/). */
+  getFriends: async (): Promise<Friend[]> => {
+    const response = await api.get('/friends/');
+    return response.data;
+  },
+
+  /** Invitaciones recibidas sin responder (GET /friends/requests). */
+  getRequests: async (): Promise<Friend[]> => {
+    const response = await api.get('/friends/requests');
+    return response.data;
+  },
+
+  /** Invitaciones enviadas sin responder (GET /friends/sent). */
+  getSent: async (): Promise<Friend[]> => {
+    const response = await api.get('/friends/sent');
+    return response.data;
+  },
+
+  /** Tú y tus amigos por racha (GET /friends/ranking). */
+  getRanking: async (): Promise<RankingEntry[]> => {
+    const response = await api.get('/friends/ranking');
+    return response.data;
+  },
+
+  /** Invita por correo (POST /friends/request). */
+  sendRequest: async (email: string): Promise<{ message: string; status: string }> => {
+    const response = await api.post('/friends/request', { email });
+    return response.data;
+  },
+
+  /** Acepta una invitación (POST /friends/{id}/accept). */
+  accept: async (friendshipId: number): Promise<{ message: string }> => {
+    const response = await api.post(`/friends/${friendshipId}/accept`);
+    return response.data;
+  },
+
+  /** Rechaza una invitación o elimina una amistad (DELETE /friends/{id}). */
+  remove: async (friendshipId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/friends/${friendshipId}`);
+    return response.data;
+  },
+};
