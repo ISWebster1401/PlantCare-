@@ -178,21 +178,15 @@ export interface AdminStats {
 }
 
 export interface UserAdminResponse {
+  // Refleja lo que devuelve GET /admin/users. La versión anterior traía campos
+  // de un esquema de viñedos (first_name, vineyard_name, hectares) que la API
+  // dejó de enviar hace tiempo, así que la pantalla leía undefined.
   id: number;
-  first_name: string;
-  last_name: string;
   email: string;
-  phone?: string | null;
-  region?: string | null;
-  vineyard_name?: string | null;
-  hectares?: number | null;
-  grape_type?: string | null;
-  role_id: number;
-  role_name?: string | null;
-  created_at: string;
-  last_login?: string | null;
-  active: boolean;
-  device_count: number;
+  full_name: string;
+  is_active: boolean;
+  plants_count: number;
+  sensors_count: number;
 }
 
 export interface DeviceAdminResponse {

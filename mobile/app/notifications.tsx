@@ -143,7 +143,7 @@ export default function NotificationsScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={gradients.sunset}
+          colors={gradients.sunset as [string, string]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.header}
@@ -169,7 +169,7 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={gradients.sunset}
+        colors={gradients.sunset as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}

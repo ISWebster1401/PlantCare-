@@ -60,7 +60,6 @@ export default function LoginScreen() {
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'plantcare',
     path: 'oauth',
-    useProxy: false,
   });
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({

@@ -603,6 +603,16 @@ export const adminAPI = {
   },
 
   // Obtener sensor por ID
+  /**
+   * Genera códigos de dispositivo (POST /devices/admin/generate-codes).
+   * Vive en el router de devices, no en el de admin, pero se expone acá porque
+   * es una acción del panel de administración.
+   */
+  generateDeviceCodes: async (batch: DeviceCodeBatch): Promise<DeviceCodeResponse[]> => {
+    const response = await api.post('/devices/admin/generate-codes', batch);
+    return response.data;
+  },
+
   getSensorById: async (sensorId: string): Promise<DeviceAdminResponse> => {
     const response = await api.get(`/admin/sensors/${sensorId}`);
     return response.data;

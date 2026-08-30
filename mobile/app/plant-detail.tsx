@@ -993,7 +993,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     padding: Spacing.md,
   },
   accessoriesTitle: {
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.bold,
     color: colors.text,
   },
@@ -1024,7 +1024,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     borderColor: colors.primary,
   },
   accessoryChipIcon: {
-    fontSize: Typography.sizes.md,
+    fontSize: Typography.sizes.base,
   },
   accessoryChipText: {
     fontSize: Typography.sizes.sm,

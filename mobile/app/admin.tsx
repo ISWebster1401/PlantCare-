@@ -90,8 +90,20 @@ export default function AdminPanelScreen() {
   const loadUsers = async () => {
     try {
       setError(null);
-      const data = await adminAPI.getUsers({ search: userSearch || undefined });
-      setUsers(data);
+      // El endpoint no acepta filtro, así que la búsqueda se aplica acá.
+      // Antes se le pasaba { search } y el servidor lo ignoraba en silencio:
+      // el buscador no filtraba nada.
+      const data = await adminAPI.getUsers();
+      const q = userSearch.trim().toLowerCase();
+      setUsers(
+        q
+          ? data.filter(
+              (u) =>
+                u.email?.toLowerCase().includes(q) ||
+                u.full_name?.toLowerCase().includes(q),
+            )
+          : data,
+      );
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error cargando usuarios');
     }
@@ -133,7 +145,7 @@ export default function AdminPanelScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await adminAPI.toggleUserStatus(userId, !currentStatus);
+              await adminAPI.toggleUserStatus(userId);
               await loadUsers();
             } catch (err: any) {
               Alert.alert('Error', err.response?.data?.detail || 'No se pudo actualizar el usuario');
@@ -255,28 +267,30 @@ export default function AdminPanelScreen() {
           users.map((userItem) => (
             <View key={userItem.id} style={styles.listItem}>
               <View style={styles.listItemContent}>
-                <Text style={styles.listItemTitle}>
-                  {userItem.first_name} {userItem.last_name}
-                </Text>
+                <Text style={styles.listItemTitle}>{userItem.full_name}</Text>
                 <Text style={styles.listItemSubtitle}>{userItem.email}</Text>
                 <View style={styles.listItemBadges}>
-                  <View style={[styles.badge, userItem.active ? styles.badgeActive : styles.badgeInactive]}>
-                    <Text style={styles.badgeText}>{userItem.active ? 'Activo' : 'Inactivo'}</Text>
+                  <View style={[styles.badge, userItem.is_active ? styles.badgeActive : styles.badgeInactive]}>
+                    <Text style={styles.badgeText}>{userItem.is_active ? 'Activo' : 'Inactivo'}</Text>
                   </View>
+                  {/* El badge de rol mostraba "Usuario" para todos porque la API
+                      no envía role_name. Se reemplaza por datos que sí llegan. */}
                   <View style={[styles.badge, styles.badgeRole]}>
-                    <Text style={styles.badgeText}>{userItem.role_name || 'Usuario'}</Text>
+                    <Text style={styles.badgeText}>
+                      {userItem.plants_count} 🌱 · {userItem.sensors_count} 📡
+                    </Text>
                   </View>
                 </View>
               </View>
               <TouchableOpacity
-                onPress={() => toggleUserStatus(userItem.id, userItem.active)}
+                onPress={() => toggleUserStatus(userItem.id, userItem.is_active)}
                 style={[
                   styles.actionButton,
-                  userItem.active ? styles.actionButtonWarning : styles.actionButtonSuccess,
+                  userItem.is_active ? styles.actionButtonWarning : styles.actionButtonSuccess,
                 ]}
               >
                 <Ionicons
-                  name={userItem.active ? 'pause' : 'play'}
+                  name={userItem.is_active ? 'pause' : 'play'}
                   size={20}
                   color={colors.text}
                 />

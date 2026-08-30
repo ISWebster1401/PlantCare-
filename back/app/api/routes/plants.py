@@ -777,6 +777,55 @@ async def list_plants(
         )
 
 
+# OJO: las rutas literales tienen que ir ANTES que las de parametro. FastAPI
+# resuelve en orden de declaracion, y con /{plant_id} declarada primero esta
+# ruta era inalcanzable: /plants/accessories entraba como plant_id.
+@router.get("/accessories")
+async def list_available_accessories(
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Lista todos los accesorios disponibles para personalizar personajes.
+    """
+    try:
+        from datetime import datetime
+        
+        # Filtrar accesorios según temporada
+        month = datetime.now().month
+        available = []
+        
+        for accessory_id, config in AVAILABLE_ACCESSORIES.items():
+            # Si tiene restricción estacional, verificar
+            if config.get("seasonal"):
+                if month in config["seasonal"]:
+                    available.append({
+                        "id": accessory_id,
+                        "name": config["name"],
+                        "description": config["description"],
+                        "seasonal": True
+                    })
+            else:
+                # Disponible todo el año
+                available.append({
+                    "id": accessory_id,
+                    "name": config["name"],
+                    "description": config["description"],
+                    "seasonal": False
+                })
+        
+        return {
+            "accessories": available,
+            "current_month": month
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listando accesorios: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listando accesorios: {str(e)}",
+        )
+
+
 @router.get("/{plant_id}", response_model=PlantResponse)
 async def get_plant(
     plant_id: int,
@@ -1245,50 +1294,6 @@ async def add_accessory_to_plant(
         )
 
 
-@router.get("/accessories")
-async def list_available_accessories(
-    current_user: dict = Depends(get_current_active_user),
-):
-    """
-    Lista todos los accesorios disponibles para personalizar personajes.
-    """
-    try:
-        from datetime import datetime
-        
-        # Filtrar accesorios según temporada
-        month = datetime.now().month
-        available = []
-        
-        for accessory_id, config in AVAILABLE_ACCESSORIES.items():
-            # Si tiene restricción estacional, verificar
-            if config.get("seasonal"):
-                if month in config["seasonal"]:
-                    available.append({
-                        "id": accessory_id,
-                        "name": config["name"],
-                        "description": config["description"],
-                        "seasonal": True
-                    })
-            else:
-                # Disponible todo el año
-                available.append({
-                    "id": accessory_id,
-                    "name": config["name"],
-                    "description": config["description"],
-                    "seasonal": False
-                })
-        
-        return {
-            "accessories": available,
-            "current_month": month
-        }
-        
-    except Exception as e:
-        logger.error(f"Error listando accesorios: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error listando accesorios: {str(e)}",
-        )
 
 
 @router.post("/{plant_id}/upload-render")
@@ -2132,6 +2137,49 @@ async def get_pokedex_entries(
         )
 
 
+# Antes que /pokedex/{entry_number}, si no 'stats' se interpreta como numero.
+@router.get("/pokedex/stats", response_model=dict)
+async def get_pokedex_stats(
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncPgDbToolkit = Depends(get_db),
+):
+    """
+    Obtiene estadísticas de la pokedex del usuario.
+    Retorna: total_plants (100), unlocked_count, locked_count, progress_percentage
+    """
+    try:
+        # Contar total de plantas activas en catálogo
+        total_df = await db.execute_query("""
+            SELECT COUNT(*) as total FROM pokedex_catalog
+            WHERE is_active = TRUE
+        """)
+        total_plants = int(total_df.iloc[0]["total"]) if total_df is not None and not total_df.empty else 0
+
+        # Contar plantas desbloqueadas por el usuario
+        unlocked_df = await db.execute_query("""
+            SELECT COUNT(*) as count FROM pokedex_user_unlocks
+            WHERE user_id = %s
+        """, (current_user["id"],))
+        unlocked_count = int(unlocked_df.iloc[0]["count"]) if unlocked_df is not None and not unlocked_df.empty else 0
+
+        locked_count = total_plants - unlocked_count
+        progress_percentage = (unlocked_count / total_plants * 100) if total_plants > 0 else 0
+
+        return {
+            "total_plants": total_plants,
+            "unlocked_count": unlocked_count,
+            "locked_count": locked_count,
+            "progress_percentage": round(progress_percentage, 1)
+        }
+
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas de pokedex: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo estadísticas de pokedex: {str(e)}",
+        )
+
+
 @router.get("/pokedex/{entry_number}", response_model=PokedexEntryResponse)
 async def get_pokedex_entry(
     entry_number: int,
@@ -2216,43 +2264,3 @@ async def get_pokedex_entry(
         )
 
 
-@router.get("/pokedex/stats", response_model=dict)
-async def get_pokedex_stats(
-    current_user: dict = Depends(get_current_active_user),
-    db: AsyncPgDbToolkit = Depends(get_db),
-):
-    """
-    Obtiene estadísticas de la pokedex del usuario.
-    Retorna: total_plants (100), unlocked_count, locked_count, progress_percentage
-    """
-    try:
-        # Contar total de plantas activas en catálogo
-        total_df = await db.execute_query("""
-            SELECT COUNT(*) as total FROM pokedex_catalog
-            WHERE is_active = TRUE
-        """)
-        total_plants = int(total_df.iloc[0]["total"]) if total_df is not None and not total_df.empty else 0
-
-        # Contar plantas desbloqueadas por el usuario
-        unlocked_df = await db.execute_query("""
-            SELECT COUNT(*) as count FROM pokedex_user_unlocks
-            WHERE user_id = %s
-        """, (current_user["id"],))
-        unlocked_count = int(unlocked_df.iloc[0]["count"]) if unlocked_df is not None and not unlocked_df.empty else 0
-
-        locked_count = total_plants - unlocked_count
-        progress_percentage = (unlocked_count / total_plants * 100) if total_plants > 0 else 0
-
-        return {
-            "total_plants": total_plants,
-            "unlocked_count": unlocked_count,
-            "locked_count": locked_count,
-            "progress_percentage": round(progress_percentage, 1)
-        }
-
-    except Exception as e:
-        logger.error(f"Error obteniendo estadísticas de pokedex: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error obteniendo estadísticas de pokedex: {str(e)}",
-        )

@@ -229,6 +229,10 @@ export default function ScanPokedexScreen() {
 
       case 'results':
         if (!entry) return null;
+        // Los datos de la especie vienen anidados en catalog_entry; leerlos
+        // planos sobre `entry` dejaba todos estos campos en undefined y la
+        // ficha salía vacía.
+        const cat = entry.catalog_entry;
 
         return (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.resultsContent}>
@@ -243,26 +247,26 @@ export default function ScanPokedexScreen() {
               <View style={styles.resultHeader}>
                 <Ionicons name="checkmark-circle" size={32} color={colors.primary} />
                 <View style={styles.resultTitleContainer}>
-                  <Text style={styles.resultTitle}>{entry.plant_type}</Text>
-                  {entry.scientific_name && (
-                    <Text style={styles.resultSubtitle}>{entry.scientific_name}</Text>
+                  <Text style={styles.resultTitle}>{cat.plant_type}</Text>
+                  {cat.scientific_name && (
+                    <Text style={styles.resultSubtitle}>{cat.scientific_name}</Text>
                   )}
                 </View>
               </View>
-              {entry.care_level && (
+              {cat.care_level && (
                 <View style={styles.careLevelBadge}>
-                  <Text style={styles.careLevelText}>Nivel: {entry.care_level}</Text>
+                  <Text style={styles.careLevelText}>Nivel: {cat.care_level}</Text>
                 </View>
               )}
             </View>
 
-            {entry.care_tips && (
+            {cat.care_tips && (
               <View style={styles.resultCard}>
                 <View style={styles.resultCardHeader}>
                   <Ionicons name="bulb" size={24} color={colors.warning} />
                   <Text style={styles.resultCardTitle}>Consejos de cuidado</Text>
                 </View>
-                <Text style={styles.resultText}>{entry.care_tips}</Text>
+                <Text style={styles.resultText}>{cat.care_tips}</Text>
               </View>
             )}
 
@@ -272,19 +276,19 @@ export default function ScanPokedexScreen() {
                 <Text style={styles.resultCardTitle}>Condiciones óptimas</Text>
               </View>
               <View style={styles.conditionsRow}>
-                {entry.optimal_humidity_min && entry.optimal_humidity_max && (
+                {cat.optimal_humidity_min && cat.optimal_humidity_max && (
                   <View style={styles.conditionItem}>
                     <Ionicons name="water" size={20} color={colors.secondary} />
                     <Text style={styles.conditionText}>
-                      {entry.optimal_humidity_min}% - {entry.optimal_humidity_max}%
+                      {cat.optimal_humidity_min}% - {cat.optimal_humidity_max}%
                     </Text>
                   </View>
                 )}
-                {entry.optimal_temp_min && entry.optimal_temp_max && (
+                {cat.optimal_temp_min && cat.optimal_temp_max && (
                   <View style={styles.conditionItem}>
                     <Ionicons name="thermometer" size={20} color={colors.error} />
                     <Text style={styles.conditionText}>
-                      {entry.optimal_temp_min}°C - {entry.optimal_temp_max}°C
+                      {cat.optimal_temp_min}°C - {cat.optimal_temp_max}°C
                     </Text>
                   </View>
                 )}

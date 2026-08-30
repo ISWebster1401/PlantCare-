@@ -405,29 +405,34 @@ async def get_demo_status(
         # Contar dispositivos del usuario
         devices = await get_user_devices(db, current_user["id"])
         
-        # Contar lecturas de hoy
-        today = datetime.now().date()
-        readings_today = await db.execute_query("""
-            SELECT COUNT(*) as count
-            FROM sensor_humedad_suelo s
-            JOIN devices d ON s.device_id = d.id
-            WHERE d.user_id = %s AND DATE(s.fecha) = %s
-        """, (current_user["id"], today))
-        
+        # Estas consultas apuntan a sensor_humedad_suelo y devices, tablas de un
+        # esquema anterior que ya no se crea (hoy son sensors y sensor_readings).
+        # Se aislan para que el endpoint informe lo que sí puede en vez de
+        # devolver un 500, igual que hacen el resto de rutas de dispositivos.
         readings_count = 0
-        if readings_today is not None and not readings_today.empty:
-            readings_count = int(readings_today.iloc[0]["count"])
-        
-        # Última lectura
-        last_reading = await db.execute_query("""
-            SELECT s.fecha, s.valor, d.name as device_name
-            FROM sensor_humedad_suelo s
-            JOIN devices d ON s.device_id = d.id
-            WHERE d.user_id = %s
-            ORDER BY s.fecha DESC
-            LIMIT 1
-        """, (current_user["id"],))
-        
+        last_reading = None
+        today = datetime.now().date()
+        try:
+            readings_today = await db.execute_query("""
+                SELECT COUNT(*) as count
+                FROM sensor_humedad_suelo s
+                JOIN devices d ON s.device_id = d.id
+                WHERE d.user_id = %s AND DATE(s.fecha) = %s
+            """, (current_user["id"], today))
+            if readings_today is not None and not readings_today.empty:
+                readings_count = int(readings_today.iloc[0]["count"])
+
+            last_reading = await db.execute_query("""
+                SELECT s.fecha, s.valor, d.name as device_name
+                FROM sensor_humedad_suelo s
+                JOIN devices d ON s.device_id = d.id
+                WHERE d.user_id = %s
+                ORDER BY s.fecha DESC
+                LIMIT 1
+            """, (current_user["id"],))
+        except Exception as e:
+            logger.warning(f"Lecturas del esquema antiguo no disponibles: {e}")
+
         last_reading_info = None
         if last_reading is not None and not last_reading.empty:
             row = last_reading.iloc[0]
@@ -439,7 +444,9 @@ async def get_demo_status(
         
         return {
             "user": {
-                "name": f"{current_user['first_name']} {current_user['last_name']}",
+                # first_name/last_name se fusionaron en full_name hace tiempo
+                # (hay una migracion para eso en database.py): leerlas tiraba KeyError
+                "name": current_user.get("full_name") or current_user.get("email", "Usuario"),
                 "email": current_user["email"],
                 "role": "Administrador" if current_user.get("role_id") == 2 else "Usuario"
             },
