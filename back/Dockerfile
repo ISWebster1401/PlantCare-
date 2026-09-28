@@ -63,10 +63,15 @@ USER plantcare
 # Exponer puerto (ajustar según tu configuración)
 EXPOSE 8000
 
-# Health check
+# Health check. La ruta es /health: /api/health no existe y marcaba el
+# contenedor como caido aunque la app respondiera bien.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl --fail http://localhost:8000/api/health || exit 1
+    CMD curl --fail http://localhost:${PORT:-8000}/health || exit 1
 
-# Comando por defecto (producción)
-# Para desarrollo, esto se sobrescribe en docker-compose.yml
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Comando por defecto (produccion).
+#
+# Va en forma shell a proposito: los hosts como Railway asignan el puerto por
+# la variable PORT y enrutan el trafico ahi. Con un puerto fijo la app queda
+# escuchando donde nadie la busca y el despliegue falla sin errores visibles.
+# En local no existe PORT y cae a 8000, que es lo que espera docker-compose.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1
