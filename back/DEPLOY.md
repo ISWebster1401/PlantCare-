@@ -14,17 +14,23 @@ Se pegan en la interfaz de Railway (Variables → Raw Editor). Los valores con
 `←` los tienes que completar tú; ninguno debe quedar escrito en el repositorio.
 
 ```
-# Base de datos: Supabase → Project Settings → Database → Connection info
-DB_HOST=db.axahnwmfguujxkelmolu.supabase.co
+# Base de datos: Supabase → botón Connect → pestaña "Session pooler".
+# USAR EL POOLER (IPv4), no la conexión directa. El host directo
+# db.<ref>.supabase.co es IPv6-only desde 2024 y Railway no tiene salida
+# IPv6: la conexión falla al arrancar, init_db() lanza excepción, el proceso
+# muere y el deploy queda en 502 (Online pero sin responder). El pooler es
+# IPv4 y lo resuelve. Copia host/puerto/usuario del botón Connect:
+DB_HOST=aws-0-sa-east-1.pooler.supabase.com   ← cópialo del botón Connect
 DB_PORT=5432
-DB_USER=postgres
+DB_USER=postgres.axahnwmfguujxkelmolu         ← el pooler lleva el project-ref pegado
 DB_DATABASE=postgres
+DB_SSLMODE=require
 DB_PASSWORD=          ← la contraseña que pusiste al crear el proyecto Supabase
 
 # Almacenamiento de fotos y modelos 3D (ya en uso)
 SUPABASE_URL=https://axahnwmfguujxkelmolu.supabase.co
 SUPABASE_KEY=         ← service_role, en Project Settings → API
-SUPABASE_BUCKET=plantcare
+SUPABASE_STORAGE_BUCKET=plantcare
 
 # Identificación de plantas y llamada de voz
 OPENAI_API_KEY=       ← tu clave de OpenAI
@@ -57,6 +63,26 @@ en Project Settings → Database → Reset database password.
 7. **La app móvil**: definir `EXPO_PUBLIC_API_URL=https://api.goplantcare.com/api`.
    Sin esa variable la app deduce la IP de la red local, que es el
    comportamiento correcto para desarrollo.
+
+## Si el deploy responde 502 ("Application failed to respond")
+
+El build pasa y el servicio aparece Online, pero el proxy no alcanza la app.
+Casi siempre es un crash al arrancar: `startup_event` (en `app/main.py`) llama a
+`init_db()` y, si falla, relanza la excepción y el proceso muere.
+
+Causas en orden de probabilidad:
+
+1. **`DB_HOST` apunta a la conexión directa** (`db.<ref>.supabase.co`), que es
+   IPv6-only. Railway no la alcanza. Síntoma en el log: `Network is unreachable`
+   o `could not translate host name`. Solución: usar el Session pooler (arriba).
+2. **Falta o está mal una variable** y la app revienta al leer la config. Revisar
+   que estén todas las de esta guía.
+3. **El puerto**: el `Dockerfile` ya escucha en `${PORT}`, así que esto no debería
+   pasar; si pasara, agregar `PORT=8080` a las variables.
+
+El log está en **Deployments → View logs → Deploy**. Buscar la línea
+`Uvicorn running on http://0.0.0.0:XXXX` (arrancó bien) o el traceback de
+`database_init` (no conectó).
 
 ## Al primer arranque
 
