@@ -27,7 +27,13 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.plantcare.mobile"
+      "package": "com.plantcare.mobile",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -53,6 +59,15 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5eb08ad4-69e9-42cb-9924-90742317bb25"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5eb08ad4-69e9-42cb-9924-90742317bb25"
+    }
   }
 }
