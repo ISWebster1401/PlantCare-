@@ -140,28 +140,33 @@ que se pueda desincronizar.
   (`aqjmqemjfvzgmllceiks`) murió por pausa prolongada; no usarlo.
 - **Dominio** `goplantcare.com` en GoDaddy. El plan es `api.goplantcare.com`
   para el backend.
-- **Railway**: `plantcare-production-af3a.up.railway.app`. Ver estado abajo.
+- **Railway**: `plantcare-production-af3a.up.railway.app`. Backend desplegado y
+  respondiendo (`/health` → `healthy`, base `connected`). Conecta a Supabase por
+  el **Session pooler** (IPv4): `DB_HOST=aws-1-sa-east-1.pooler.supabase.com`,
+  `DB_USER=postgres.axahnwmfguujxkelmolu`. La conexión directa IPv6 no sirve
+  desde Railway.
 - Redis está en `docker-compose` y en el código, pero **ningún endpoint lo
   consulta**. No hace falta desplegarlo.
 
-## Estado al 12 de octubre de 2026
+## Estado al 19 de octubre de 2026
 
 Funcionando en local: escaneo e identificación, personaje 3D con cara y ánimos,
 riego, rachas, 11 logros, tienda con accesorios y colores de ojos, ranking de
 amigos, recordatorios locales, llamada de voz con la planta.
 
-**Bloqueado**: el deploy en Railway responde **502 "Application failed to
-respond"**. El build pasa y el servicio aparece Online, pero el proxy no alcanza
-la app. Las dos causas probables, sin confirmar porque faltan los logs de
-runtime:
-1. El puerto del dominio generado no coincide con donde escucha uvicorn. El
-   `Dockerfile` usa `${PORT:-8000}`; si Railway no inyecta `PORT`, la app queda
-   en 8000 y el dominio apunta a otro puerto. Se arregla agregando `PORT=8080`
-   a las variables.
-2. La app crashea al arrancar por una variable mal pegada.
+**Backend desplegado en Railway y respondiendo** (`/health` → `healthy`). El 502
+que lo tuvo bloqueado tenía dos causas, ya resueltas:
+1. El `Dockerfile` instalaba las dependencias con `pip --user` en `/root/.local`
+   pero corría como usuario no-root `plantcare`, que no puede leer `/root`
+   (permisos 700) → `uvicorn: Permission denied` → crashloop → 502. Se arregló
+   copiando las dependencias a `/home/plantcare/.local` y fijando `HOME`.
+2. La base conectaba por la conexión directa IPv6 de Supabase, inalcanzable
+   desde Railway. Se cambió al **Session pooler** (IPv4). Ver `back/DEPLOY.md`.
 
-Para avanzar hace falta el log de **Deployments → View logs → Deploy** y buscar
-la línea `Uvicorn running on http://0.0.0.0:XXXX`.
+Ojo con el deploy en Railway: si se pushean dos commits muy seguidos puede
+**saltarse** uno (quedó corriendo un commit viejo con el Dockerfile malo). Si un
+fix no toma, revisar que el deploy ACTIVE sea del commit correcto y, si no,
+re-disparar con un push nuevo.
 
 La base de datos ya está migrada a Supabase: 10 usuarios reales, 12 plantas, 9
 modelos 3D, y los riegos, logros, items, rachas y la amistad. Quedaron fuera 100
