@@ -35,8 +35,8 @@
   }
   #name:focus{border-bottom-color:rgba(255,255,255,.25)}
   .edit-hint{font-size:11px; color:var(--muted)}
-  .stage{position:relative; height:290px; margin:6px 0 2px}
-  svg{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); overflow:visible}
+  .stage{position:relative; height:290px; margin:6px 0 2px; display:flex; align-items:center; justify-content:center}
+  svg{overflow:visible}
   .plant{transform-origin:120px 200px; transition:filter .6s ease}
   .mood-happy .plant{animation:sway 3.5s ease-in-out infinite}
   .mood-critical .plant{animation:droop 1s ease forwards; filter:grayscale(.35) brightness(.85)}
