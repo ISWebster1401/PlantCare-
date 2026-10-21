@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PlantCare · Adopta una plantita 🌱</title>
+<meta name="description" content="Riega a tu plantita y mantenla feliz. Si la abandonas, se marchita sola — igual que en PlantCare." />
+<style>
+  :root{
+    --bg1:#0a1929; --bg2:#0d2818;
+    --ink:#e8f5e9; --muted:#9db3a8;
+    --happy:#4ade80; --warning:#facc15; --critical:#b08968;
+    --water:#38bdf8; --pot:#c2703d; --pot2:#9c5a30;
+    --plant:var(--happy);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%, #12324a 0%, var(--bg1) 45%, var(--bg2) 100%);
+    color:var(--ink); min-height:100%;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .card{
+    width:100%; max-width:440px; text-align:center;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+    border-radius:28px; padding:28px 24px 32px; backdrop-filter:blur(8px);
+    box-shadow:0 30px 80px rgba(0,0,0,.45);
+  }
+  .brand{font-size:14px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .name-row{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:4px}
+  #name{
+    background:transparent; border:none; color:var(--ink); font-size:26px; font-weight:800;
+    text-align:center; width:auto; max-width:240px; border-bottom:2px dashed transparent; outline:none;
+  }
+  #name:focus{border-bottom-color:rgba(255,255,255,.25)}
+  .edit-hint{font-size:11px; color:var(--muted)}
+  .stage{position:relative; height:290px; margin:6px 0 2px}
+  svg{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); overflow:visible}
+  .plant{transform-origin:120px 200px; transition:filter .6s ease}
+  .mood-happy .plant{animation:sway 3.5s ease-in-out infinite}
+  .mood-critical .plant{animation:droop 1s ease forwards; filter:grayscale(.35) brightness(.85)}
+  @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+  @keyframes droop{to{transform:rotate(0) translateY(6px)}}
+  .body{transition:fill .8s ease}
+  .watering .plant{animation:bounce .6s ease}
+  @keyframes bounce{0%{transform:scale(1)}35%{transform:scale(1.08,.94)}70%{transform:scale(.97,1.04)}100%{transform:scale(1)}}
+  .drop{position:absolute; top:40px; font-size:22px; animation:fall .9s ease-in forwards; pointer-events:none}
+  @keyframes fall{0%{opacity:0;transform:translateY(-20px)}20%{opacity:1}100%{opacity:0;transform:translateY(150px)}}
+
+  .bar-wrap{height:14px; background:rgba(0,0,0,.3); border-radius:99px; overflow:hidden; margin:8px 0 6px}
+  .bar{height:100%; width:100%; border-radius:99px; background:var(--plant); transition:width .5s ease, background .8s ease}
+  .status{font-size:17px; font-weight:700; min-height:24px}
+  .since{font-size:13px; color:var(--muted); margin-top:2px}
+
+  .water-btn{
+    margin-top:18px; width:100%; padding:16px; font-size:18px; font-weight:800; cursor:pointer;
+    color:#042f2e; background:linear-gradient(180deg,#67e8f9,var(--water)); border:none; border-radius:16px;
+    box-shadow:0 10px 24px rgba(56,189,248,.35); transition:transform .1s ease, box-shadow .2s ease;
+  }
+  .water-btn:active{transform:translateY(2px) scale(.99); box-shadow:0 4px 12px rgba(56,189,248,.3)}
+
+  .stats{display:flex; gap:10px; margin-top:16px}
+  .stat{flex:1; background:rgba(0,0,0,.25); border-radius:14px; padding:10px 6px}
+  .stat b{display:block; font-size:20px}
+  .stat span{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em}
+
+  .cta{margin-top:22px; padding-top:18px; border-top:1px solid rgba(255,255,255,.08)}
+  .cta p{font-size:13px; color:var(--muted); margin-bottom:10px}
+  .cta a{display:inline-block; padding:11px 20px; border-radius:12px; font-weight:700; text-decoration:none;
+    color:var(--ink); border:1px solid rgba(74,222,128,.5); background:rgba(74,222,128,.08)}
+  .foot{margin-top:16px; font-size:11px; color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="brand">🌱 PlantCare</div>
+    <div class="name-row">
+      <input id="name" maxlength="16" value="Pepa" aria-label="Nombre de tu planta" />
+    </div>
+    <div class="edit-hint">↑ tócale el nombre para cambiarlo</div>
+
+    <div class="stage" id="stage">
+      <svg class="plant" width="240" height="280" viewBox="0 0 240 280" aria-hidden="true">
+        <!-- hojas -->
+        <ellipse class="leaf body" cx="78" cy="120" rx="34" ry="18" fill="var(--plant)" transform="rotate(-35 78 120)"/>
+        <ellipse class="leaf body" cx="162" cy="120" rx="34" ry="18" fill="var(--plant)" transform="rotate(35 162 120)"/>
+        <!-- tallo -->
+        <rect x="114" y="120" width="12" height="80" rx="6" fill="#2f9e5a"/>
+        <!-- maceta -->
+        <path d="M78 196 h84 l-12 74 h-60 z" fill="var(--pot)"/>
+        <ellipse cx="120" cy="196" rx="42" ry="10" fill="var(--pot2)"/>
+        <ellipse cx="120" cy="196" rx="34" ry="7" fill="#3d2817"/>
+        <!-- cuerpo con cara -->
+        <circle class="body" cx="120" cy="108" r="54" fill="var(--plant)"/>
+        <!-- ojos -->
+        <g id="eyes">
+          <ellipse cx="102" cy="100" rx="9" ry="11" fill="#0b1f14"/>
+          <ellipse cx="138" cy="100" rx="9" ry="11" fill="#0b1f14"/>
+          <circle cx="105" cy="96" r="3" fill="#fff"/>
+          <circle cx="141" cy="96" r="3" fill="#fff"/>
+        </g>
+        <!-- boca -->
+        <path id="mouth" d="M104 124 Q120 140 136 124" stroke="#0b1f14" stroke-width="4" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+    <div class="status" id="status">¡Feliz y fresca! 🌿</div>
+    <div class="since" id="since">Recién regada</div>
+
+    <button class="water-btn" id="water">💧 Regar a <span id="btnName">Pepa</span></button>
+
+    <div class="stats">
+      <div class="stat"><b id="statWaters">0</b><span>riegos</span></div>
+      <div class="stat"><b id="statDays">0</b><span>días contigo</span></div>
+      <div class="stat"><b id="statHealth">100%</b><span>salud</span></div>
+    </div>
+
+    <div class="cta">
+      <p>Esto es solo una sombra de lo real. En <b>PlantCare</b> tu planta es un personaje 3D, con rachas, logros y ranking entre amigos.</p>
+      <a href="#" id="downloadBtn">Descargar la app (beta) →</a>
+    </div>
+    <div class="foot">Igual que en la app: si no la riegas, se marchita sola con el tiempo. Vuelve mañana 👀</div>
+  </div>
+
+<script>
+(function(){
+  const KEY = 'plantcare_tamagotchi_v1';
+  const DRY_MS = 24 * 60 * 60 * 1000; // 24h de 100% a 0%
+
+  const $ = id => document.getElementById(id);
+  const card=$('card'), bar=$('bar'), status=$('status'), since=$('since'),
+        nameEl=$('name'), btnName=$('btnName'), stage=$('stage'),
+        statWaters=$('statWaters'), statDays=$('statDays'), statHealth=$('statHealth');
+
+  let s = load();
+
+  function load(){
+    try{ const raw = localStorage.getItem(KEY); if(raw) return JSON.parse(raw); }catch(e){}
+    return { lastWatered: Date.now(), totalWaters: 0, born: Date.now(), name: 'Pepa' };
+  }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(s)); }catch(e){} }
+
+  function health(){
+    const elapsed = Date.now() - s.lastWatered;
+    return Math.max(0, Math.min(100, Math.round(100 * (1 - elapsed / DRY_MS))));
+  }
+  function moodOf(h){ return h >= 60 ? 'happy' : h >= 30 ? 'thirsty' : 'critical'; }
+
+  const MSG = {
+    happy:   ['¡Feliz y fresca! 🌿','Gracias por el agua 💚','Creciendo linda 🌱','Me siento genial ✨'],
+    thirsty: ['Mmm... tengo algo de sed 💧','¿Un traguito de agua? 🥺','Me vendría bien regar...'],
+    critical:['¡Me estoy marchitando! 😢','Aguaaa porfa 🥀','No me abandones... 💀','Ayúdame 🆘']
+  };
+  const COLOR = { happy:'var(--happy)', thirsty:'var(--warning)', critical:'var(--critical)' };
+  const MOUTH = {
+    happy:   'M100 122 Q120 144 140 122',
+    thirsty: 'M104 128 Q120 133 136 128',
+    critical:'M104 136 Q120 120 136 136'
+  };
+
+  function ago(ms){
+    const m = Math.floor(ms/60000);
+    if(m < 1) return 'hace un momento';
+    if(m < 60) return 'hace ' + m + ' min';
+    const h = Math.floor(m/60);
+    if(h < 24) return 'hace ' + h + ' h';
+    return 'hace ' + Math.floor(h/24) + ' día(s)';
+  }
+
+  let lastMood = null;
+  function render(){
+    const h = health();
+    const mood = moodOf(h);
+    bar.style.width = h + '%';
+    document.documentElement.style.setProperty('--plant', COLOR[mood]);
+    card.classList.remove('mood-happy','mood-thirsty','mood-critical');
+    card.classList.add('mood-' + mood);
+    $('mouth').setAttribute('d', MOUTH[mood]);
+
+    if(mood !== lastMood){ status.textContent = MSG[mood][Math.floor(Math.random()*MSG[mood].length)]; lastMood = mood; }
+    since.textContent = 'Última agua: ' + ago(Date.now() - s.lastWatered);
+    statWaters.textContent = s.totalWaters;
+    statDays.textContent = Math.max(1, Math.ceil((Date.now() - s.born)/86400000));
+    statHealth.textContent = h + '%';
+  }
+
+  function water(){
+    s.lastWatered = Date.now();
+    s.totalWaters += 1;
+    save();
+    lastMood = null;
+    card.classList.add('watering');
+    setTimeout(()=>card.classList.remove('watering'), 600);
+    for(let i=0;i<5;i++){
+      const d = document.createElement('div');
+      d.className='drop'; d.textContent='💧';
+      d.style.left = (40 + Math.random()*160) + 'px';
+      d.style.animationDelay = (i*0.07) + 's';
+      stage.appendChild(d);
+      setTimeout(()=>d.remove(), 1100);
+    }
+    render();
+  }
+
+  // Nombre editable
+  function applyName(){ const n = (nameEl.value || 'Pepa').trim() || 'Pepa'; s.name = n; btnName.textContent = n; save(); }
+  nameEl.value = s.name || 'Pepa';
+  btnName.textContent = s.name || 'Pepa';
+  nameEl.addEventListener('input', applyName);
+  nameEl.addEventListener('blur', ()=>{ if(!nameEl.value.trim()){ nameEl.value='Pepa'; applyName(); } });
+
+  $('water').addEventListener('click', water);
+
+  render();
+  setInterval(render, 1000);
+})();
+</script>
+</body>
+</html>
