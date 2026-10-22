@@ -32,6 +32,7 @@ Si alguien pide clonar el proyecto, clonar a `~/dev/`, nunca a `~/Documents`.
 |---|---|
 | `back/` | API FastAPI + pgdbtoolkit. Lo único que se mantiene activo |
 | `mobile/` | La app: Expo SDK 54 / React Native, se prueba en Expo Go en iPhone |
+| `web/` | Landing "tamagotchi": una plantita que se marchita sola y revive al regarla. Estática (un `index.html`), desplegada en Vercel como `goplantcare.com` |
 | `front-react/`, `front/` | Webs antiguas, sin mantención |
 | `tools/` | Utilidades sueltas |
 
@@ -138,8 +139,13 @@ que se pueda desincronizar.
 - **Supabase** `PlantCare-v2` (`axahnwmfguujxkelmolu`, `sa-east-1`): base de
   datos, fotos de plantas y modelos 3D. Plan gratis. El proyecto viejo
   (`aqjmqemjfvzgmllceiks`) murió por pausa prolongada; no usarlo.
-- **Dominio** `goplantcare.com` en GoDaddy. El plan es `api.goplantcare.com`
-  para el backend.
+- **Dominio** `goplantcare.com` en GoDaddy (DNS gestionado ahí). El apex (`A @`)
+  y `www` (CNAME) apuntan a **Vercel**, que sirve la landing. Pendiente:
+  `api.goplantcare.com` → Railway (CNAME) para el backend.
+- **Vercel**: proyecto `plantcare-web` (team `team_vXU9rhr9pYDQDRQ36eOLwK9h`),
+  conectado a este repo con **Root Directory `web/`**. Sirve `goplantcare.com`;
+  **auto-deploy al pushear a `main`**. SSL automático (se forzó con `issue_cert`
+  la primera vez porque se demoraba).
 - **Railway**: `plantcare-production-af3a.up.railway.app`. Backend desplegado y
   respondiendo (`/health` → `healthy`, base `connected`). Conecta a Supabase por
   el **Session pooler** (IPv4): `DB_HOST=aws-1-sa-east-1.pooler.supabase.com`,
