@@ -360,11 +360,14 @@ async def _create_tables(db: AsyncPgDbToolkit):
                 ON pokedex_catalog(plant_type, scientific_name)
             """)
             logger.info("✅ Tabla pokedex_catalog creada exitosamente")
-            
-            # Insertar las 100 plantas predefinidas
-            await _seed_pokedex_catalog(db)
         else:
             logger.info("✅ Tabla pokedex_catalog ya existe")
+
+        # Sembrar el catálogo SIEMPRE, no solo al crear la tabla. _seed_pokedex_catalog
+        # es idempotente (se auto-omite si ya hay filas), así que es seguro. Va fuera del
+        # if porque si la tabla existe pero quedó vacía —p.ej. se migró el esquema sin el
+        # catálogo, que lo siembra el backend— igual hay que llenarla con las 100 plantas.
+        await _seed_pokedex_catalog(db)
         
         # ============================================
         # PASO 6: CREAR TABLA POKEDEX_USER_UNLOCKS (plantas desbloqueadas por usuario)
