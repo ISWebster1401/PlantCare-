@@ -143,9 +143,10 @@ que se pueda desincronizar.
   y `www` (CNAME) apuntan a **Vercel**, que sirve la landing. Pendiente:
   `api.goplantcare.com` → Railway (CNAME) para el backend.
 - **Vercel**: proyecto `plantcare-web` (team `team_vXU9rhr9pYDQDRQ36eOLwK9h`),
-  conectado a este repo con **Root Directory `web/`**. Sirve `goplantcare.com`;
-  **auto-deploy al pushear a `main`**. SSL automático (se forzó con `issue_cert`
-  la primera vez porque se demoraba).
+  Root Directory `web/`. Sirve `goplantcare.com`. **No tiene auto-deploy**: el
+  repo no quedó conectado, así que un push no publica nada. Tras cambiar `web/`
+  hay que crear un deployment de producción a mano desde `main` (se ha hecho con
+  el MCP de Vercel, `create_deployment` con `gitSource`). SSL automático.
 - **Railway**: `plantcare-production-af3a.up.railway.app`. Backend desplegado y
   respondiendo (`/health` → `healthy`, base `connected`). Conecta a Supabase por
   el **Session pooler** (IPv4): `DB_HOST=aws-1-sa-east-1.pooler.supabase.com`,
