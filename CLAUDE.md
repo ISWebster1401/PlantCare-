@@ -183,6 +183,17 @@ Pendiente tras el primer arranque contra Supabase: 7 filas de
 `pokedex_user_unlocks`, documentadas en `back/DEPLOY.md`, que no se pudieron
 migrar antes porque referencian el catálogo que siembra el backend.
 
+## Publicación en App Store (noviembre de 2026)
+
+La app está adaptada a la revisión de Apple; los pasos manuales y los textos de
+la ficha están en `mobile/APP_STORE.md`. Cosas que no hay que deshacer:
+- No hay login de Google (obligaría a ofrecer "Sign in with Apple").
+- El registro entra directo, sin pantalla de código de correo.
+- `DELETE /auth/me` borra la cuenta de verdad (cascade + fotos del storage).
+- Antes del primer uso de IA se pide consentimiento (`mobile/services/aiConsent.ts`).
+- La pestaña Dispositivos está oculta (`href: null`) hasta que exista el sensor.
+- Las páginas legales viven en `web/` (`/privacidad`, `/terminos`, `/soporte`).
+
 ## Al trabajar en este repositorio
 
 Sebastián pidió **commitear y pushear cada cambio a `origin main`**, sin

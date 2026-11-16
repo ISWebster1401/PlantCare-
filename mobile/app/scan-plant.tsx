@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { plantsAPI } from '../services/api';
+import { ensureAIConsent } from '../services/aiConsent';
 import { PlantIdentify, PlantResponse } from '../types';
 import { SpeciesSelector } from '../components/SpeciesSelector';
 import { Model3DViewer } from '../components/Model3DViewer';
@@ -162,6 +163,10 @@ export default function ScanPlantScreen() {
   };
 
   const identifyPlant = async (imageUri: string) => {
+    if (!(await ensureAIConsent())) {
+      setStep('photo');
+      return;
+    }
     setIsLoading(true);
     try {
       const file = {

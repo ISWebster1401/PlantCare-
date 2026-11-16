@@ -14,23 +14,14 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { LoginCredentials } from '../../types';
-import { Config } from '../../constants/Config';
 import { Button, Card, Emoji } from '../../components/ui';
 import { Typography, Spacing, BorderRadius } from '../../constants/DesignSystem';
 import { useTheme, useThemeColors, useThemeGradients } from '../../context/ThemeContext';
-
-const isStandalone = Constants.executionEnvironment === 'standalone' || Constants.executionEnvironment === 'storeClient';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -38,9 +29,8 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
-  const { login, loginWithGoogle } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
   const { isDark, toggleTheme } = useTheme();
   const colors = useThemeColors();
@@ -55,80 +45,6 @@ export default function LoginScreen() {
   const handleToggleTheme = () => {
     rotation.value = withSpring(rotation.value + 180);
     toggleTheme();
-  };
-
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: 'plantcare',
-    path: 'oauth',
-  });
-
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: Config.GOOGLE_CLIENT_ID,
-    redirectUri,
-  });
-
-  React.useEffect(() => {
-    console.log('[AUTH] Google Auth Config:');
-    console.log('  Client ID:', Config.GOOGLE_CLIENT_ID ? 'Configured' : 'Not configured');
-    console.log('  Redirect URI:', redirectUri);
-    if (request) {
-      console.log('  Request: Ready');
-    } else {
-      console.log('  Request: Loading...');
-    }
-  }, [request, redirectUri]);
-
-  const handleGoogleLogin = React.useCallback(async (idToken: string) => {
-    if (!Config.GOOGLE_CLIENT_ID) {
-      Alert.alert('Error', 'Google Sign-In no está configurado');
-      return;
-    }
-
-    setGoogleLoading(true);
-    try {
-      await loginWithGoogle(idToken);
-      router.replace('/(tabs)');
-    } catch (error: any) {
-      Alert.alert('Error de inicio de sesión', error.message || 'No se pudo iniciar sesión con Google');
-    } finally {
-      setGoogleLoading(false);
-    }
-  }, [loginWithGoogle, router]);
-
-  React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      if (id_token) {
-        handleGoogleLogin(id_token);
-      }
-    } else if (response?.type === 'error') {
-      setGoogleLoading(false);
-      const errorMessage = response.error?.message || 'No se pudo autenticar con Google';
-      Alert.alert('Error', errorMessage);
-      console.error('Google Auth Error:', response.error);
-    }
-  }, [response, handleGoogleLogin]);
-
-  const handleGooglePress = async () => {
-    if (!Config.GOOGLE_CLIENT_ID) {
-      Alert.alert('Error', 'Google Sign-In no está configurado');
-      return;
-    }
-    if (!request) {
-      Alert.alert('Error', 'Google Sign-In aún no está listo. Por favor espera un momento.');
-      return;
-    }
-    setGoogleLoading(true);
-    try {
-      const result = await promptAsync();
-      if (result.type === 'dismiss') {
-        setGoogleLoading(false);
-      }
-    } catch (error: any) {
-      setGoogleLoading(false);
-      Alert.alert('Error', 'No se pudo abrir la autenticación de Google');
-      console.error('Prompt error:', error);
-    }
   };
 
   const handleLogin = async () => {
@@ -202,7 +118,7 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={styles.switchTab}
               onPress={() => router.replace('/(auth)/register')}
-              disabled={isLoading || googleLoading}
+              disabled={isLoading}
             >
               <Text style={[styles.switchTabText, { color: colors.textSecondary }]}>Crear Cuenta</Text>
             </TouchableOpacity>
@@ -221,7 +137,7 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!isLoading && !googleLoading}
+                  editable={!isLoading}
                 />
               </View>
 
@@ -234,7 +150,7 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
-                  editable={!isLoading && !googleLoading}
+                  editable={!isLoading}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword((prev) => !prev)}
@@ -254,7 +170,7 @@ export default function LoginScreen() {
                   onPress={() => setRememberMe(!rememberMe)}
                   style={styles.rememberMeButton}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  disabled={isLoading || googleLoading}
+                  disabled={isLoading}
                 >
                   <Ionicons
                     name={rememberMe ? 'checkbox' : 'checkbox-outline'}
@@ -271,32 +187,11 @@ export default function LoginScreen() {
                 variant="primary"
                 size="lg"
                 loading={isLoading}
-                disabled={isLoading || googleLoading}
+                disabled={isLoading}
                 fullWidth
                 style={styles.loginButton}
               />
 
-              {Config.GOOGLE_CLIENT_ID && isStandalone && (
-                <>
-                  <View style={styles.divider}>
-                    <View style={[styles.dividerLine, { backgroundColor: colors.backgroundLighter }]} />
-                    <Text style={[styles.dividerText, { color: colors.textMuted }]}>ó</Text>
-                    <View style={[styles.dividerLine, { backgroundColor: colors.backgroundLighter }]} />
-                  </View>
-
-                  <Button
-                    title="Continuar con Google"
-                    onPress={handleGooglePress}
-                    variant="secondary"
-                    size="lg"
-                    loading={googleLoading}
-                    disabled={isLoading || googleLoading || !request}
-                    icon="logo-google"
-                    iconPosition="left"
-                    fullWidth
-                  />
-                </>
-              )}
             </View>
           </Card>
         </View>

@@ -17,6 +17,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { pokedexAPI } from '../services/api';
+import { ensureAIConsent } from '../services/aiConsent';
 import { PokedexEntryResponse } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 import { PlantSpeciesAutocomplete } from '../components/PlantSpeciesAutocomplete';
@@ -115,6 +116,10 @@ export default function ScanPokedexScreen() {
   };
 
   const scanPlant = async (imageUri: string) => {
+    if (!(await ensureAIConsent())) {
+      setStep('photo');
+      return;
+    }
     setIsLoading(true);
     try {
       const file = {

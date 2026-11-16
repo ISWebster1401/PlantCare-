@@ -73,6 +73,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="sensors"
         options={{
+          // Oculta hasta que exista el sensor físico: una pestaña que solo dice
+          // "Próximamente" es motivo de rechazo en la revisión de Apple (guía 2.1).
+          href: null,
           title: 'Dispositivos',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="hardware-chip" size={size} color={color} />

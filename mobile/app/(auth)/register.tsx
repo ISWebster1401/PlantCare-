@@ -14,6 +14,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import { Legal } from '../../constants/Legal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -35,7 +37,7 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { register } = useAuth();
+  const { register, login } = useAuth();
   const router = useRouter();
   const { isDark, toggleTheme } = useTheme();
   const colors = useThemeColors();
@@ -91,20 +93,17 @@ export default function RegisterScreen() {
     setIsLoading(true);
     try {
       await register(formData);
-      Alert.alert(
-        'Registro exitoso',
-        'Tu cuenta ha sido creada. Te enviamos un código de verificación a tu correo.',
-        [
-          {
-            text: 'Verificar correo',
-            onPress: () =>
-              router.replace({
-                pathname: '/(auth)/verify-email',
-                params: { email: formData.email },
-              }),
-          },
-        ]
-      );
+      // Se entra directo tras crear la cuenta: el backend no exige verificar el
+      // correo para iniciar sesión, y dejar al usuario esperando un código que
+      // puede no llegar es un callejón sin salida.
+      try {
+        await login({ email: formData.email.trim(), password: formData.password, remember_me: true });
+        router.replace('/(tabs)');
+      } catch {
+        Alert.alert('Cuenta creada', 'Tu cuenta fue creada. Inicia sesión para continuar.', [
+          { text: 'Iniciar sesión', onPress: () => router.replace('/(auth)/login') },
+        ]);
+      }
     } catch (error: any) {
       Alert.alert('Error de registro', error.message || 'No se pudo crear la cuenta');
     } finally {
@@ -253,6 +252,18 @@ export default function RegisterScreen() {
                 fullWidth
                 style={styles.registerButton}
               />
+
+              <Text style={[styles.legalText, { color: colors.textMuted }]}>
+                Al crear tu cuenta aceptas los{' '}
+                <Text style={{ color: colors.primary }} onPress={() => WebBrowser.openBrowserAsync(Legal.TERMS_URL)}>
+                  Términos de uso
+                </Text>{' '}
+                y la{' '}
+                <Text style={{ color: colors.primary }} onPress={() => WebBrowser.openBrowserAsync(Legal.PRIVACY_URL)}>
+                  Política de privacidad
+                </Text>
+                .
+              </Text>
             </View>
           </Card>
         </View>
@@ -349,6 +360,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     passwordEyeButton: {
       marginLeft: Spacing.xs,
+    },
+    legalText: {
+      fontSize: Typography.sizes.xs,
+      textAlign: 'center',
+      marginTop: Spacing.md,
+      lineHeight: 18,
     },
     registerButton: {
       marginTop: Spacing.md,

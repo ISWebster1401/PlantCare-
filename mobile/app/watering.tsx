@@ -370,7 +370,7 @@ export default function WateringScreen() {
           <View style={styles.noSensorBox}>
             <Ionicons name="hardware-chip-outline" size={24} color={colors.accent} />
             <Text style={styles.noSensorText}>
-              Riego manual: se registrará en tu historial y cuenta para tu racha. Asigna un sensor desde Dispositivos para seguir la humedad en tiempo real.
+              Riego manual: se registrará en tu historial y cuenta para tu racha.
             </Text>
           </View>
         )}

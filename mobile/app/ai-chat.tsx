@@ -33,6 +33,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { aiAPI, plantsAPI } from '../services/api';
+import { ensureAIConsent } from '../services/aiConsent';
 import { PlantResponse } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -401,6 +402,7 @@ export default function AIChatScreen() {
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading || isStreaming) return;
+    if (!(await ensureAIConsent())) return;
 
     let conversationId = activeConversationId;
     const messageText = inputMessage.trim();

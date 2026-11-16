@@ -10,8 +10,10 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from '../components/ui';
@@ -27,7 +29,9 @@ import {
   DEFAULT_PREFS,
   type ReminderPrefs,
 } from '../services/notifications';
-import { plantsAPI } from '../services/api';
+import { plantsAPI, authAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { Legal } from '../constants/Legal';
 
 /** Horas ofrecidas para el recordatorio. */
 const HOURS = [8, 9, 12, 19, 21];
@@ -41,6 +45,37 @@ export default function SettingsScreen() {
 
   const [reminder, setReminder] = useState<ReminderPrefs>(DEFAULT_PREFS);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { logout } = useAuth();
+
+  // Apple exige poder eliminar la cuenta desde dentro de la app (guía 5.1.1(v)).
+  const deleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await authAPI.deleteAccount();
+      await cancelWateringReminder().catch(() => {});
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error: any) {
+      Alert.alert(
+        'No se pudo eliminar',
+        error.response?.data?.detail || 'Revisa tu conexión e inténtalo de nuevo.',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Eliminar cuenta',
+      'Se borrarán para siempre tu perfil, plantas, fotos, conversaciones, logros y amistades. Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar definitivamente', style: 'destructive', onPress: deleteAccount },
+      ],
+    );
+  };
 
   useEffect(() => {
     getPrefs().then(setReminder);
@@ -210,32 +245,51 @@ export default function SettingsScreen() {
             <Text style={styles.sectionTitle}>Información</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => {}}
-            activeOpacity={0.85}
-          >
-            <View style={styles.infoItemLeft}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
+          {[
+            { label: 'Política de privacidad', icon: 'shield-checkmark-outline' as const, url: Legal.PRIVACY_URL },
+            { label: 'Términos de uso', icon: 'document-text-outline' as const, url: Legal.TERMS_URL },
+            { label: 'Ayuda y soporte', icon: 'help-circle-outline' as const, url: Legal.SUPPORT_URL },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.label}
+              style={styles.infoItem}
+              onPress={() => WebBrowser.openBrowserAsync(item.url)}
+              activeOpacity={0.85}
+            >
+              <View style={styles.infoItemLeft}>
+                <View style={styles.infoIcon}>
+                  <Ionicons name={item.icon} size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.infoLabel}>{item.label}</Text>
               </View>
-              <Text style={styles.infoLabel}>Acerca de</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </Card>
 
+        <Card variant="elevated" style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="person-remove-outline" size={24} color={colors.secondary} />
+            <Text style={styles.sectionTitle}>Cuenta</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Eliminar tu cuenta borra de forma permanente tu perfil, tus plantas, fotos,
+            conversaciones, logros y amistades. No se puede deshacer.
+          </Text>
           <TouchableOpacity
-            style={styles.infoItem}
-            onPress={() => {}}
-            activeOpacity={0.85}
+            style={styles.deleteButton}
+            onPress={confirmDeleteAccount}
+            disabled={deleting}
+            activeOpacity={0.8}
           >
-            <View style={styles.infoItemLeft}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="help-circle-outline" size={20} color={colors.primary} />
-              </View>
-              <Text style={styles.infoLabel}>Ayuda</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            {deleting ? (
+              <ActivityIndicator color="#D64545" />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={18} color="#D64545" />
+                <Text style={styles.deleteButtonText}>Eliminar mi cuenta</Text>
+              </>
+            )}
           </TouchableOpacity>
         </Card>
       </ScrollView>
@@ -360,6 +414,21 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: Typography.sizes.sm,
       fontWeight: '600',
       marginTop: Spacing.xs,
+    },
+    deleteButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      minHeight: 48,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: '#D64545',
+    },
+    deleteButtonText: {
+      fontSize: Typography.sizes.sm,
+      color: '#D64545',
+      fontWeight: Typography.weights.semibold,
     },
     infoItem: {
       flexDirection: 'row',

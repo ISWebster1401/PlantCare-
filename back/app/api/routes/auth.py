@@ -9,7 +9,7 @@ from app.api.schemas.user import (
     EmailChangeRequest, EmailChangeConfirm, ResendCodeRequest
 )
 from app.db.queries import (
-    get_user_by_email, get_user_by_id, update_user_password, update_user, deactivate_user,
+    get_user_by_email, get_user_by_id, update_user_password, update_user, deactivate_user, delete_user_permanently,
     create_email_verification_token, get_verification_token, mark_email_verified,
     create_email_verification_code, verify_email_with_code,
     create_email_change_request, confirm_email_change
@@ -542,32 +542,24 @@ async def delete_account(
     db: AsyncPgDbToolkit = Depends(get_db)
 ):
     """
-    Elimina la cuenta del usuario actual (desactivación)
-    
-    Args:
-        current_user: Usuario actual obtenido del token
-        db: Conexión a la base de datos
-        
-    Returns:
-        dict: Mensaje de confirmación
+    Elimina de forma permanente la cuenta del usuario actual y todos sus datos.
     """
     try:
-        # Desactivar el usuario en lugar de eliminarlo completamente
-        success = await deactivate_user(db, current_user["id"])
-        
+        success = await delete_user_permanently(db, current_user["id"])
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="No se pudo eliminar la cuenta"
             )
-        
-        logger.info(f"Cuenta eliminada (desactivada): {current_user['email']}")
-        
+
+        logger.info(f"Cuenta eliminada definitivamente: id={current_user['id']}")
+
         return {
             "message": "Cuenta eliminada exitosamente",
-            "detail": "Tu cuenta ha sido desactivada. Contacta al soporte si deseas reactivarla."
+            "detail": "Tu cuenta y tus datos fueron eliminados de forma permanente."
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

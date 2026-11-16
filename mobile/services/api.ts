@@ -163,6 +163,12 @@ export const authAPI = {
     return response.data;
   },
 
+  /** Elimina la cuenta y todos sus datos de forma permanente. */
+  deleteAccount: async (): Promise<{ message: string }> => {
+    const response = await api.delete('/auth/me');
+    return response.data;
+  },
+
   loginWithGoogle: async (credential: string): Promise<AuthResponse> => {
     const response = await api.post('/auth/google', { credential });
     return response.data;

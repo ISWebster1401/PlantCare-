@@ -97,14 +97,8 @@ export default function HomeScreen() {
             onPress={() => router.push('/(tabs)/garden')}
             style={styles.statCard}
           />
-          <StatCard
-            icon="hardware-chip"
-            value={activeSensors}
-            label="Sensores"
-            color={colors.secondary}
-            onPress={() => router.push('/(tabs)/sensors')}
-            style={styles.statCard}
-          />
+          {/* La tarjeta de sensores vuelve cuando exista el sensor físico
+              (la pestaña Dispositivos está oculta mientras tanto). */}
         </View>
 
         {/* Acciones rápidas */}

@@ -321,6 +321,80 @@ async def deactivate_user(db, user_id: int) -> bool:
         logger.error(f"Error desactivando usuario: {str(e)}")
         return False
 
+async def delete_user_permanently(db, user_id: int) -> bool:
+    """
+    Elimina de forma permanente la cuenta y todos sus datos.
+
+    Apple (guía 5.1.1(v)) exige borrado real, no solo desactivar. Las tablas que
+    cuelgan de users tienen ON DELETE CASCADE, así que borrar la fila se lleva
+    plantas, riegos, logros, items, rachas, amistades y conversaciones. Las fotos
+    que subió el usuario viven en Supabase Storage y se borran aparte.
+
+    Si el DELETE falla (p.ej. una FK sin cascade en una base antigua), se
+    anonimiza la fila: así los datos personales desaparecen igual.
+    """
+    from urllib.parse import urlparse
+
+    # 1) Juntar las fotos subidas por el usuario ANTES de borrar las filas.
+    photo_urls = []
+    photo_queries = [
+        "SELECT original_photo_url AS url FROM plants WHERE user_id = %s",
+        "SELECT original_photo_url AS url FROM plant_pokedex WHERE user_id = %s",
+        "SELECT discovered_photo_url AS url FROM pokedex_user_unlocks WHERE user_id = %s",
+        "SELECT pp.photo_url AS url FROM plant_photos pp JOIN plants p ON p.id = pp.plant_id WHERE p.user_id = %s",
+    ]
+    for q in photo_queries:
+        try:
+            df = await db.execute_query(q, (user_id,))
+            if df is not None and not df.empty:
+                photo_urls.extend(u for u in df["url"].tolist() if isinstance(u, str) and u)
+        except Exception as e:
+            logger.warning(f"No se pudieron listar fotos para borrar ({q[:40]}...): {e}")
+
+    # 2) Borrar la cuenta (cascade). Se comprueba que la fila realmente se fue,
+    #    sin fiarse de que el DELETE lance excepción; si sigue ahí, se anonimiza.
+    try:
+        await db.execute_query("DELETE FROM users WHERE id = %s", (user_id,))
+    except Exception as e:
+        logger.error(f"DELETE de usuario {user_id} falló: {e}")
+
+    still_there = True
+    try:
+        df = await db.execute_query("SELECT id FROM users WHERE id = %s", (user_id,))
+        still_there = df is not None and not df.empty
+    except Exception as e:
+        logger.error(f"No se pudo comprobar el borrado del usuario {user_id}: {e}")
+
+    if still_there:
+        try:
+            await db.execute_query(
+                """
+                UPDATE users
+                SET email = %s, full_name = NULL, hashed_password = %s,
+                    is_active = false, is_verified = false
+                WHERE id = %s
+                """,
+                (f"deleted_{user_id}@deleted.invalid", secrets.token_urlsafe(32), user_id),
+            )
+        except Exception as e2:
+            logger.error(f"Tampoco se pudo anonimizar el usuario {user_id}: {e2}")
+            return False
+
+    # 3) Borrar las fotos del storage. Es best-effort: la cuenta ya no existe.
+    try:
+        from app.api.core.supabase_storage import delete_image
+        from app.api.core.config import settings
+        bucket = settings.SUPABASE_STORAGE_BUCKET or "plantcare"
+        marker = f"/object/public/{bucket}/"
+        for url in set(photo_urls):
+            path = urlparse(url).path
+            if marker in path:
+                delete_image(path.split(marker, 1)[1])
+    except Exception as e:
+        logger.warning(f"Fotos del usuario {user_id} no se pudieron borrar del storage: {e}")
+
+    return True
+
 async def activate_user(db, user_id: int) -> bool:
     """
     Activa un usuario usando pgdbtoolkit

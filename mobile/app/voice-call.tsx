@@ -32,6 +32,7 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { aiAPI, plantsAPI } from '../services/api';
+import { ensureAIConsent } from '../services/aiConsent';
 import { Typography, Spacing } from '../constants/DesignSystem';
 import { useThemeColors } from '../context/ThemeContext';
 import { Model3DViewer } from '../components/Model3DViewer';
@@ -512,6 +513,7 @@ export default function VoiceCallScreen() {
   }, [playAllAudioTogether, stopListening]);
 
   const startCall = async () => {
+    if (!(await ensureAIConsent())) return;
     setErrorMessage(null);
     setStatus('connecting');
     setCallDuration(0);
